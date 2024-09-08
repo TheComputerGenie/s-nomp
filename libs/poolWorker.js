@@ -135,19 +135,23 @@ module.exports = function(logger){
             var shareProcessor = new ShareProcessor(logger, poolOptions);
 
             handlers.auth = function(port, workerName, password, authCallback){
-                if (poolOptions.validateWorkerUsername !== true)
-                    authCallback(true);
-                else {
-                        //Validation of Public and Identity addresses
-                        var isvalid = WAValidator.validate(String(workerName).split(".")[0], 'VRSC');
+                if (poolOptions.bannedAddresses.banned.indexOf(workerName) !== -1 && poolOptions.bannedAddresses.enabled == true) {
+                    //Banned addresses return false if that option is enabled
+                    isvalid = false;
+                } else if (poolOptions.validateWorkerUsername !== true) {
+                    //Addresses are not checked for validity
+                    isvalid = true;
+                } else {
+                    //Validation of Public and Identity addresses
+                    var isvalid = WAValidator.validate(String(workerName).split(".")[0], 'VRSC');
 /*
-                        //Validation of sapling addreses (disabled until paymentProcessor.js can handle sapling payments)
-                        if(isvalid !== true){
-                            var isvalid = WAValidator.validate(String(address).split(".")[0], 'VRSC', 'sapling');
-                        }
-*/
-                        authCallback(isvalid);
+                    //Validation of sapling addreses (disabled until paymentProcessor.js can handle sapling payments)
+                    if(isvalid !== true){
+                        var isvalid = WAValidator.validate(String(address).split(".")[0], 'VRSC', 'sapling');
                     }
+*/
+                }
+                authCallback(isvalid);
             };
 
             handlers.share = function(isValidShare, isValidBlock, data){
