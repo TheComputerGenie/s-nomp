@@ -9,6 +9,14 @@ var listener = module.exports = function listener(server, port){
         _this.emit('log', text);
     };
 
+    function isJson(str) {
+        try {
+            JSON.parse(str);
+        } catch (e) {
+            return false;
+        }
+        return true;
+    }
 
     this.start = function(){
         net.createServer(function(c) {
@@ -16,12 +24,17 @@ var listener = module.exports = function listener(server, port){
             var data = '';
             try {
                 c.on('data', function (d) {
-                    data += d;
-                    if (data.slice(-1) === '\n') {
-                        var message = JSON.parse(data);
-                        _this.emit('command', message.command, message.params, message.options, function(message){
-                            c.end(message);
-                        });
+                    if (isJson(d.toString())) {
+                        data += d;
+                        if (data.slice(-1) === '\n') {
+                            var message = JSON.parse(data);
+                            _this.emit('command', message.command, message.params, message.options, function(message){
+                                c.end(message);
+                            });
+                        }
+                    } else {
+                        c.end('You must send JSON, not: '+d.toString());
+                        return;
                     }
                 });
                 c.on('end', function () {
