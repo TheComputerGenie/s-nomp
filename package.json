@@ -63,9 +63,7 @@
         "bignum": "github:mtl1979/node-bignum#dccf7b7",
         "bitgo-utxo-lib": "github:TheComputerGenie/bitgo-utxo-lib#verus",
         "body-parser": "^1.20.3",
-        "colors": "^1.3.2",
         "compression": "^1.7.3",
-        "dateformat": "^3.0.3",
         "dot": "^1.1.3",
         "express": "^4.21.1",
         "extend": "^3.0.2",
@@ -74,8 +72,10 @@
         "node-watch": "^0.5.8",
         "nonce": "^1.0.4",
         "redis": "^3.1.0",
+        "mime-db": "1.53.0",
         "request": "github:cypress-io/request",
         "stratum-pool": "github:TheComputerGenie/node-stratum-pool#verus",
+        "string_decoder": "1.3.0",
         "wallet-address-validator": "github:TheComputerGenie/wallet-address-validator.git#zcash_sapling",
         "equihashverify": "github:TheComputerGenie/equihashverify",
         "verushash": "github:TheComputerGenie/verushash-node",
@@ -87,7 +87,9 @@
         },
         "request": {
             "tough-cookie": "5.0.0"
-        }
+        },
+        "string_decoder": "$string_decoder",
+        "mime-db": "$mime-db"
     },
     "engines": {
         "node": ">=20.0"

@@ -1,20 +1,29 @@
-var dateFormat = require('dateformat');
-var colors = require('colors');
+Reset = "\x1b[0m"
+Underscore = "\x1b[4m"
+Bright = "\x1b[1m"
+Ital = "\x1b[3m"
+Dim = "\x1b[2m"
+FgRed = "\x1b[31m"
+FgGreen = "\x1b[32m"
+FgYellow = "\x1b[33m"
+FgBlue = "\x1b[34m"
+FgCyan = "\x1b[36m"
+FgWhite = "\x1b[37m"
+FgGray = "\x1b[90m"
 
-
-var severityToColor = function(severity, text) {
+var severityToColor = function(severity) {
     switch(severity) {
         case 'special':
-            return text.cyan.underline;
+            return Underscore+FgCyan;
         case 'debug':
-            return text.green;
+            return FgGreen;
         case 'warning':
-            return text.yellow;
+            return FgYellow;
         case 'error':
-            return text.red;
+            return FgRed;
         default:
             console.log("Unknown severity " + severity);
-            return text.italic;
+            return FgBlue;
     }
 };
 
@@ -25,15 +34,21 @@ var severityValues = {
     'special': 4
 };
 
+function timestamp() {
+    var date = new Date;
+    var timestamp = "20" + ("0" + (date.getYear())).slice(-2) + "-" +
+                    ("0" + (date.getMonth() + 1)).slice(-2) + "-" +
+                    ("0" + date.getDate()).slice(-2) + " " +
+                    ("0" + date.getHours()).slice(-2) + ":" +
+                    ("0" + date.getMinutes()).slice(-2) + ":" +
+                    ("0" + date.getSeconds()).slice(-2);
+    return timestamp;
+}
 
 var PoolLogger = function (configuration) {
 
-
     var logLevelInt = severityValues[configuration.logLevel];
     var logColors = configuration.logColors;
-
-
-
     var log = function(severity, system, component, text, subcat) {
 
         if (severityValues[severity] < logLevelInt) return;
@@ -45,32 +60,24 @@ var PoolLogger = function (configuration) {
             subcat = realSubCat;
         }
 
-        var entryDesc = dateFormat(new Date(), 'yyyy-mm-dd HH:MM:ss') + ' [' + system + ']\t';
+        var entryDesc = timestamp() + ' [' + system + ']\t';
         if (logColors) {
-            entryDesc = severityToColor(severity, entryDesc);
+            entryDesc = severityToColor(severity) + entryDesc + Reset;
 
-            var logString =
-                    entryDesc +
-                    ('[' + component + '] ').italic;
+            var logString = entryDesc + Ital+ FgWhite + ('[' + component + '] ' + Reset + FgGray);
 
-            if (subcat)
-                logString += ('(' + subcat + ') ').bold.grey;
+            if (subcat) { logString += Bright + ('(' + subcat + ') ') + Dim; };
 
-            logString += text.grey;
+            logString += text + Reset;
         }
         else {
-            var logString =
-                    entryDesc +
-                    '[' + component + '] ';
+            var logString = entryDesc + '[' + component + '] ';
 
-            if (subcat)
-                logString += '(' + subcat + ') ';
+            if (subcat) { logString += '(' + subcat + ') '; };
 
             logString += text;
         }
-
         console.log(logString);
-
 
     };
 
