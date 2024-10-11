@@ -6,7 +6,7 @@
     "txfee": 0.0005,
     "requireShielding": false,
     "burnFees": false,
-
+    "peerMagic": "ad8a58e2",
     "explorer": {
         "txURL": "https://explorer.veruscoin.io/tx/",
         "blockURL": "https://explorer.veruscoin.io/block/",
