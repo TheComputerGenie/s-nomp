@@ -62,7 +62,7 @@ var PoolLogger = function (configuration) {
 
         var entryDesc = timestamp() + ' [' + system + ']\t';
         if (logColors) {
-            entryDesc = Dim + severityToColor(severity) + entryDesc + Reset;
+            entryDesc = Dim + FgGreen + entryDesc + Reset;
 
             var logString = entryDesc + Ital+ FgWhite + ('[' + component + '] ' + Reset);
 
