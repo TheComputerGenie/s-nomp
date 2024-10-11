@@ -62,13 +62,17 @@ var PoolLogger = function (configuration) {
 
         var entryDesc = timestamp() + ' [' + system + ']\t';
         if (logColors) {
-            entryDesc = severityToColor(severity) + entryDesc + Reset;
+            entryDesc = Dim + severityToColor(severity) + entryDesc + Reset;
 
-            var logString = entryDesc + Ital+ FgWhite + ('[' + component + '] ' + Reset + FgGray);
+            var logString = entryDesc + Ital+ FgWhite + ('[' + component + '] ' + Reset);
 
-            if (subcat) { logString += Bright + ('(' + subcat + ') ') + Dim; };
+            if (subcat) { 
+                logString += Dim + FgWhite + ('(' + subcat + ') ') + Reset + severityToColor(severity) + text + Reset; 
+            } else {
+                logString += severityToColor(severity) + text + Reset;
+            };
 
-            logString += text + Reset;
+            //logString += text + Reset;
         }
         else {
             var logString = entryDesc + '[' + component + '] ';

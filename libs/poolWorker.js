@@ -180,19 +180,19 @@ module.exports = function(logger){
             var shareData = JSON.stringify(data);
             
             if (data.blockHash && !isValidBlock)
-                logger.debug(logSystem, logComponent, logSubCat, 'We thought a block was found but it was rejected by the daemon, share data: ' + shareData);
+                logger.warning(logSystem, logComponent, logSubCat, 'We thought a block was found but it was rejected by the daemon, share data: ' + shareData);
 
             else if (isValidBlock)
                 if (!data.blockOnlyPBaaS) {
-                    logger.debug(logSystem, logComponent, logSubCat, 'Block found: ' + data.blockHash + ' [' + data.height + '] by ' + data.worker);
+                    logger.error(logSystem, logComponent, logSubCat, 'Block found: ' + data.blockHash + ' [' + data.height + '] by ' + data.worker);
                 } else {
-                    logger.debug(logSystem, logComponent, logSubCat, 'PBaaS found: ' + data.blockHash + ' by ' + data.worker);
+                    logger.error(logSystem, logComponent, logSubCat, 'PBaaS found: ' + data.blockHash + ' by ' + data.worker);
                 }
             if (isValidShare) {
                 if(data.shareDiff > 1000000000) {
-                    logger.debug(logSystem, logComponent, logSubCat, 'Share was found with diff higher than 1.000.000.000!');
-                } else if(data.shareDiff > 1000000) {
-                    logger.debug(logSystem, logComponent, logSubCat, 'Share was found with diff higher than 1.000.000!');
+                    logger.warning(logSystem, logComponent, logSubCat, 'Share was found with diff higher than 1,000,000,000!');
+                } else if(data.shareDiff > 10000000) {
+                    logger.special(logSystem, logComponent, logSubCat, 'Share was found with diff higher than 10,000,000!');
                 }
                 //logger.debug(logSystem, logComponent, logSubCat, 'Share accepted at diff ' + data.difficulty + '/' + data.shareDiff + ' by ' + data.worker + ' [' + data.ip + ']' );
             } else if (!isValidShare) {
