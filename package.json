@@ -50,7 +50,7 @@
         "pm2": "^3.2.2",
         "redis": "^3.0.0",
         "request": "^2.88.0",
-        "stratum-pool": "git+https://github.com/Oink70/node-stratum-pool.git",
+        "stratum-pool": "git+https://github.com/ComputerGenieCo/node-stratum-pool.git",
         "wallet-address-validator": "git+https://github.com/Oink70/wallet-address-validator.git#cf7835d1a569eed6fa98dd3d4aa4cd287bb59623",
         "jssha": "^2.3.1"
     },

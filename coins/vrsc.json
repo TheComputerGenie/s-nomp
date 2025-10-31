@@ -3,7 +3,8 @@
     "symbol": "vrsc",
     "algorithm": "verushash",
     "sapling": 227520,
-    "txfee": 0.0005,
+    "peerMagic": "ad8a58e2",
+    "txfee": 0.0001,
     "requireShielding": false,
     "burnFees": false,
 

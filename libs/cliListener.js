@@ -1,44 +1,43 @@
-var events = require('events');
-var net = require('net');
+const events = require('events');
+const net = require('net');
 
-var listener = module.exports = function listener(server, port){
+const listener = module.exports = function listener(server, port){
 
-    var _this = this;
+    const _this = this;
 
-    var emitLog = function(text){
+    const emitLog = function(text){
         _this.emit('log', text);
     };
 
 
     this.start = function(){
-        net.createServer(function(c) {
+        net.createServer((c) => {
 
-            var data = '';
+            let data = '';
             try {
-                c.on('data', function (d) {
+                c.on('data', (d) => {
                     data += d;
                     if (data.slice(-1) === '\n') {
-                        var message = JSON.parse(data);
-                        _this.emit('command', message.command, message.params, message.options, function(message){
+                        const message = JSON.parse(data);
+                        _this.emit('command', message.command, message.params, message.options, (message) =>{
                             c.end(message);
                         });
                     }
                 });
-                c.on('end', function () {
+                c.on('end', () => {
 
                 });
-                c.on('error', function () {
+                c.on('error', () => {
                     
                 });
-            }
-            catch(e){
-                emitLog('CLI listener failed to parse message ' + data);
+            } catch(e){
+                emitLog(`CLI listener failed to parse message ${  data}`);
             }
 
-        }).listen(port, server, function() {
-            emitLog('CLI listening on  ' + server + ":" + port)
+        }).listen(port, server, () => {
+            emitLog(`CLI listening on  ${  server  }:${  port}`);
         });
-    }
+    };
 
 };
 

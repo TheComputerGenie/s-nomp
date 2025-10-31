@@ -1,8 +1,8 @@
-var dateFormat = require('dateformat');
-var colors = require('colors');
+const dateFormat = require('dateformat');
+const colors = require('colors');
 
 
-var severityToColor = function(severity, text) {
+const severityToColor = function(severity, text) {
     switch(severity) {
         case 'special':
             return text.cyan.underline;
@@ -13,12 +13,12 @@ var severityToColor = function(severity, text) {
         case 'error':
             return text.red;
         default:
-            console.log("Unknown severity " + severity);
+            console.log(`Unknown severity ${  severity}`);
             return text.italic;
     }
 };
 
-var severityValues = {
+const severityValues = {
     'debug': 1,
     'warning': 2,
     'error': 3,
@@ -26,45 +26,48 @@ var severityValues = {
 };
 
 
-var PoolLogger = function (configuration) {
+const PoolLogger = function (configuration) {
 
 
-    var logLevelInt = severityValues[configuration.logLevel];
-    var logColors = configuration.logColors;
+    const logLevelInt = severityValues[configuration.logLevel];
+    const logColors = configuration.logColors;
 
 
 
-    var log = function(severity, system, component, text, subcat) {
+    const log = function(severity, system, component, text, subcat) {
 
-        if (severityValues[severity] < logLevelInt) return;
+        if (severityValues[severity] < logLevelInt) {
+            return;
+        }
 
         if (subcat){
-            var realText = subcat;
-            var realSubCat = text;
+            const realText = subcat;
+            const realSubCat = text;
             text = realText;
             subcat = realSubCat;
         }
 
-        var entryDesc = dateFormat(new Date(), 'yyyy-mm-dd HH:MM:ss') + ' [' + system + ']\t';
+        let entryDesc = `${dateFormat(new Date(), 'yyyy-mm-dd HH:MM:ss')  } [${  system  }]\t`;
         if (logColors) {
             entryDesc = severityToColor(severity, entryDesc);
 
             var logString =
                     entryDesc +
-                    ('[' + component + '] ').italic;
+                    (`[${  component  }] `).italic;
 
-            if (subcat)
-                logString += ('(' + subcat + ') ').bold.grey;
+            if (subcat) {
+                logString += (`(${  subcat  }) `).bold.grey;
+            }
 
             logString += text.grey;
-        }
-        else {
+        } else {
             var logString =
-                    entryDesc +
-                    '[' + component + '] ';
+                    `${entryDesc 
+                    }[${  component  }] `;
 
-            if (subcat)
-                logString += '(' + subcat + ') ';
+            if (subcat) {
+                logString += `(${  subcat  }) `;
+            }
 
             logString += text;
         }
@@ -76,10 +79,10 @@ var PoolLogger = function (configuration) {
 
     // public
 
-    var _this = this;
-    Object.keys(severityValues).forEach(function(logType){
+    const _this = this;
+    Object.keys(severityValues).forEach((logType) =>{
         _this[logType] = function(){
-            var args = Array.prototype.slice.call(arguments, 0);
+            const args = Array.prototype.slice.call(arguments, 0);
             args.unshift(logType);
             log.apply(this, args);
         };
