@@ -10,18 +10,19 @@
         "poolserver",
         "equihash"
     ],
-    "homepage": "https://github.com/veruscoin/s-nomp",
+    "homepage": "https://github.com/ComputerGenieCo/s-nomp",
     "bugs": {
-        "url": "https://github.com/veruscoin/s-nomp/issues"
+        "url": "https://github.com/ComputerGenieCo/s-nomp/issues"
     },
     "license": "MIT",
-    "author": "s-nomp dev team",
+    "author": "ComputerGenieCo",
     "contributors": [
         "aayanl",
         "egyptianbman",
         "Matthew Little",
         "sennevb",
         "TheSeven",
+        "s-nomp dev team",
         "vekexasia"
     ],
     "main": "init.js",
@@ -30,10 +31,12 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/s-nomp/s-nomp.git"
+        "url": "https://github.com/ComputerGenieCo/s-nomp.git"
     },
     "dependencies": {
         "async": "^2.6.1",
+        "base58-native": "^0.1.4",
+        "bindings": "^1.5.0",
         "bignum": "^0.13.0",
         "bitgo-utxo-lib": "git+https://github.com/Oink70/bitgo-utxo-lib.git",
         "body-parser": "^1.18.3",
@@ -43,21 +46,25 @@
         "dot": "^1.1.2",
         "express": "^4.16.4",
         "extend": "^3.0.2",
+        "merkle-bitcoin": "^1.0.2",
         "mysql": "^2.16.0",
         "node-json-minify": "^1.0.0",
         "node-watch": "^0.5.8",
         "nonce": "^1.0.4",
         "pm2": "^3.2.2",
+        "promise": "^8.0.1",
         "redis": "^3.0.0",
         "request": "^2.88.0",
-        "stratum-pool": "git+https://github.com/ComputerGenieCo/node-stratum-pool.git",
         "wallet-address-validator": "git+https://github.com/Oink70/wallet-address-validator.git#cf7835d1a569eed6fa98dd3d4aa4cd287bb59623",
         "jssha": "^2.3.1"
     },
     "engines": {
         "node": "10"
     },
+    "gypfile": true,
     "scripts": {
-        "start": "NODE_PATH=$NODE_PATH:$PWD/node_modules/verushash/build/Release/:$PWD/node_modules/stratum-pool/node_modules/verushash/build/Release/ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/node_modules/stratum-pool/node_modules/equihashverify/build/Release/:$PWD/node_modules/equihashverify/build/Release/:$PWD/node_modules/verushash/build/Release/:$PWD/node_modules/stratum-pool/node_modules/verushash/build/Release/ node init.js"
+        "build-verushash": "cd libs/verushash && node-gyp rebuild",
+        "postinstall": "cd libs/verushash && node-gyp rebuild",
+        "start": "NODE_PATH=$NODE_PATH:$PWD/libs/verushash/build/Release/ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/node_modules/equihashverify/build/Release/:$PWD/libs/verushash/build/Release/ node init.js"
     }
 }
