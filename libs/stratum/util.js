@@ -7,9 +7,9 @@ const bignum = require('bignum')
 exports.addressFromEx = (exAddress, ripdm160Key) => {
     try {
         let versionByte = exports.getVersionByte(exAddress)
-        let addrBase = new Buffer.concat([versionByte, new Buffer(ripdm160Key, 'hex')])
-        let checksum = exports.sha256d(addrBase).slice(0, 4)
-        let address = new Buffer.concat([addrBase, checksum])
+        let addrBase = Buffer.concat([versionByte, Buffer.from(ripdm160Key, 'hex')])
+        let checksum = exports.sha256d(addrBase).subarray(0, 4)
+        let address = Buffer.concat([addrBase, checksum])
         return base58.encode(address)
     } catch (e) {
         return null
@@ -18,7 +18,7 @@ exports.addressFromEx = (exAddress, ripdm160Key) => {
 
 
 exports.getVersionByte = addr => {
-    return base58.decode(addr).slice(0, 1)
+    return base58.decode(addr).subarray(0, 1)
 }
 
 exports.sha256 = buffer => {
@@ -32,7 +32,7 @@ exports.sha256d = buffer => {
 }
 
 exports.reverseBuffer = buff => {
-    let reversed = new Buffer(buff.length)
+    let reversed = Buffer.alloc(buff.length)
     for (let i = buff.length - 1; i >= 0; i--) {
         reversed[buff.length - i - 1] = buff[i]
     }
@@ -42,7 +42,7 @@ exports.reverseBuffer = buff => {
 
 exports.reverseHex = hex => {
     return exports.reverseBuffer(
-        new Buffer(hex, 'hex')
+        Buffer.from(hex, 'hex')
     ).toString('hex')
 }
 
@@ -55,10 +55,10 @@ exports.reverseByteOrder = buff => {
 }
 
 exports.uint256BufferFromHash = hex => {
-    let fromHex = new Buffer(hex, 'hex')
+    let fromHex = Buffer.from(hex, 'hex')
 
     if (fromHex.length != 32) {
-        let empty = new Buffer(32)
+        let empty = Buffer.alloc(32)
         empty.fill(0)
         fromHex.copy(empty)
         fromHex = empty
@@ -78,19 +78,19 @@ exports.hexFromReversedBuffer = buffer => {
  */
 exports.varIntBuffer = n => {
     if (n < 0xfd) {
-        return new Buffer([n])
+        return Buffer.from([n])
     } else if (n < 0xffff) {
-        let buff = new Buffer(3)
+        let buff = Buffer.alloc(3)
         buff[0] = 0xfd
         buff.writeUInt16LE(n, 1)
         return buff
     } else if (n < 0xffffffff) {
-        let buff = new Buffer(5)
+        let buff = Buffer.alloc(5)
         buff[0] = 0xfe
         buff.writeUInt32LE(n, 1)
         return buff
     } else {
-        let buff = new Buffer(9)
+        let buff = Buffer.alloc(9)
         buff[0] = 0xff
         exports.packUInt16LE(n).copy(buff, 1)
         return buff
@@ -98,8 +98,8 @@ exports.varIntBuffer = n => {
 }
 
 exports.varStringBuffer = string => {
-    let strBuff = new Buffer(string)
-    return new Buffer.concat([exports.varIntBuffer(strBuff.length), strBuff])
+    let strBuff = Buffer.from(string)
+    return Buffer.concat([exports.varIntBuffer(strBuff.length), strBuff])
 }
 
 /*
@@ -131,11 +131,11 @@ exports.serializeNumber = n => {
 
     //New version from TheSeven
     if (n >= 1 && n <= 16) {
-        return new Buffer([0x50 + n]);
+        return Buffer.from([0x50 + n]);
     }
 
     let l = 1
-    let buff = new Buffer(9)
+    let buff = Buffer.alloc(9)
     while (n > 0x7f) {
         buff.writeUInt8(n & 0xff, l++)
         n >>= 8
@@ -143,7 +143,7 @@ exports.serializeNumber = n => {
 
     buff.writeUInt8(l, 0)
     buff.writeUInt8(n, l++)
-    return buff.slice(0, l)
+    return buff.subarray(0, l)
 }
 
 
@@ -152,64 +152,64 @@ exports.serializeNumber = n => {
  */
 exports.serializeString = s => {
     if (s.length < 253) {
-        return new Buffer.concat([
-            new Buffer([s.length]),
-            new Buffer(s)
+        return Buffer.concat([
+            Buffer.from([s.length]),
+            Buffer.from(s)
         ])
     } else if (s.length < 0x10000) {
-        return new Buffer.concat([
-            new Buffer([253]),
+        return Buffer.concat([
+            Buffer.from([253]),
             exports.packUInt16LE(s.length),
-            new Buffer(s)
+            Buffer.from(s)
         ])
     } else if (s.length < 0x100000000) {
-        return new Buffer.concat([
-            new Buffer([254]),
+        return Buffer.concat([
+            Buffer.from([254]),
             exports.packUInt32LE(s.length),
-            new Buffer(s)
+            Buffer.from(s)
         ])
     } else {
-        return new Buffer.concat([
-            new Buffer([255]),
+        return Buffer.concat([
+            Buffer.from([255]),
             exports.packUInt16LE(s.length),
-            new Buffer(s)
+            Buffer.from(s)
         ])
     }
 }
 
 
 exports.packUInt16LE = num => {
-    let buff = new Buffer(2)
+    let buff = Buffer.alloc(2)
     buff.writeUInt16LE(num, 0)
     return buff
 }
 
 exports.packInt32LE = num => {
-    let buff = new Buffer(4)
+    let buff = Buffer.alloc(4)
     buff.writeInt32LE(num, 0)
     return buff
 }
 
 exports.packInt32BE = num => {
-    let buff = new Buffer(4)
+    let buff = Buffer.alloc(4)
     buff.writeInt32BE(num, 0)
     return buff
 }
 
 exports.packUInt32LE = num => {
-    let buff = new Buffer(4)
+    let buff = Buffer.alloc(4)
     buff.writeUInt32LE(num, 0)
     return buff
 }
 
 exports.packUInt32BE = num => {
-    let buff = new Buffer(4)
+    let buff = Buffer.alloc(4)
     buff.writeUInt32BE(num, 0)
     return buff
 }
 
 exports.packInt64LE = num => {
-    let buff = new Buffer(8)
+    let buff = Buffer.alloc(8)
     buff.writeUInt32LE(num % Math.pow(2, 32), 0)
     buff.writeUInt32LE(Math.floor(num / Math.pow(2, 32)), 4)
     return buff
@@ -252,17 +252,17 @@ exports.pubkeyToScript = key => {
         throw new Error()
     }
 
-    let pubkey = new Buffer(35)
+    let pubkey = Buffer.alloc(35)
     pubkey[0] = 0x21
     pubkey[34] = 0xac
-    new Buffer(key, 'hex').copy(pubkey, 1)
+    Buffer.from(key, 'hex').copy(pubkey, 1)
     return pubkey
 }
 
 
 exports.miningKeyToScript = key => {
-    let keyBuffer = new Buffer(key, 'hex')
-    return new Buffer.concat([new Buffer([0x76, 0xa9, 0x14]), keyBuffer, new Buffer([0x88, 0xac])])
+    let keyBuffer = Buffer.from(key, 'hex')
+    return Buffer.concat([Buffer.from([0x76, 0xa9, 0x14]), keyBuffer, Buffer.from([0x88, 0xac])])
 }
 
 /*
@@ -281,9 +281,9 @@ exports.addressToScript = addr => {
         throw new Error()
     }
 
-    let pubkey = decoded.slice(1, -4)
+    let pubkey = decoded.subarray(1, -4)
 
-    return new Buffer.concat([new Buffer([0x76, 0xa9, 0x14]), pubkey, new Buffer([0x88, 0xac])])
+    return Buffer.concat([Buffer.from([0x76, 0xa9, 0x14]), pubkey, Buffer.from([0x88, 0xac])])
 }
 
 
@@ -326,7 +326,7 @@ exports.shiftMax256Right = shiftRight => {
         }
     }
 
-    return new Buffer(octets)
+    return Buffer.from(octets)
 }
 
 
@@ -334,10 +334,10 @@ exports.bufferToCompactBits = startingBuff => {
     let bigNum = bignum.fromBuffer(startingBuff)
     let buff = bigNum.toBuffer()
 
-    buff = buff.readUInt8(0) > 0x7f ? Buffer.concat([new Buffer([0x00]), buff]) : buff
+    buff = buff.readUInt8(0) > 0x7f ? Buffer.concat([Buffer.from([0x00]), buff]) : buff
 
-    buff = new Buffer.concat([new Buffer([buff.length]), buff])
-    return compact = buff.slice(0, 4)
+    buff = Buffer.concat([Buffer.from([buff.length]), buff])
+    return compact = buff.subarray(0, 4)
 }
 
 /*
@@ -346,7 +346,7 @@ exports.bufferToCompactBits = startingBuff => {
  */
 exports.bignumFromBitsBuffer = bitsBuff => {
     let numBytes = bitsBuff.readUInt8(0)
-    let bigBits = bignum.fromBuffer(bitsBuff.slice(1))
+    let bigBits = bignum.fromBuffer(bitsBuff.subarray(1))
     let target = bigBits.mul(
         bignum(2).pow(
             bignum(8).mul(numBytes - 3)
@@ -358,14 +358,14 @@ exports.bignumFromBitsBuffer = bitsBuff => {
 
 exports.bignumFromBitsHex = bitsString => {
     return exports.bignumFromBitsBuffer(
-        new Buffer(bitsString, 'hex')
+        Buffer.from(bitsString, 'hex')
     )
 }
 
 exports.convertBitsToBuff = bitsBuff => {
     let target = exports.bignumFromBitsBuffer(bitsBuff)
     let resultBuff = target.toBuffer()
-    let buff256 = new Buffer(32)
+    let buff256 = Buffer.alloc(32)
     buff256.fill(0)
     resultBuff.copy(buff256, buff256.length - resultBuff.length)
     return buff256

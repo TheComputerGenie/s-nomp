@@ -34,7 +34,7 @@ var BlockTemplate = module.exports = function BlockTemplate(
     } else if (this.rpcData.mergeminebits) {
         this.merged_target = util.bignumFromBitsHex(this.rpcData.mergeminebits);
     }
-    
+
 
     // generate the fees and coinbase tx
     var blockReward = (this.rpcData.miner) * 100000000;
@@ -56,24 +56,24 @@ var BlockTemplate = module.exports = function BlockTemplate(
     masternodePayment = rpcData.masternode_payments;
 
     var fees = [];
-    rpcData.transactions.forEach(function(value) {
+    rpcData.transactions.forEach(function (value) {
         fees.push(value);
     });
     this.rewardFees = transactions.getFees(fees);
     rpcData.rewardFees = this.rewardFees;
 
     this.txCount = this.rpcData.transactions.length + 1; // add total txs and new coinbase
-        
+
     // veruscoin daemon performs all coinbase transaction calculations to included any fee's from the fee pool
     // *Note, verus daemon must be setup with -minerdistribution '{"address": 0.9, "address2":0.1}' option
     //        or setup with -pubkey, -mineraddres, etc.
 
-    let solver = parseInt(this.rpcData.solution.substr(0,2), 16);
+    let solver = parseInt(this.rpcData.solution.substr(0, 2), 16);
     // when PBaaS activates we must use the coinbasetxn from daemon to get proper fee pool calculations in coinbase
     if (coin.algorithm && coin.algorithm == "verushash" && solver > 6 && this.rpcData.coinbasetxn) {
         this.blockReward = this.rpcData.coinbasetxn.coinbasevalue;
         this.genTx = this.rpcData.coinbasetxn.data;
-        this.genTxHash = util.reverseBuffer(new Buffer(this.rpcData.coinbasetxn.hash, 'hex')).toString('hex');
+        this.genTxHash = util.reverseBuffer(Buffer.from(this.rpcData.coinbasetxn.hash, 'hex')).toString('hex');
 
     } else if (typeof this.genTx === 'undefined') {
         this.genTx = transactions.createGeneration(
@@ -99,22 +99,20 @@ var BlockTemplate = module.exports = function BlockTemplate(
     */
 
     // generate the merkle root
-    this.prevHashReversed = util.reverseBuffer(new Buffer(rpcData.previousblockhash, 'hex')).toString('hex');
-    if (rpcData.finalsaplingroothash)
-    {
-        this.finalSaplingRootHashReversed = util.reverseBuffer(new Buffer(rpcData.finalsaplingroothash, 'hex')).toString('hex');
+    this.prevHashReversed = util.reverseBuffer(Buffer.from(rpcData.previousblockhash, 'hex')).toString('hex');
+    if (rpcData.finalsaplingroothash) {
+        this.finalSaplingRootHashReversed = util.reverseBuffer(Buffer.from(rpcData.finalsaplingroothash, 'hex')).toString('hex');
     }
-    else
-    {
+    else {
         this.finalSaplingRootHashReversed = '0000000000000000000000000000000000000000000000000000000000000000'; //hashReserved
     }
-    
-    this.merkleRootReversed = util.reverseBuffer(new Buffer(this.merkleRoot, 'hex')).toString('hex');
+
+    this.merkleRootReversed = util.reverseBuffer(Buffer.from(this.merkleRoot, 'hex')).toString('hex');
     // we can't do anything else until we have a submission
 
     //block header per https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
-    this.serializeHeader = function(nTime, nonce){
-        var header =  new Buffer(140);
+    this.serializeHeader = function (nTime, nonce) {
+        var header = Buffer.alloc(140);
         var position = 0;
 
         /*
@@ -132,9 +130,9 @@ var BlockTemplate = module.exports = function BlockTemplate(
         header.write(this.merkleRootReversed, position += 32, 32, 'hex');
         header.write(this.finalSaplingRootHashReversed, position += 32, 32, 'hex');
         header.write(nTime, position += 32, 4, 'hex');
-        header.write(util.reverseBuffer(new Buffer(this.rpcData.bits, 'hex')).toString('hex'), position += 4, 4, 'hex');
+        header.write(util.reverseBuffer(Buffer.from(this.rpcData.bits, 'hex')).toString('hex'), position += 4, 4, 'hex');
         if (!nonce && this.rpcData.nonce) {
-            header.write(util.reverseBuffer(new Buffer(this.rpcData.nonce, 'hex')).toString('hex'), position += 4, 32, 'hex');
+            header.write(util.reverseBuffer(Buffer.from(this.rpcData.nonce, 'hex')).toString('hex'), position += 4, 32, 'hex');
         } else if (nonce) {
             header.write(nonce, position += 4, 32, 'hex');
         } else {
@@ -144,31 +142,31 @@ var BlockTemplate = module.exports = function BlockTemplate(
     };
 
     // join the header and txs together
-    this.serializeBlock = function(header, soln){
+    this.serializeBlock = function (header, soln) {
 
         var txCount = this.txCount.toString(16);
         if (Math.abs(txCount.length % 2) == 1) {
-          txCount = "0" + txCount;
+            txCount = "0" + txCount;
         }
 
-        if (this.txCount <= 0x7f){
-            var varInt = new Buffer(txCount, 'hex');
+        if (this.txCount <= 0x7f) {
+            var varInt = Buffer.from(txCount, 'hex');
         }
-        else if (this.txCount <= 0x7fff){
+        else if (this.txCount <= 0x7fff) {
             if (txCount.length == 2) txCount = "00" + txCount;
-            var varInt = new Buffer.concat([Buffer('FD', 'hex'), util.reverseBuffer(new Buffer(txCount, 'hex'))]);
+            var varInt = Buffer.concat([Buffer.from('FD', 'hex'), util.reverseBuffer(Buffer.from(txCount, 'hex'))]);
         }
 
-        buf = new Buffer.concat([
+        buf = Buffer.concat([
             header,
             soln,
             varInt,
-            new Buffer(this.genTx, 'hex')
+            Buffer.from(this.genTx, 'hex')
         ]);
 
         if (this.rpcData.transactions.length > 0) {
             this.rpcData.transactions.forEach(function (value) {
-                tmpBuf = new Buffer.concat([buf, new Buffer(value.data, 'hex')]);
+                tmpBuf = Buffer.concat([buf, Buffer.from(value.data, 'hex')]);
                 buf = tmpBuf;
             });
         }
@@ -185,9 +183,9 @@ var BlockTemplate = module.exports = function BlockTemplate(
     };
 
     // submit the block header
-    this.registerSubmit = function(header, soln){
+    this.registerSubmit = function (header, soln) {
         var submission = (header + soln).toLowerCase();
-        if (submits.indexOf(submission) === -1){
+        if (submits.indexOf(submission) === -1) {
 
             submits.push(submission);
             return true;
@@ -196,9 +194,9 @@ var BlockTemplate = module.exports = function BlockTemplate(
     };
 
     // used for mining.notify
-    this.getJobParams = function(){
-        let nbits = util.reverseBuffer(new Buffer(this.rpcData.bits, 'hex'));
-        if (!this.jobParams){
+    this.getJobParams = function () {
+        let nbits = util.reverseBuffer(Buffer.from(this.rpcData.bits, 'hex'));
+        if (!this.jobParams) {
             this.jobParams = [
                 this.jobId,
                 util.packUInt32LE(this.rpcData.version).toString('hex'),
@@ -220,7 +218,7 @@ var BlockTemplate = module.exports = function BlockTemplate(
             }
             // PBaaS requires block header nonce to be sent to miners
             //if (this.rpcData.nonce) {
-                //this.jobParams.push(this.rpcData.nonce);
+            //this.jobParams.push(this.rpcData.nonce);
             //}
         }
         return this.jobParams;

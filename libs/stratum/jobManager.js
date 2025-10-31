@@ -301,7 +301,7 @@ var JobManager = module.exports = function JobManager(options) {
         }
 
         // when pbaas activates use block header nonce from daemon, pool/miner can no longer manipulate
-        let solution_ver = parseInt(util.reverseBuffer(new Buffer(job.rpcData.solution.substr(0, 8), 'hex')).toString('hex'), 16);
+        let solution_ver = parseInt(util.reverseBuffer(Buffer.from(job.rpcData.solution.substr(0, 8), 'hex')).toString('hex'), 16);
         if (solution_ver > 6) {
             nonce = undefined;
             // verify pool nonce presence in solution
@@ -312,7 +312,7 @@ var JobManager = module.exports = function JobManager(options) {
         }
 
         var headerBuffer = job.serializeHeader(nTime, nonce); // 144 bytes (doesn't contain soln)
-        var headerSolnBuffer = new Buffer.concat([headerBuffer, new Buffer(soln, 'hex')]);
+        var headerSolnBuffer = Buffer.concat([headerBuffer, Buffer.from(soln, 'hex')]);
         var headerHash;
 
         switch (options.coin.algorithm) {
@@ -355,7 +355,7 @@ var JobManager = module.exports = function JobManager(options) {
         //console.log('processShare ck8')
 
         // check if valid solution
-        if (hashDigest(headerBuffer, new Buffer(soln.slice(solutionSlice), 'hex')) !== true) {
+        if (hashDigest(headerBuffer, Buffer.from(soln.slice(solutionSlice), 'hex')) !== true) {
             //console.log('invalid solution');
             return shareError([20, 'invalid solution']);
         }
@@ -370,7 +370,7 @@ var JobManager = module.exports = function JobManager(options) {
         //check if block candidate
         if (headerBigNum.le(target)) {
             //console.log('begin serialization');
-            blockHex = job.serializeBlock(headerBuffer, new Buffer(soln, 'hex')).toString('hex');
+            blockHex = job.serializeBlock(headerBuffer, Buffer.from(soln, 'hex')).toString('hex');
             blockHash = util.reverseBuffer(headerHash).toString('hex');
             // check if pbaas only submission
             if (!headerBigNum.le(job.target))
@@ -390,13 +390,16 @@ var JobManager = module.exports = function JobManager(options) {
                     difficulty = previousDifficulty;
                 }
                 else {
-                    return shareError([23, 'low difficulty share of ' + shareDiff]);
+                    // Allow low-diff shares if configured for solo mining
+                    if (!options.acceptLowDiffShares) {
+                        return shareError([23, 'low difficulty share of ' + shareDiff]);
+                    }
                 }
             }
         }
 
         /*
-        console.log('validSoln: ' + hashDigest(headerBuffer, new Buffer(soln.slice(6), 'hex')));
+        console.log('validSoln: ' + hashDigest(headerBuffer, Buffer.from(soln.slice(6), 'hex')));
         console.log('job: ' + jobId);
         console.log('ip: ' + ipAddress);
         console.log('port: ' + port);

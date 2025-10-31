@@ -9,7 +9,7 @@ var util = require('./util.js');
 
 
 var fixedLenStringBuffer = function (s, len) {
-    var buff = new Buffer(len);
+    var buff = Buffer.alloc(len);
     buff.fill(0);
     buff.write(s);
     return buff;
@@ -26,7 +26,7 @@ var commandStringBuffer = function (s) {
  - callback returns 1) data buffer and 2) lopped/over-read data */
 var readFlowingBytes = function (stream, amount, preRead, callback) {
 
-    var buff = preRead ? preRead : new Buffer([]);
+    var buff = preRead ? preRead : Buffer.alloc(0);
 
     var readData = function (data) {
         buff = Buffer.concat([buff, data]);
@@ -39,7 +39,7 @@ var readFlowingBytes = function (stream, amount, preRead, callback) {
             stream.once('data', readData);
     };
 
-    readData(new Buffer([]));
+    readData(Buffer.alloc(0));
 };
 
 var Peer = module.exports = function (options) {
@@ -49,7 +49,7 @@ var Peer = module.exports = function (options) {
     var maxAttempts = 5;
     var attemptCount = 0;
     var retryIntervalMs = 5000;
-    var magic = new Buffer(options.testnet ? options.coin.peerMagicTestnet : options.coin.peerMagic, 'hex');
+    var magic = Buffer.from(options.testnet ? options.coin.peerMagicTestnet : options.coin.peerMagic, 'hex');
     var magicInt = magic.readUInt32LE(0);
     var verack = false;
     var validConnectionConfig = true;
@@ -61,8 +61,8 @@ var Peer = module.exports = function (options) {
         block: 2
     };
 
-    var networkServices = new Buffer('0100000000000000', 'hex'); //NODE_NETWORK services (value 1 packed as uint64)
-    var emptyNetAddress = new Buffer('010000000000000000000000000000000000ffff000000000000', 'hex');
+    var networkServices = Buffer.from('0100000000000000', 'hex'); //NODE_NETWORK services (value 1 packed as uint64)
+    var emptyNetAddress = Buffer.from('010000000000000000000000000000000000ffff000000000000', 'hex');
     var userAgent = util.varStringBuffer('/node-stratum/');
     var blockStartHeight = util.packUInt32LE(options.startHeight || 0); //block start_height
 
@@ -136,16 +136,16 @@ var Peer = module.exports = function (options) {
                 if (msgMagic !== magicInt) {
                     _this.emit('error', 'bad magic number from peer');
                     while (header.readUInt32LE(0) !== magicInt && header.length >= 4) {
-                        header = header.slice(1);
+                        header = header.subarray(1);
                     }
                     if (header.readUInt32LE(0) === magicInt) {
                         beginReadingMessage(header);
                     } else {
-                        beginReadingMessage(new Buffer([]));
+                        beginReadingMessage(Buffer.alloc(0));
                     }
                     return;
                 }
-                var msgCommand = header.slice(4, 16).toString();
+                var msgCommand = header.subarray(4, 16).toString();
                 var msgLength = header.readUInt32LE(16);
                 var msgChecksum = header.readUInt32LE(20);
                 readFlowingBytes(client, msgLength, lopped, function (payload, lopped) {
@@ -168,24 +168,24 @@ var Peer = module.exports = function (options) {
     function HandleInv(payload) {
         //sloppy varint decoding
         var count = payload.readUInt8(0);
-        payload = payload.slice(1);
+        payload = payload.subarray(1);
         if (count >= 0xfd) {
             count = payload.readUInt16LE(0);
-            payload = payload.slice(2);
+            payload = payload.subarray(2);
         }
         while (count--) {
             switch (payload.readUInt32LE(0)) {
                 case invCodes.error:
                     break;
                 case invCodes.tx:
-                    var tx = payload.slice(4, 36).toString('hex');
+                    var tx = payload.subarray(4, 36).toString('hex');
                     break;
                 case invCodes.block:
-                    var block = payload.slice(4, 36).toString('hex');
+                    var block = payload.subarray(4, 36).toString('hex');
                     _this.emit('blockFound', block);
                     break;
             }
-            payload = payload.slice(36);
+            payload = payload.subarray(36);
         }
     }
 
@@ -218,7 +218,7 @@ var Peer = module.exports = function (options) {
             magic,
             command,
             util.packUInt32LE(payload.length),
-            util.sha256d(payload).slice(0, 4),
+            util.sha256d(payload).subarray(0, 4),
             payload
         ]);
         client.write(message);

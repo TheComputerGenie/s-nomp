@@ -26,18 +26,15 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
     //console.log('network: ', network)
     let txb = new bitcoin.TransactionBuilder(network)
 
-    if (coin.sapling)
-    {
-        if (coin.sapling === true || (typeof coin.sapling === 'number' && coin.sapling <= blockHeight))
-        {
+    if (coin.sapling) {
+        if (coin.sapling === true || (typeof coin.sapling === 'number' && coin.sapling <= blockHeight)) {
             txb.setVersion(bitcoin.Transaction.ZCASH_SAPLING_VERSION);
         }
     }
     else if (coin.overwinter) {
-        if (coin.overwinter === true || (typeof coin.overwinter === 'number' && coin.overwinter <= blockHeight))
-        {
+        if (coin.overwinter === true || (typeof coin.overwinter === 'number' && coin.overwinter <= blockHeight)) {
             txb.setVersion(bitcoin.Transaction.ZCASH_OVERWINTER_VERSION);
-        } 
+        }
     }
 
     // input for coinbase tx
@@ -50,28 +47,28 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
     }
 
     let length = `0${height}`
-    let serializedBlockHeight = new Buffer.concat([
-        new Buffer(length, 'hex'),
-        util.reverseBuffer(new Buffer(blockHeightSerial, 'hex')),
-        new Buffer('00', 'hex') // OP_0
+    let serializedBlockHeight = Buffer.concat([
+        Buffer.from(length, 'hex'),
+        util.reverseBuffer(Buffer.from(blockHeightSerial, 'hex')),
+        Buffer.from('00', 'hex') // OP_0
     ])
 
-    txb.addInput(new Buffer('0000000000000000000000000000000000000000000000000000000000000000', 'hex'),
-    4294967295,
-    4294967295,
-    new Buffer.concat([
-        serializedBlockHeight,
-        // Default VRSC
-        Buffer(poolHex ? poolHex : '56525343', 'hex')
-    ]))
+    txb.addInput(Buffer.from('0000000000000000000000000000000000000000000000000000000000000000', 'hex'),
+        4294967295,
+        4294967295,
+        Buffer.concat([
+            serializedBlockHeight,
+            // Default VRSC
+            Buffer.from(poolHex ? poolHex : '56525343', 'hex')
+        ]))
 
     // calculate total fees
     let feePercent = 0
     recipients.forEach(recipient => feePercent += recipient.percent)
 
     let feesDivided = false;
-	
-	// TODO: This sorely needs to be updated and simplified
+
+    // TODO: This sorely needs to be updated and simplified
     if (masternodePayment === false || masternodePayment === undefined) {
         // txs with founders reward
         // This section is for ZEN + other coins
@@ -121,7 +118,7 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                     Math.round(blockReward * (coin.percentSuperNodesReward / 100))
                 )
 
-            // founders or treasury reward?
+                // founders or treasury reward?
             } else if (coin.treasuryRewardStartBlockHeight && blockHeight >= coin.treasuryRewardStartBlockHeight) {
                 // treasury reward
                 let index = parseInt(Math.floor(((blockHeight - coin.treasuryRewardStartBlockHeight) / coin.treasuryRewardAddressChangeInterval) % coin.vTreasuryRewardAddress.length))
@@ -161,7 +158,7 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                     Math.round(blockReward * (coin.percentFoundersReward / 100))
                 )
             }
-        // no founders rewards :)
+            // no founders rewards :)
         } else {
             // pool t-addr
             feesDivided = true;
@@ -228,7 +225,7 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                     Math.round(masternodeReward)
                 )
             }
-        // no founders rewards :)
+            // no founders rewards :)
         } else {
             // pool t-addr
             txb.addOutput(

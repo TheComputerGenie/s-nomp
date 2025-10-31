@@ -232,7 +232,7 @@ var pool = module.exports = function pool(options, authorizeFn) {
         if (options.hasSubmitMethod) {
             rpcCommand = 'submitblock';
             // if pbaas solution version is 7 or higher, use submitmergedblock
-            let solution_ver = parseInt(util.reverseBuffer(new Buffer(blockHex.substr(286, 8), 'hex')).toString('hex'), 16);
+            let solution_ver = parseInt(util.reverseBuffer(Buffer.from(blockHex.substr(286, 8), 'hex')).toString('hex'), 16);
             if (solution_ver > 6) {
                 rpcCommand = 'submitmergedblock';
             }
