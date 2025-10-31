@@ -17,6 +17,8 @@
         "emitInvalidBlockHashes": false,
         "validateWorkerUsername": true,
         "tcpProxyProtocol": false,
+        "acceptLowDiffShares": false,
+        "_acceptLowDiffShares_comment": "Accept shares below the minimum difficulty threshold (useful for solo mining)",
         "banning": {
             "enabled": true,
             "time": 600,
