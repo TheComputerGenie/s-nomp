@@ -5,7 +5,7 @@ const async = require('async');
 
 const os = require('os');
 
-const algos = require('stratum-pool/lib/algoProperties.js');
+const algos = require('./stratum/algoProperties.js');
 
 // redis callback Ready check failed bypass trick
 function rediscreateClient(port, host, pass) {
@@ -130,13 +130,13 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
             if (_this.stats.pools[pool.name].pending && _this.stats.pools[pool.name].pending.blocks) {
                 for (var i = 0; i < _this.stats.pools[pool.name].pending.blocks.length; i++) {
-                    allBlocks[`${pool.name  }-${  _this.stats.pools[pool.name].pending.blocks[i].split(':')[2]}`] = _this.stats.pools[pool.name].pending.blocks[i];
+                    allBlocks[`${pool.name}-${_this.stats.pools[pool.name].pending.blocks[i].split(':')[2]}`] = _this.stats.pools[pool.name].pending.blocks[i];
                 }
             }
 
             if (_this.stats.pools[pool.name].confirmed && _this.stats.pools[pool.name].confirmed.blocks) {
                 for (var i = 0; i < _this.stats.pools[pool.name].confirmed.blocks.length; i++) {
-                    allBlocks[`${pool.name  }-${  _this.stats.pools[pool.name].confirmed.blocks[i].split(':')[2]}`] = _this.stats.pools[pool.name].confirmed.blocks[i];
+                    allBlocks[`${pool.name}-${_this.stats.pools[pool.name].confirmed.blocks[i].split(':')[2]}`] = _this.stats.pools[pool.name].confirmed.blocks[i];
                 }
             }
 
@@ -150,7 +150,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
         const retentionTime = (((Date.now() / 1000) - portalConfig.website.stats.historicalRetention) | 0).toString();
         redisStats.zrangebyscore(['statHistory', retentionTime, '+inf'], (err, replies) => {
             if (err) {
-                logger.error(logSystem, 'Historics', `Error when trying to grab historical stats ${  JSON.stringify(err)}`);
+                logger.error(logSystem, 'Historics', `Error when trying to grab historical stats ${JSON.stringify(err)}`);
                 return;
             }
             for (let i = 0; i < replies.length; i++) {
@@ -245,15 +245,15 @@ module.exports = function (logger, portalConfig, poolConfigs) {
         minutes = minutes - (days * 24 * 60) - (hours * 60);
         seconds = seconds - (days * 24 * 60 * 60) - (hours * 60 * 60) - (minutes * 60);
         if (days > 0) {
-            return (`${days  }d ${  hours  }h ${  minutes  }m ${  seconds  }s`); 
+            return (`${days}d ${hours}h ${minutes}m ${seconds}s`);
         }
         if (hours > 0) {
-            return (`${hours  }h ${  minutes  }m ${  seconds  }s`); 
+            return (`${hours}h ${minutes}m ${seconds}s`);
         }
         if (minutes > 0) {
-            return (`${minutes  }m ${  seconds  }s`); 
+            return (`${minutes}m ${seconds}s`);
         }
-        return (`${seconds  }s`);
+        return (`${seconds}s`);
     }
 
     this.getCoins = function (cback) {
@@ -284,7 +284,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
         async.each(_this.stats.pools, (pool, pcb) => {
             pindex++;
             const coin = String(_this.stats.pools[pool.name].name);
-            client.hscan(`${coin  }:shares:roundCurrent`, 0, 'match', `${a  }*`, 'count', 50000, (error, result) => {
+            client.hscan(`${coin}:shares:roundCurrent`, 0, 'match', `${a}*`, 'count', 50000, (error, result) => {
                 if (error) {
                     pcb(error);
                     return;
@@ -330,11 +330,11 @@ module.exports = function (logger, portalConfig, poolConfigs) {
         async.each(_this.stats.pools, (pool, pcb) => {
             const coin = String(_this.stats.pools[pool.name].name);
             // get all immature balances from address
-            client.hscan(`${coin  }:immature`, 0, 'match', `${a  }*`, 'count', 50000, (error, pends) => {
+            client.hscan(`${coin}:immature`, 0, 'match', `${a}*`, 'count', 50000, (error, pends) => {
                 // get all balances from address
-                client.hscan(`${coin  }:balances`, 0, 'match', `${a  }*`, 'count', 50000, (error, bals) => {
+                client.hscan(`${coin}:balances`, 0, 'match', `${a}*`, 'count', 50000, (error, bals) => {
                     // get all payouts from address
-                    client.hscan(`${coin  }:payouts`, 0, 'match', `${a  }*`, 'count', 50000, (error, pays) => {
+                    client.hscan(`${coin}:payouts`, 0, 'match', `${a}*`, 'count', 50000, (error, pays) => {
 
                         let workerName = '';
                         let balAmount = 0;
@@ -412,11 +412,11 @@ module.exports = function (logger, portalConfig, poolConfigs) {
             const coin = String(poolName);
 
             // get all immature balances from address
-            client.hscan(`${coin  }:immature`, 0, 'match', `${a  }*`, 'count', 50000, (error, pends) => {
+            client.hscan(`${coin}:immature`, 0, 'match', `${a}*`, 'count', 50000, (error, pends) => {
                 // get all balances from address
-                client.hscan(`${coin  }:balances`, 0, 'match', `${a  }*`, 'count', 50000, (error, bals) => {
+                client.hscan(`${coin}:balances`, 0, 'match', `${a}*`, 'count', 50000, (error, bals) => {
                     // get all payouts from address
-                    client.hscan(`${coin  }:payouts`, 0, 'match', `${a  }*`, 'count', 50000, (error, pays) => {
+                    client.hscan(`${coin}:payouts`, 0, 'match', `${a}*`, 'count', 50000, (error, pays) => {
 
                         const workers = {};
 
@@ -483,7 +483,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
             const redisCommands = [];
 
             const redisCommandTemplates = [
-                ['zremrangebyscore', ':hashrate', '-inf', `(${  windowTime}`],
+                ['zremrangebyscore', ':hashrate', '-inf', `(${windowTime}`],
                 ['zrangebyscore', ':hashrate', windowTime, '+inf'],
                 ['hgetall', ':stats'],
                 ['scard', ':blocksPending'],
@@ -509,7 +509,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
             client.client.multi(redisCommands).exec((err, replies) => {
                 if (err) {
-                    logger.error(logSystem, 'Global', `error with getting global stats ${  JSON.stringify(err)}`);
+                    logger.error(logSystem, 'Global', `error with getting global stats ${JSON.stringify(err)}`);
                     callback(err);
                 } else {
                     for (let i = 0; i < replies.length; i += commandsPerCoin) {
@@ -580,7 +580,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
             });
         }, (err) => {
             if (err) {
-                logger.error(logSystem, 'Global', `error getting all stats${  JSON.stringify(err)}`);
+                logger.error(logSystem, 'Global', `error getting all stats${JSON.stringify(err)}`);
                 callback();
                 return;
             }
@@ -738,7 +738,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                 for (var worker in coinStats.currentRoundTimes) {
                     const time = parseFloat(coinStats.currentRoundTimes[worker]);
                     if (_maxTimeShare < time) {
-                        _maxTimeShare = time; 
+                        _maxTimeShare = time;
                     }
                     var miner = worker.split('.')[0];	// split poolId from minerAddress
                     if (miner in coinStats.miners && coinStats.miners[miner].currRoundTime < time) {
@@ -815,10 +815,10 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                 redisStats.multi([
                     ['zadd', 'statHistory', statGatherTime, _this.statsString],
-                    ['zremrangebyscore', 'statHistory', '-inf', `(${  retentionTime}`]
+                    ['zremrangebyscore', 'statHistory', '-inf', `(${retentionTime}`]
                 ]).exec((err, replies) => {
                     if (err) {
-                        logger.error(logSystem, 'Historics', `Error adding stats to historics ${  JSON.stringify(err)}`);
+                        logger.error(logSystem, 'Historics', `Error adding stats to historics ${JSON.stringify(err)}`);
                     }
                 });
             }
@@ -883,7 +883,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
     this.getReadableHashRateString = function (hashrate) {
         hashrate = (hashrate * 2);
         if (hashrate < 1000000) {
-            return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)  } H/s`;
+            return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)} H/s`;
         }
         const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
         const i = Math.floor((Math.log(hashrate / 1000) / Math.log(1000)) - 1);

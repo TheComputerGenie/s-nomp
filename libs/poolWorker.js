@@ -1,21 +1,21 @@
-const Stratum = require('stratum-pool');
-const redis   = require('redis');
-const net     = require('net');
+const Stratum = require('./stratum');
+const redis = require('redis');
+const net = require('net');
 
 const MposCompatibility = require('./mposCompatibility.js');
 const ShareProcessor = require('./shareProcessor.js');
 const CreateRedisClient = require('./createRedisClient.js');
 const WAValidator = require('wallet-address-validator');
 
-module.exports = function(logger){
+module.exports = function (logger) {
 
     const _this = this;
 
-    const poolConfigs  = JSON.parse(process.env.pools);
+    const poolConfigs = JSON.parse(process.env.pools);
     const portalConfig = JSON.parse(process.env.portalConfig);
 
     const forkId = process.env.forkId;
-    
+
     const pools = {};
 
     const proxySwitch = {};
@@ -26,10 +26,10 @@ module.exports = function(logger){
     }
     //Handle messages from master process sent via IPC
     process.on('message', (message) => {
-        switch(message.type){
+        switch (message.type) {
 
             case 'banIP':
-                for (const p in pools){
+                for (const p in pools) {
                     if (pools[p].stratumServer) {
                         pools[p].stratumServer.addBannedIP(message.ip);
                     }
@@ -39,7 +39,7 @@ module.exports = function(logger){
             case 'blocknotify':
 
                 var messageCoin = message.coin.toLowerCase();
-                var poolTarget = Object.keys(pools).filter((p) =>{
+                var poolTarget = Object.keys(pools).filter((p) => {
                     return p.toLowerCase() === messageCoin;
                 })[0];
 
@@ -53,7 +53,7 @@ module.exports = function(logger){
             case 'coinswitch':
                 var logSystem = 'Proxy';
                 var logComponent = 'Switch';
-                var logSubCat = `Thread ${  parseInt(forkId) + 1}`;
+                var logSubCat = `Thread ${parseInt(forkId) + 1}`;
 
                 var switchName = message.switchName;
 
@@ -67,18 +67,18 @@ module.exports = function(logger){
                 var proxyPorts = Object.keys(proxySwitch[switchName].ports);
 
                 if (newCoin == oldCoin) {
-                    logger.debug(logSystem, logComponent, logSubCat, `Switch message would have no effect - ignoring ${  newCoin}`);
+                    logger.debug(logSystem, logComponent, logSubCat, `Switch message would have no effect - ignoring ${newCoin}`);
                     break;
                 }
 
-                logger.debug(logSystem, logComponent, logSubCat, `Proxy message for ${  algo  } from ${  oldCoin  } to ${  newCoin}`);
+                logger.debug(logSystem, logComponent, logSubCat, `Proxy message for ${algo} from ${oldCoin} to ${newCoin}`);
 
                 if (newPool) {
                     oldPool.relinquishMiners(
-                        (miner, cback) => { 
+                        (miner, cback) => {
                             // relinquish miners that are attached to one of the "Auto-switch" ports and leave the others there.
                             cback(proxyPorts.indexOf(miner.client.socket.localPort.toString()) !== -1);
-                        }, 
+                        },
                         (clients) => {
                             newPool.attachMiners(clients);
                         }
@@ -87,9 +87,9 @@ module.exports = function(logger){
 
                     redisClient.hset('proxyState', algo, newCoin, (error, obj) => {
                         if (error) {
-                            logger.error(logSystem, logComponent, logSubCat, `Redis error writing proxy config: ${  JSON.stringify(err)}`);
+                            logger.error(logSystem, logComponent, logSubCat, `Redis error writing proxy config: ${JSON.stringify(err)}`);
                         } else {
-                            logger.debug(logSystem, logComponent, logSubCat, `Last proxy state saved to redis for ${  algo}`);
+                            logger.debug(logSystem, logComponent, logSubCat, `Last proxy state saved to redis for ${algo}`);
                         }
                     });
 
@@ -104,28 +104,30 @@ module.exports = function(logger){
         const poolOptions = poolConfigs[coin];
 
         const logSystem = 'Pool';
+        const logSystem2 = 'Block';
+        const logSystem3 = 'Worker';
         const logComponent = coin;
-        const logSubCat = `Thread ${  parseInt(forkId) + 1}`;
+        const logSubCat = `Thread ${parseInt(forkId) + 1}`;
 
         const handlers = {
-            auth: function(){},
-            share: function(){},
-            diff: function(){}
+            auth: function () { },
+            share: function () { },
+            diff: function () { }
         };
 
         //Functions required for MPOS compatibility
-        if (poolOptions.mposMode && poolOptions.mposMode.enabled){
+        if (poolOptions.mposMode && poolOptions.mposMode.enabled) {
             const mposCompat = new MposCompatibility(logger, poolOptions);
 
-            handlers.auth = function(port, workerName, password, authCallback){
+            handlers.auth = function (port, workerName, password, authCallback) {
                 mposCompat.handleAuth(workerName, password, authCallback);
             };
 
-            handlers.share = function(isValidShare, isValidBlock, data){
+            handlers.share = function (isValidShare, isValidBlock, data) {
                 mposCompat.handleShare(isValidShare, isValidBlock, data);
             };
 
-            handlers.diff = function(workerName, diff){
+            handlers.diff = function (workerName, diff) {
                 mposCompat.handleDifficultyUpdate(workerName, diff);
             };
         }
@@ -135,7 +137,7 @@ module.exports = function(logger){
 
             const shareProcessor = new ShareProcessor(logger, poolOptions);
 
-            handlers.auth = function(port, workerName, password, authCallback){
+            handlers.auth = function (port, workerName, password, authCallback) {
                 if (poolOptions.bannedAddresses.banned.indexOf(workerName) !== -1 && poolOptions.bannedAddresses.enabled == true) {
                     //Banned addresses return false if that option is enabled
                     isvalid = false;
@@ -155,17 +157,17 @@ module.exports = function(logger){
                 authCallback(isvalid);
             };
 
-            handlers.share = function(isValidShare, isValidBlock, data){
+            handlers.share = function (isValidShare, isValidBlock, data) {
                 shareProcessor.handleShare(isValidShare, isValidBlock, data);
             };
         }
 
         const authorizeFN = function (ip, port, workerName, password, callback) {
-            handlers.auth(port, workerName, password, (authorized) =>{
+            handlers.auth(port, workerName, password, (authorized) => {
 
                 const authString = authorized ? 'Authorized' : 'Unauthorized ';
 
-                logger.debug(logSystem, logComponent, logSubCat, `${authString  } ${  workerName  }:${  password  } [${  ip  }]`);
+                logger.debug(logSystem3, logComponent, logSubCat, `${authString} ${workerName}:${password} [${ip}]`);
                 callback({
                     error: null,
                     authorized: authorized,
@@ -176,44 +178,44 @@ module.exports = function(logger){
 
 
         const pool = Stratum.createPool(poolOptions, authorizeFN, logger);
-        pool.on('share', (isValidShare, isValidBlock, data) =>{
-            
+        pool.on('share', (isValidShare, isValidBlock, data) => {
+
             const shareData = JSON.stringify(data);
-            
+
             if (data.blockHash && !isValidBlock) {
-                logger.debug(logSystem, logComponent, logSubCat, `We thought a block was found but it was rejected by the daemon, share data: ${  shareData}`);
+                logger.error(logSystem2, logComponent, logSubCat, `We thought a block was found but it was rejected by the daemon, share data: ${shareData}`);
             } else if (isValidBlock) {
                 if (!data.blockOnlyPBaaS) {
-                    logger.debug(logSystem, logComponent, logSubCat, `Block found: ${  data.blockHash  } [${  data.height  }] by ${  data.worker}`);
+                    logger.error(logSystem2, logComponent, logSubCat, `Block found: ${data.blockHash} [${data.height}] by ${data.worker}`);
                 } else {
-                    logger.debug(logSystem, logComponent, logSubCat, `PBaaS found: ${  data.blockHash  } by ${  data.worker}`);
+                    logger.error(logSystem2, logComponent, logSubCat, `PBaaS found: ${data.blockHash} by ${data.worker}`);
                 }
             }
             if (isValidShare) {
-                if(data.shareDiff > 1000000000) {
-                    logger.debug(logSystem, logComponent, logSubCat, 'Share was found with diff higher than 1.000.000.000!');
-                } else if(data.shareDiff > 1000000) {
-                    logger.debug(logSystem, logComponent, logSubCat, 'Share was found with diff higher than 1.000.000!');
+                if (data.shareDiff > 1000000000) {
+                    logger.warning(logSystem3, logComponent, logSubCat, 'Share was found with diff higher than 1.000.000.000!');
+                } else if (data.shareDiff > 1000000) {
+                    logger.warning(logSystem3, logComponent, logSubCat, 'Share was found with diff higher than 1.000.000!');
                 }
                 //logger.debug(logSystem, logComponent, logSubCat, 'Share accepted at diff ' + data.difficulty + '/' + data.shareDiff + ' by ' + data.worker + ' [' + data.ip + ']' );
             } else if (!isValidShare) {
-                logger.debug(logSystem, logComponent, logSubCat, `Share rejected: ${  shareData}`);
+                logger.debug(logSystem3, logComponent, logSubCat, `Share rejected: ${shareData}`);
             }
-            
+
             // handle the share
             handlers.share(isValidShare, isValidBlock, data);
-            
+
             // send to master for pplnt time tracking
-            process.send({type: 'shareTrack', thread:(parseInt(forkId)+1), coin:poolOptions.coin.name, isValidShare:isValidShare, isValidBlock:isValidBlock, data:data});
-            
-        }).on('difficultyUpdate', (workerName, diff) =>{
-            logger.debug(logSystem, logComponent, logSubCat, `Difficulty update to diff ${  diff  } workerName=${  JSON.stringify(workerName)}`);
+            process.send({ type: 'shareTrack', thread: (parseInt(forkId) + 1), coin: poolOptions.coin.name, isValidShare: isValidShare, isValidBlock: isValidBlock, data: data });
+
+        }).on('difficultyUpdate', (workerName, diff) => {
+            logger.debug(logSystem3, logComponent, logSubCat, `Difficulty update to diff ${diff} workerName=${JSON.stringify(workerName)}`);
             handlers.diff(workerName, diff);
         }).on('log', (severity, text) => {
             logger[severity](logSystem, logComponent, logSubCat, text);
-        }).on('banIP', (ip, worker) =>{
-            process.send({type: 'banIP', ip: ip});
-        }).on('started', () =>{
+        }).on('banIP', (ip, worker) => {
+            process.send({ type: 'banIP', ip: ip });
+        }).on('started', () => {
             _this.setDifficultyForProxyPort(pool, poolOptions.coin.name, poolOptions.coin.algorithm);
         });
 
@@ -226,7 +228,7 @@ module.exports = function(logger){
 
         var logSystem = 'Switching';
         var logComponent = 'Setup';
-        const logSubCat = `Thread ${  parseInt(forkId) + 1}`;
+        const logSubCat = `Thread ${parseInt(forkId) + 1}`;
 
         let proxyState = {};
 
@@ -274,15 +276,12 @@ module.exports = function(logger){
                 };
 
 
-                Object.keys(proxySwitch[switchName].ports).forEach((port) =>{
+                Object.keys(proxySwitch[switchName].ports).forEach((port) => {
                     const f = net.createServer((socket) => {
                         const currentPool = proxySwitch[switchName].currentPool;
 
-                        logger.debug(logSystem, 'Connect', logSubCat, `Connection to ${
-                            switchName  } from ${
-                            socket.remoteAddress  } on ${
-                            port  } routing to ${  currentPool}`);
-                        
+                        logger.debug(logSystem, 'Connect', logSubCat, `Connection to ${switchName} from ${socket.remoteAddress} on ${port} routing to ${currentPool}`);
+
                         if (pools[currentPool]) {
                             pools[currentPool].getStratumServer().handleNewClient(socket);
                         } else {
@@ -290,10 +289,10 @@ module.exports = function(logger){
                         }
 
                     }).listen(parseInt(port), () => {
-                        logger.debug(logSystem, logComponent, logSubCat, `Switching "${  switchName
-                        }" listening for ${  algorithm
-                        } on port ${  port
-                        } into ${  proxySwitch[switchName].currentPool}`);
+                        logger.debug(logSystem, logComponent, logSubCat, `Switching "${switchName
+                            }" listening for ${algorithm
+                            } on port ${port
+                            } into ${proxySwitch[switchName].currentPool}`);
                     });
                     proxySwitch[switchName].servers.push(f);
                 });
@@ -302,7 +301,7 @@ module.exports = function(logger){
         });
     }
 
-    this.getFirstPoolForAlgorithm = function(algorithm) {
+    this.getFirstPoolForAlgorithm = function (algorithm) {
         let foundCoin = '';
         Object.keys(poolConfigs).forEach((coinName) => {
             if (poolConfigs[coinName].coin.algorithm == algorithm) {
@@ -318,7 +317,7 @@ module.exports = function(logger){
     // Called when stratum pool emits its 'started' event to copy the initial diff and vardiff 
     // configuation for any proxy switching ports configured into the stratum pool object.
     //
-    this.setDifficultyForProxyPort = function(pool, coin, algo) {
+    this.setDifficultyForProxyPort = function (pool, coin, algo) {
 
         logger.debug(logSystem, logComponent, algo, 'Setting proxy difficulties after pool start');
 
@@ -340,7 +339,7 @@ module.exports = function(logger){
                     pool.setVarDiff(port, portalConfig.switching[switchName].ports[port].varDiff);
                 }
 
-                if (portalConfig.switching[switchName].ports[port].diff){
+                if (portalConfig.switching[switchName].ports[port].diff) {
                     if (!pool.options.ports.hasOwnProperty(port)) {
                         pool.options.ports[port] = {};
                     }

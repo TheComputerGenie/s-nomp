@@ -11,14 +11,14 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const compress = require('compression');
 
-const Stratum = require('stratum-pool');
-const util = require('stratum-pool/lib/util.js');
+const Stratum = require('./stratum');
+const util = require('./stratum/util.js');
 
 const api = require('./api.js');
 
 const CreateRedisClient = require('./createRedisClient.js');
 
-module.exports = function(logger){
+module.exports = function (logger) {
 
     dot.templateSettings.strip = false;
 
@@ -55,9 +55,9 @@ module.exports = function(logger){
     let keyScriptTemplate = '';
     let keyScriptProcessed = '';
 
-    const processTemplates = function(){
+    const processTemplates = function () {
 
-        for (const pageName in pageTemplates){
+        for (const pageName in pageTemplates) {
             if (pageName === 'index') {
                 continue;
             }
@@ -80,17 +80,17 @@ module.exports = function(logger){
 
 
 
-    const readPageFiles = function(files){
-        async.each(files, (fileName, callback) =>{
-            const filePath = `website/${  fileName === 'index.html' ? '' : 'pages/'  }${fileName}`;
-            fs.readFile(filePath, 'utf8', (err, data) =>{
+    const readPageFiles = function (files) {
+        async.each(files, (fileName, callback) => {
+            const filePath = `website/${fileName === 'index.html' ? '' : 'pages/'}${fileName}`;
+            fs.readFile(filePath, 'utf8', (err, data) => {
                 const pTemp = dot.template(data);
                 pageTemplates[pageFiles[fileName]] = pTemp;
                 callback();
             });
-        }, (err) =>{
-            if (err){
-                console.log(`error reading files for creating dot templates: ${ JSON.stringify(err)}`);
+        }, (err) => {
+            if (err) {
+                console.log(`error reading files for creating dot templates: ${JSON.stringify(err)}`);
                 return;
             }
             processTemplates();
@@ -100,7 +100,7 @@ module.exports = function(logger){
 
     // if an html file was changed reload it
     /* requires node-watch 0.5.0 or newer */
-    watch(['./website', './website/pages'], (evt, filename) =>{
+    watch(['./website', './website/pages'], (evt, filename) => {
         let basename;
         // support older versions of node-watch automatically
         if (!filename && evt) {
@@ -108,23 +108,23 @@ module.exports = function(logger){
         } else {
             basename = path.basename(filename);
         }
-        
-        if (basename in pageFiles){
+
+        if (basename in pageFiles) {
             readPageFiles([basename]);
-            logger.special(logSystem, 'Server', `Reloaded file ${  basename}`);
+            logger.special(logSystem, 'Server', `Reloaded file ${basename}`);
         }
     });
 
-    portalStats.getGlobalStats(() =>{
+    portalStats.getGlobalStats(() => {
         readPageFiles(Object.keys(pageFiles));
     });
 
-    const buildUpdatedWebsite = function(){
-        portalStats.getGlobalStats(() =>{
+    const buildUpdatedWebsite = function () {
+        portalStats.getGlobalStats(() => {
             processTemplates();
 
-            const statData = `data: ${  JSON.stringify(portalStats.stats)  }\n\n`;
-            for (const uid in portalApi.liveStatConnections){
+            const statData = `data: ${JSON.stringify(portalStats.stats)}\n\n`;
+            for (const uid in portalApi.liveStatConnections) {
                 const res = portalApi.liveStatConnections[uid];
                 res.write(statData);
             }
@@ -134,38 +134,38 @@ module.exports = function(logger){
 
     setInterval(buildUpdatedWebsite, websiteConfig.stats.updateInterval * 1000);
 
-    const buildKeyScriptPage = function(){
+    const buildKeyScriptPage = function () {
         async.waterfall([
-            function(callback){
+            function (callback) {
                 const client = CreateRedisClient(portalConfig.redis);
                 if (portalConfig.redis.password) {
                     client.auth(portalConfig.redis.password);
                 }
-                client.hgetall('coinVersionBytes', (err, coinBytes) =>{
-                    if (err){
+                client.hgetall('coinVersionBytes', (err, coinBytes) => {
+                    if (err) {
                         client.quit();
-                        return callback(`Failed grabbing coin version bytes from redis ${  JSON.stringify(err)}`);
+                        return callback(`Failed grabbing coin version bytes from redis ${JSON.stringify(err)}`);
                     }
                     callback(null, client, coinBytes || {});
                 });
             },
-            function (client, coinBytes, callback){
-                const enabledCoins = Object.keys(poolConfigs).map((c) =>{
+            function (client, coinBytes, callback) {
+                const enabledCoins = Object.keys(poolConfigs).map((c) => {
                     return c.toLowerCase();
                 });
                 const missingCoins = [];
-                enabledCoins.forEach((c) =>{
+                enabledCoins.forEach((c) => {
                     if (!(c in coinBytes)) {
                         missingCoins.push(c);
                     }
                 });
                 callback(null, client, coinBytes, missingCoins);
             },
-            function(client, coinBytes, missingCoins, callback){
+            function (client, coinBytes, missingCoins, callback) {
                 const coinsForRedis = {};
-                async.each(missingCoins, (c, cback) =>{
-                    const coinInfo = (function(){
-                        for (const pName in poolConfigs){
+                async.each(missingCoins, (c, cback) => {
+                    const coinInfo = (function () {
+                        for (const pName in poolConfigs) {
                             if (pName.toLowerCase() === c) {
                                 return {
                                     daemon: poolConfigs[pName].paymentProcessing.daemon,
@@ -174,12 +174,12 @@ module.exports = function(logger){
                             }
                         }
                     })();
-                    const daemon = new Stratum.daemon.interface([coinInfo.daemon], ((severity, message) =>{
+                    const daemon = new Stratum.daemon.interface([coinInfo.daemon], ((severity, message) => {
                         logger[severity](logSystem, c, message);
                     }));
-                    daemon.cmd('dumpprivkey', [coinInfo.address], (result) =>{
-                        if (result[0].error){
-                            logger.error(logSystem, c, `Could not dumpprivkey for ${  c  } ${  JSON.stringify(result[0].error)}`);
+                    daemon.cmd('dumpprivkey', [coinInfo.address], (result) => {
+                        if (result[0].error) {
+                            logger.error(logSystem, c, `Could not dumpprivkey for ${c} ${JSON.stringify(result[0].error)}`);
                             cback();
                             return;
                         }
@@ -187,36 +187,36 @@ module.exports = function(logger){
                         const vBytePub = util.getVersionByte(coinInfo.address)[0];
                         const vBytePriv = util.getVersionByte(result[0].response)[0];
 
-                        coinBytes[c] = `${vBytePub.toString()  },${  vBytePriv.toString()}`;
+                        coinBytes[c] = `${vBytePub.toString()},${vBytePriv.toString()}`;
                         coinsForRedis[c] = coinBytes[c];
                         cback();
                     });
-                }, (err) =>{
+                }, (err) => {
                     callback(null, client, coinBytes, coinsForRedis);
                 });
             },
-            function(client, coinBytes, coinsForRedis, callback){
-                if (Object.keys(coinsForRedis).length > 0){
-                    client.hmset('coinVersionBytes', coinsForRedis, (err) =>{
+            function (client, coinBytes, coinsForRedis, callback) {
+                if (Object.keys(coinsForRedis).length > 0) {
+                    client.hmset('coinVersionBytes', coinsForRedis, (err) => {
                         if (err) {
-                            logger.error(logSystem, 'Init', `Failed inserting coin byte version into redis ${  JSON.stringify(err)}`);
+                            logger.error(logSystem, 'Init', `Failed inserting coin byte version into redis ${JSON.stringify(err)}`);
                         }
                         client.quit();
                     });
-                } else{
+                } else {
                     client.quit();
                 }
                 callback(null, coinBytes);
             }
-        ], (err, coinBytes) =>{
-            if (err){
+        ], (err, coinBytes) => {
+            if (err) {
                 logger.error(logSystem, 'Init', err);
                 return;
             }
-            try{
-                keyScriptTemplate = dot.template(fs.readFileSync('website/key.html', {encoding: 'utf8'}));
-                keyScriptProcessed = keyScriptTemplate({coins: coinBytes});
-            } catch(e){
+            try {
+                keyScriptTemplate = dot.template(fs.readFileSync('website/key.html', { encoding: 'utf8' }));
+                keyScriptProcessed = keyScriptTemplate({ coins: coinBytes });
+            } catch (e) {
                 logger.error(logSystem, 'Init', 'Failed to read key.html file');
             }
         });
@@ -224,18 +224,18 @@ module.exports = function(logger){
     };
     buildKeyScriptPage();
 
-    const getPage = function(pageId){
-        if (pageId in pageProcessed){
+    const getPage = function (pageId) {
+        if (pageId in pageProcessed) {
             const requestedPage = pageProcessed[pageId];
             return requestedPage;
         }
     };
 
-    const minerpage = function(req, res, next){
+    const minerpage = function (req, res, next) {
         let address = req.params.address || null;
         if (address != null) {
             address = address.split('.')[0];
-            portalStats.getBalanceByAddress(address, () =>{
+            portalStats.getBalanceByAddress(address, () => {
                 processTemplates();
                 res.header('Content-Type', 'text/html');
                 res.end(indexesProcessed['miner_stats']);
@@ -245,10 +245,10 @@ module.exports = function(logger){
         }
     };
 
-    const payout = function(req, res, next){
+    const payout = function (req, res, next) {
         const address = req.params.address || null;
-        if (address != null){
-            portalStats.getPayout(address, (data) =>{
+        if (address != null) {
+            portalStats.getPayout(address, (data) => {
                 res.write(data.toString());
                 res.end();
             });
@@ -257,18 +257,18 @@ module.exports = function(logger){
         }
     };
 
-    const shares = function(req, res, next){
-        portalStats.getCoins(() =>{
+    const shares = function (req, res, next) {
+        portalStats.getCoins(() => {
             processTemplates();
             res.end(indexesProcessed['user_shares']);
 
         });
     };
 
-    const usershares = function(req, res, next){
+    const usershares = function (req, res, next) {
         const coin = req.params.coin || null;
-        if(coin != null){
-            portalStats.getCoinTotals(coin, null, () =>{
+        if (coin != null) {
+            portalStats.getCoinTotals(coin, null, () => {
                 processTemplates();
                 res.end(indexesProcessed['user_shares']);
             });
@@ -277,9 +277,9 @@ module.exports = function(logger){
         }
     };
 
-    const route = function(req, res, next){
+    const route = function (req, res, next) {
         const pageId = req.params.page || '';
-        if (pageId in indexesProcessed){
+        if (pageId in indexesProcessed) {
             res.header('Content-Type', 'text/html');
             res.end(indexesProcessed[pageId]);
         } else {
@@ -295,16 +295,16 @@ module.exports = function(logger){
 
     app.use(bodyParser.json());
 
-    app.get('/get_page', (req, res, next) =>{
+    app.get('/get_page', (req, res, next) => {
         const requestedPage = getPage(req.query.id);
-        if (requestedPage){
+        if (requestedPage) {
             res.end(requestedPage);
             return;
         }
         next();
     });
 
-    app.get('/key.html', (req, res, next) =>{
+    app.get('/key.html', (req, res, next) => {
         res.end(keyScriptProcessed);
     });
 
@@ -316,18 +316,18 @@ module.exports = function(logger){
     app.get('/:page', route);
     app.get('/', route);
 
-    app.get('/api/:method', (req, res, next) =>{
+    app.get('/api/:method', (req, res, next) => {
         portalApi.handleApiRequest(req, res, next);
     });
 
-    app.post('/api/admin/:method', (req, res, next) =>{
+    app.post('/api/admin/:method', (req, res, next) => {
         if (portalConfig.website
             && portalConfig.website.adminCenter
-            && portalConfig.website.adminCenter.enabled){
+            && portalConfig.website.adminCenter.enabled) {
             if (portalConfig.website.adminCenter.password === req.body.password) {
                 portalApi.handleAdminApiRequest(req, res, next);
             } else {
-                res.send(401, JSON.stringify({error: 'Incorrect Password'}));
+                res.send(401, JSON.stringify({ error: 'Incorrect Password' }));
             }
 
         } else {
@@ -339,12 +339,12 @@ module.exports = function(logger){
     app.use(compress());
     app.use('/static', express.static('website/static'));
 
-    app.use((err, req, res, next) =>{
+    app.use((err, req, res, next) => {
         console.error(err.stack);
         res.send(500, 'Something broke!');
     });
 
-    try {        
+    try {
         if (portalConfig.website.tlsOptions && portalConfig.website.tlsOptions.enabled === true) {
             const TLSoptions = {
                 key: fs.readFileSync(portalConfig.website.tlsOptions.key),
@@ -352,17 +352,17 @@ module.exports = function(logger){
             };
 
             https.createServer(TLSoptions, app).listen(portalConfig.website.port, portalConfig.website.host, () => {
-                logger.debug(logSystem, 'Server', `TLS Website started on ${  portalConfig.website.host  }:${  portalConfig.website.port}`);
-            });        
+                logger.debug(logSystem, 'Server', `TLS Website started on ${portalConfig.website.host}:${portalConfig.website.port}`);
+            });
         } else {
             app.listen(portalConfig.website.port, portalConfig.website.host, () => {
-                logger.debug(logSystem, 'Server', `Website started on ${  portalConfig.website.host  }:${  portalConfig.website.port}`);
+                logger.debug(logSystem, 'Server', `Website started on ${portalConfig.website.host}:${portalConfig.website.port}`);
             });
         }
-    } catch(e){
+    } catch (e) {
         console.log(e);
-        logger.error(logSystem, 'Server', `Could not start website on ${  portalConfig.website.host  }:${  portalConfig.website.port
-        } - its either in use or you do not have permission`);
+        logger.error(logSystem, 'Server', `Could not start website on ${portalConfig.website.host}:${portalConfig.website.port
+            } - its either in use or you do not have permission`);
     }
 
 
