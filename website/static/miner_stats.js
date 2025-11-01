@@ -12,7 +12,7 @@ let totalShares;
 function getReadableHashRateString(hashrate) {
     hashrate = (hashrate * 2);
     if (hashrate < 1000000) {
-        return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)  } H/s`;
+        return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)} H/s`;
     }
     const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
     const i = Math.floor((Math.log(hashrate / 1000) / Math.log(1000)) - 1);
@@ -44,7 +44,7 @@ function getWorkerNameFromAddress(w) {
 function buildChartData() {
     const workers = {};
     for (const w in statData.history) {
-        var worker = getWorkerNameFromAddress(w);
+        const worker = getWorkerNameFromAddress(w);
         const a = workers[worker] = (workers[worker] || {
             hashrate: []
         });
@@ -58,7 +58,7 @@ function buildChartData() {
 
     let i = 0;
     workerHashrateData = [];
-    for (var worker in workers) {
+    for (const worker in workers) {
         workerHashrateData.push({
             key: worker,
             disabled: (i > Math.min((_workerCount - 1), 3)),
@@ -73,7 +73,7 @@ function updateChartData() {
     for (const w in statData.history) {
         const worker = getWorkerNameFromAddress(w);
         // get a reference to lastest workerhistory
-        for (var wh in statData.history[w]) { }
+        for (const wh in statData.history[w]) { }
         //var wh = statData.history[w][statData.history[w].length - 1];
         let foundWorker = false;
         for (let i = 0; i < workerHashrateData.length; i++) {
@@ -130,10 +130,10 @@ function displayCharts() {
         workerHashrateChart = nv.models.lineChart()
             .margin({ left: 80, right: 30 })
             .x((d) => {
-                return d[0]; 
+                return d[0];
             })
             .y((d) => {
-                return d[1]; 
+                return d[1];
             })
             .useInteractiveGuideline(true);
 
@@ -174,32 +174,32 @@ function updateWorkerStats() {
         i++;
         const htmlSafeWorkerName = w.split('.').join('_').replace(/[^\w\s]/gi, '');
         const saneWorkerName = getWorkerNameFromAddress(w);
-        $(`#statsHashrate${  htmlSafeWorkerName}`).text(getReadableHashRateString(statData.workers[w].hashrate));
-        $(`#statsHashrateAvg${  htmlSafeWorkerName}`).text(getReadableHashRateString(calculateAverageHashrate(saneWorkerName)));
-        $(`#statsLuckDays${  htmlSafeWorkerName}`).text(statData.workers[w].luckDays);
-        $(`#statsPaid${  htmlSafeWorkerName}`).text(statData.workers[w].paid);
-        $(`#statsBalance${  htmlSafeWorkerName}`).text(statData.workers[w].balance);
-        $(`#statsShares${  htmlSafeWorkerName}`).text(Math.round(statData.workers[w].currRoundShares * 100) / 100);
-        $(`#statsDiff${  htmlSafeWorkerName}`).text(statData.workers[w].diff);
-        $(`#statsLastShare${  htmlSafeWorkerName}`).text(Math.floor(((new Date().getTime()) - (new Date(Math.round(statData.workers[w].lastShare)).getTime())) / 1000));
+        $(`#statsHashrate${htmlSafeWorkerName}`).text(getReadableHashRateString(statData.workers[w].hashrate));
+        $(`#statsHashrateAvg${htmlSafeWorkerName}`).text(getReadableHashRateString(calculateAverageHashrate(saneWorkerName)));
+        $(`#statsLuckDays${htmlSafeWorkerName}`).text(statData.workers[w].luckDays);
+        $(`#statsPaid${htmlSafeWorkerName}`).text(statData.workers[w].paid);
+        $(`#statsBalance${htmlSafeWorkerName}`).text(statData.workers[w].balance);
+        $(`#statsShares${htmlSafeWorkerName}`).text(Math.round(statData.workers[w].currRoundShares * 100) / 100);
+        $(`#statsDiff${htmlSafeWorkerName}`).text(statData.workers[w].diff);
+        $(`#statsLastShare${htmlSafeWorkerName}`).text(Math.floor(((new Date().getTime()) - (new Date(Math.round(statData.workers[w].lastShare)).getTime())) / 1000));
     }
 }
 function addWorkerToDisplay(name, htmlSafeName, workerObj) {
     let htmlToAdd = '';
     htmlToAdd = '<div class="boxStats" id="boxStatsLeft" style="float:left; margin: 9px; min-width: 260px;"><div class="boxStatsList">';
     if (htmlSafeName.indexOf('_') >= 0) {
-        htmlToAdd += `<div class="boxLowerHeader">${  htmlSafeName.substr(htmlSafeName.indexOf('_') + 1, htmlSafeName.length)  }</div>`;
+        htmlToAdd += `<div class="boxLowerHeader">${htmlSafeName.substr(htmlSafeName.indexOf('_') + 1, htmlSafeName.length)}</div>`;
     } else {
         htmlToAdd += '<div class="boxLowerHeader">noname</div>';
     }
-    htmlToAdd += `<div><i class="fa fa-tachometer"></i> <span id="statsHashrate${  htmlSafeName  }">${  getReadableHashRateString(workerObj.hashrate)  }</span> (Now)</div>`;
-    htmlToAdd += `<div><i class="fa fa-tachometer"></i> <span id="statsHashrateAvg${  htmlSafeName  }">${  getReadableHashRateString(calculateAverageHashrate(name))  }</span> (Avg)</div>`;
-    htmlToAdd += `<div><i class="fa fa-shield"></i> <small>Diff:</small> <span id="statsDiff${  htmlSafeName  }">${  workerObj.diff  }</span></div>`;
-    htmlToAdd += `<div><i class="fa fa-cog"></i> <small>Shares:</small> <span id="statsShares${  htmlSafeName  }">${  Math.round(workerObj.currRoundShares * 100) / 100  }</span></div>`;
-    htmlToAdd += `<div><i class="fa fa-gavel"></i> <small>Luck <span id="statsLuckDays${  htmlSafeName  }">${  workerObj.luckDays  }</span> Days</small></div>`;
-    htmlToAdd += `<div><i class="fa fa-money"></i> <small>Bal: <span id="statsBalance${  htmlSafeName  }">${  workerObj.balance  }</span></small></div>`;
-    htmlToAdd += `<div><i class="fa fa-money"></i> <small>Paid: <span id="statsPaid${  htmlSafeName  }">${  workerObj.paid  }</span></small></div>`;
-    htmlToAdd += `<div><i class="fa fa-signal"></i> <small>Last share: <span id="statsLastShare${  htmlSafeName  }">${  Math.floor(((new Date().getTime()) - (new Date(Math.round(workerObj.lastShare)).getTime())) / 1000)  }s ago</span></small></div>`;
+    htmlToAdd += `<div><i class="fa fa-tachometer"></i> <span id="statsHashrate${htmlSafeName}">${getReadableHashRateString(workerObj.hashrate)}</span> (Now)</div>`;
+    htmlToAdd += `<div><i class="fa fa-tachometer"></i> <span id="statsHashrateAvg${htmlSafeName}">${getReadableHashRateString(calculateAverageHashrate(name))}</span> (Avg)</div>`;
+    htmlToAdd += `<div><i class="fa fa-shield"></i> <small>Diff:</small> <span id="statsDiff${htmlSafeName}">${workerObj.diff}</span></div>`;
+    htmlToAdd += `<div><i class="fa fa-cog"></i> <small>Shares:</small> <span id="statsShares${htmlSafeName}">${Math.round(workerObj.currRoundShares * 100) / 100}</span></div>`;
+    htmlToAdd += `<div><i class="fa fa-gavel"></i> <small>Luck <span id="statsLuckDays${htmlSafeName}">${workerObj.luckDays}</span> Days</small></div>`;
+    htmlToAdd += `<div><i class="fa fa-money"></i> <small>Bal: <span id="statsBalance${htmlSafeName}">${workerObj.balance}</span></small></div>`;
+    htmlToAdd += `<div><i class="fa fa-money"></i> <small>Paid: <span id="statsPaid${htmlSafeName}">${workerObj.paid}</span></small></div>`;
+    htmlToAdd += `<div><i class="fa fa-signal"></i> <small>Last share: <span id="statsLastShare${htmlSafeName}">${Math.floor(((new Date().getTime()) - (new Date(Math.round(workerObj.lastShare)).getTime())) / 1000)}s ago</span></small></div>`;
     htmlToAdd += '</div></div></div>';
     $('#boxesWorkers').html($('#boxesWorkers').html() + htmlToAdd);
 }
@@ -219,10 +219,10 @@ function rebuildWorkerDisplay() {
 nv.utils.windowResize(triggerChartUpdates);
 
 // grab initial stats
-$.getJSON(`/api/worker_stats?${  _miner}`, (data) => {
+$.getJSON(`/api/worker_stats?${_miner}`, (data) => {
     statData = data;
     for (const w in statData.workers) {
-        _workerCount++; 
+        _workerCount++;
     }
     buildChartData();
     displayCharts();
@@ -235,14 +235,14 @@ statsSource.addEventListener('message', (e) => {
     // TODO, create miner_live_stats...
     // miner_live_stats will return the same josn except without the worker history
     // FOR NOW, use this to grab updated stats
-    $.getJSON(`/api/worker_stats?${  _miner}`, (data) => {
+    $.getJSON(`/api/worker_stats?${_miner}`, (data) => {
         statData = data;
         // check for missing workers
         let wc = 0;
         let rebuilt = false;
         // update worker stats
         for (const w in statData.workers) {
-            wc++; 
+            wc++;
         }
         // TODO, this isn't 100% fool proof!
         if (_workerCount != wc) {

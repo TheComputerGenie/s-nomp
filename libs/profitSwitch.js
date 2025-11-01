@@ -144,7 +144,7 @@ module.exports = function (logger) {
                 Object.keys(coinStatus.exchangeInfo).forEach((exchange) => {
                     const exchangeData = coinStatus.exchangeInfo[exchange];
                     if (exchangeData.hasOwnProperty('BTC') && exchangeData['BTC'].hasOwnProperty('weightedBid')) {
-                        var btcPerMhPerHour = exchangeData['BTC'].weightedBid * coinStatus.coinsPerMhPerHour;
+                        const btcPerMhPerHour = exchangeData['BTC'].weightedBid * coinStatus.coinsPerMhPerHour;
                         if (btcPerMhPerHour > bestBtcPerMhPerHour) {
                             bestBtcPerMhPerHour = btcPerMhPerHour;
                             bestExchange = exchange;
@@ -154,7 +154,7 @@ module.exports = function (logger) {
                         logger.debug(logSystem, 'CALC', `BTC/${symbol} on ${exchange} with ${coinStatus.btcPerMhPerHour.toFixed(8)} BTC/day per Mh/s`);
                     }
                     if (exchangeData.hasOwnProperty('LTC') && exchangeData['LTC'].hasOwnProperty('weightedBid')) {
-                        var btcPerMhPerHour = (exchangeData['LTC'].weightedBid * coinStatus.coinsPerMhPerHour) * exchangeData['LTC'].ltcToBtc;
+                        const btcPerMhPerHour = (exchangeData['LTC'].weightedBid * coinStatus.coinsPerMhPerHour) * exchangeData['LTC'].ltcToBtc;
                         if (btcPerMhPerHour > bestBtcPerMhPerHour) {
                             bestBtcPerMhPerHour = btcPerMhPerHour;
                             bestExchange = exchange;
@@ -168,7 +168,7 @@ module.exports = function (logger) {
             logger.debug(logSystem, 'RESULT', `Best coin for ${algo} is ${bestCoin} on ${bestExchange} with ${bestBtcPerMhPerHour.toFixed(8)} BTC/day per Mh/s`);
 
 
-            var client = net.connect(portalConfig.cliPort, () => {
+            const client = net.connect(portalConfig.cliPort, () => {
                 client.write(`${JSON.stringify({
                     command: 'coinswitch',
                     params: [bestCoin],
@@ -189,7 +189,7 @@ module.exports = function (logger) {
     const checkProfitability = function () {
         logger.debug(logSystem, 'Check', 'Collecting profitability data.');
 
-        profitabilityTasks = [];
+        const profitabilityTasks = [];
         // Exchange collectors removed; only use on-chain daemon info and mining rate
         profitabilityTasks.push(_this.getCoindDaemonInfo);
         profitabilityTasks.push(_this.getMiningRate);

@@ -7,8 +7,8 @@ const args = process.argv.slice(2);
 const params = [];
 const options = {};
 
-for(let i = 0; i < args.length; i++){
-    if (args[i].indexOf('-') === 0 && args[i].indexOf('=') !== -1){
+for (let i = 0; i < args.length; i++) {
+    if (args[i].indexOf('-') === 0 && args[i].indexOf('=') !== -1) {
         const s = args[i].substr(1).split('=');
         options[s[0]] = s[1];
     } else {
@@ -20,17 +20,17 @@ const command = params.shift();
 
 
 
-var client = net.connect(options.port || defaultPort, options.host || defaultHost, () => {
+const client = net.connect(options.port || defaultPort, options.host || defaultHost, () => {
     client.write(`${JSON.stringify({
         command: command,
         params: params,
         options: options
-    })  }\n`);
-}).on('error', (error) =>{
+    })}\n`);
+}).on('error', (error) => {
     if (error.code === 'ECONNREFUSED') {
-        console.log(`Could not connect to NOMP instance at ${  defaultHost  }:${  defaultPort}`);
+        console.log(`Could not connect to NOMP instance at ${defaultHost}:${defaultPort}`);
     } else {
-        console.log(`Socket error ${  JSON.stringify(error)}`);
+        console.log(`Socket error ${JSON.stringify(error)}`);
     }
 }).on('data', (data) => {
     console.log(data.toString());

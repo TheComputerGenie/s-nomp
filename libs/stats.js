@@ -129,13 +129,13 @@ module.exports = function (logger, portalConfig, poolConfigs) {
         async.each(_this.stats.pools, (pool, pcb) => {
 
             if (_this.stats.pools[pool.name].pending && _this.stats.pools[pool.name].pending.blocks) {
-                for (var i = 0; i < _this.stats.pools[pool.name].pending.blocks.length; i++) {
+                for (let i = 0; i < _this.stats.pools[pool.name].pending.blocks.length; i++) {
                     allBlocks[`${pool.name}-${_this.stats.pools[pool.name].pending.blocks[i].split(':')[2]}`] = _this.stats.pools[pool.name].pending.blocks[i];
                 }
             }
 
             if (_this.stats.pools[pool.name].confirmed && _this.stats.pools[pool.name].confirmed.blocks) {
-                for (var i = 0; i < _this.stats.pools[pool.name].confirmed.blocks.length; i++) {
+                for (let i = 0; i < _this.stats.pools[pool.name].confirmed.blocks.length; i++) {
                     allBlocks[`${pool.name}-${_this.stats.pools[pool.name].confirmed.blocks[i].split(':')[2]}`] = _this.stats.pools[pool.name].confirmed.blocks[i];
                 }
             }
@@ -353,7 +353,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                                 totalPaid += paidAmount;
                             }
                         }
-                        for (var b in bals[1]) {
+                        for (const b in bals[1]) {
                             if (Math.abs(b % 2) != 1) {
                                 workerName = String(bals[1][b]);
                                 workers[workerName] = (workers[workerName] || {});
@@ -363,7 +363,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                                 totalHeld += balAmount;
                             }
                         }
-                        for (var b in pends[1]) {
+                        for (const b in pends[1]) {
                             if (Math.abs(b % 2) != 1) {
                                 workerName = String(pends[1][b]);
                                 workers[workerName] = (workers[workerName] || {});
@@ -422,7 +422,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                         // Process payouts
                         for (let i = 0; i < pays[1].length; i += 2) {
-                            var workerName = String(pays[1][i]);
+                            const workerName = String(pays[1][i]);
                             const paidAmount = parseFloat(pays[1][i + 1]);
 
                             workers[workerName] = workers[workerName] || {};
@@ -431,7 +431,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                         // Process balances
                         for (let j = 0; j < bals[1].length; j += 2) {
-                            var workerName = String(bals[1][j]);
+                            const workerName = String(bals[1][j]);
                             const balAmount = parseFloat(bals[1][j + 1]);
 
                             workers[workerName] = workers[workerName] || {};
@@ -440,7 +440,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                         // Process immature balances
                         for (let k = 0; k < pends[1].length; k += 2) {
-                            var workerName = String(pends[1][k]);
+                            const workerName = String(pends[1][k]);
                             const pendingAmount = parseFloat(pends[1][k + 1]);
 
                             workers[workerName] = workers[workerName] || {};
@@ -561,7 +561,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                             shareCount: 0
                         };
                         for (let j = replies[i + 10].length; j > 0; j--) {
-                            var jsonObj;
+                            let jsonObj;
                             try {
                                 jsonObj = JSON.parse(replies[i + 10][j - 1]);
                             } catch (e) {
@@ -725,8 +725,8 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                 let _shareTotal = parseFloat(0);
                 let _maxTimeShare = parseFloat(0);
-                for (var worker in coinStats.currentRoundShares) {
-                    var miner = worker.split('.')[0];
+                for (const worker in coinStats.currentRoundShares) {
+                    const miner = worker.split('.')[0];
                     if (miner in coinStats.miners) {
                         coinStats.miners[miner].currRoundShares += parseFloat(coinStats.currentRoundShares[worker]);
                     }
@@ -735,12 +735,12 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                     }
                     _shareTotal += parseFloat(coinStats.currentRoundShares[worker]);
                 }
-                for (var worker in coinStats.currentRoundTimes) {
+                for (const worker in coinStats.currentRoundTimes) {
                     const time = parseFloat(coinStats.currentRoundTimes[worker]);
                     if (_maxTimeShare < time) {
                         _maxTimeShare = time;
                     }
-                    var miner = worker.split('.')[0];	// split poolId from minerAddress
+                    const miner = worker.split('.')[0];	// split poolId from minerAddress
                     if (miner in coinStats.miners && coinStats.miners[miner].currRoundTime < time) {
                         coinStats.miners[miner].currRoundTime = time;
                     }
@@ -750,21 +750,21 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                 coinStats.maxRoundTime = _maxTimeShare;
                 coinStats.maxRoundTimeString = readableSeconds(_maxTimeShare);
 
-                for (var worker in coinStats.workers) {
-                    var _workerRate = shareMultiplier * coinStats.workers[worker].shares / portalConfig.website.stats.hashrateWindow;
-                    var _wHashRate = (_workerRate / 1000000) * 2;
+                for (const worker in coinStats.workers) {
+                    const _workerRate = shareMultiplier * coinStats.workers[worker].shares / portalConfig.website.stats.hashrateWindow;
+                    const _wHashRate = (_workerRate / 1000000) * 2;
                     coinStats.workers[worker].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
                     coinStats.workers[worker].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
                     coinStats.workers[worker].hashrate = _workerRate;
                     coinStats.workers[worker].hashrateString = _this.getReadableHashRateString(_workerRate);
-                    var miner = worker.split('.')[0];
+                    const miner = worker.split('.')[0];
                     if (miner in coinStats.miners) {
                         coinStats.workers[worker].currRoundTime = coinStats.miners[miner].currRoundTime;
                     }
                 }
-                for (var miner in coinStats.miners) {
-                    var _workerRate = shareMultiplier * coinStats.miners[miner].shares / portalConfig.website.stats.hashrateWindow;
-                    var _wHashRate = (_workerRate / 1000000) * 2;
+                for (const miner in coinStats.miners) {
+                    const _workerRate = shareMultiplier * coinStats.miners[miner].shares / portalConfig.website.stats.hashrateWindow;
+                    const _wHashRate = (_workerRate / 1000000) * 2;
                     coinStats.miners[miner].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
                     coinStats.miners[miner].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
                     coinStats.miners[miner].hashrate = _workerRate;

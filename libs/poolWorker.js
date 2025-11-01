@@ -37,8 +37,8 @@ module.exports = function (logger) {
 
             case 'blocknotify':
 
-                var messageCoin = message.coin.toLowerCase();
-                var poolTarget = Object.keys(pools).filter((p) => {
+                const messageCoin = message.coin.toLowerCase();
+                const poolTarget = Object.keys(pools).filter((p) => {
                     return p.toLowerCase() === messageCoin;
                 })[0];
 
@@ -50,20 +50,20 @@ module.exports = function (logger) {
 
             // IPC message for pool switching
             case 'coinswitch':
-                var logSystem = 'Proxy';
-                var logComponent = 'Switch';
-                var logSubCat = `Thread ${parseInt(forkId) + 1}`;
+                const logSystem = 'Proxy';
+                const logComponent = 'Switch';
+                const logSubCat = `Thread ${parseInt(forkId) + 1}`;
 
-                var switchName = message.switchName;
+                const switchName = message.switchName;
 
-                var newCoin = message.coin;
+                const newCoin = message.coin;
 
-                var algo = poolConfigs[newCoin].coin.algorithm;
+                const algo = poolConfigs[newCoin].coin.algorithm;
 
-                var newPool = pools[newCoin];
-                var oldCoin = proxySwitch[switchName].currentPool;
-                var oldPool = pools[oldCoin];
-                var proxyPorts = Object.keys(proxySwitch[switchName].ports);
+                const newPool = pools[newCoin];
+                const oldCoin = proxySwitch[switchName].currentPool;
+                const oldPool = pools[oldCoin];
+                const proxyPorts = Object.keys(proxySwitch[switchName].ports);
 
                 if (newCoin == oldCoin) {
                     logger.debug(logSystem, logComponent, logSubCat, `Switch message would have no effect - ignoring ${newCoin}`);
@@ -118,6 +118,7 @@ module.exports = function (logger) {
         const shareProcessor = new ShareProcessor(logger, poolOptions);
 
         handlers.auth = function (port, workerName, password, authCallback) {
+            let isvalid;
             if (poolOptions.bannedAddresses.banned.indexOf(workerName) !== -1 && poolOptions.bannedAddresses.enabled == true) {
                 //Banned addresses return false if that option is enabled
                 isvalid = false;
@@ -126,7 +127,7 @@ module.exports = function (logger) {
                 isvalid = true;
             } else {
                 //Validation of Public and Identity addresses
-                var isvalid = WAValidator.validate(String(workerName).split('.')[0], 'VRSC');
+                isvalid = WAValidator.validate(String(workerName).split('.')[0], 'VRSC');
                 /*
                 //Validation of sapling addreses (disabled until paymentProcessor.js can handle sapling payments)
                 if(isvalid !== true){
@@ -205,8 +206,8 @@ module.exports = function (logger) {
 
     if (portalConfig.switching) {
 
-        var logSystem = 'Switching';
-        var logComponent = 'Setup';
+        const logSystem = 'Switching';
+        const logComponent = 'Setup';
         const logSubCat = `Thread ${parseInt(forkId) + 1}`;
 
         let proxyState = {};

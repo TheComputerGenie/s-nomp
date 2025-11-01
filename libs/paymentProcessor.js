@@ -183,11 +183,12 @@ function SetupForPool(logger, poolOptions, setupFinished) {
 
     //get t_address coinbalance
     function listUnspent(addr, notAddr, minConf, displayBool, callback) {
+        let args;
         if (addr !== null) {
-            var args = [minConf, 99999999, [addr]];
+            args = [minConf, 99999999, [addr]];
         } else {
             addr = 'Payout wallet';
-            var args = [minConf, 99999999];
+            args = [minConf, 99999999];
         }
         daemon.cmd('listunspent', args, (result) => {
             if (!result || result.error || result[0].error) {
@@ -531,7 +532,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                 }
             }, true, true);
         };
-        var opidTimeout = setTimeout(checkOpids, opid_interval);
+        let opidTimeout = setTimeout(checkOpids, opid_interval);
     }
 
     function roundTo(n, digits) {
@@ -544,11 +545,11 @@ function SetupForPool(logger, poolOptions, setupFinished) {
         return +(test.toFixed(digits));
     }
 
-    var satoshisToCoins = function (satoshis) {
+    const satoshisToCoins = function (satoshis) {
         return roundTo((satoshis / magnitude), coinPrecision);
     };
 
-    var coinsToSatoshies = function (coins) {
+    const coinsToSatoshies = function (coins) {
         return Math.round(coins * magnitude);
     };
 
@@ -569,7 +570,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
     /* Deal with numbers in smallest possible units (satoshis) as much as possible. This greatly helps with accuracy
        when rounding and whatnot. When we are storing numbers for only humans to see, store in whole coin units. */
 
-    var processPayments = function () {
+    const processPayments = function () {
 
         const startPaymentProcess = Date.now();
 
@@ -974,28 +975,28 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                                         break;
 
                                     /* calculate immature balances */
-                                    case 'immature':
-                                        var feeSatoshi = coinsToSatoshies(fee);
-                                        var immature = coinsToSatoshies(round.reward);
-                                        var totalShares = parseFloat(0);
-                                        var sharesLost = parseFloat(0);
+                                    case 'immature': {
+                                        const feeSatoshi = coinsToSatoshies(fee);
+                                        let immature = coinsToSatoshies(round.reward);
+                                        let totalShares = parseFloat(0);
+                                        let sharesLost = parseFloat(0);
 
                                         // adjust block immature .. tx fees
                                         immature = Math.round(immature - feeSatoshi);
 
                                         // total up shares for round
-                                        for (var workerAddress in workerShares) {
-                                            var worker = workers[workerAddress] = (workers[workerAddress] || {});
-                                            var shares = parseFloat((workerShares[workerAddress] || 0));
+                                        for (const workerAddress in workerShares) {
+                                            const worker = workers[workerAddress] = (workers[workerAddress] || {});
+                                            let shares = parseFloat((workerShares[workerAddress] || 0));
                                             // if pplnt mode
                                             if (pplntEnabled === true && maxTime > 0) {
-                                                var tshares = shares;
-                                                var lost = parseFloat(0);
-                                                var address = workerAddress.split('.')[0];
+                                                const tshares = shares;
+                                                let lost = parseFloat(0);
+                                                const address = workerAddress.split('.')[0];
                                                 if (workerTimes[address] != null && parseFloat(workerTimes[address]) > 0) {
-                                                    var timePeriod = roundTo(parseFloat(workerTimes[address] || 1) / maxTime, 2);
+                                                    const timePeriod = roundTo(parseFloat(workerTimes[address] || 1) / maxTime, 2);
                                                     if (timePeriod > 0 && timePeriod < pplntTimeQualify) {
-                                                        var lost = shares - (shares * timePeriod / pplntTimeQualify);
+                                                        lost = shares - (shares * timePeriod / pplntTimeQualify);
                                                         sharesLost += lost;
                                                         shares = Math.max(shares - lost, 0);
                                                     }
@@ -1012,10 +1013,10 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                                         //console.log('blockConfirmations: '+round.confirmations);
 
                                         // calculate rewards for round
-                                        var totalAmount = 0;
-                                        for (var workerAddress in workerShares) {
-                                            var worker = workers[workerAddress] = (workers[workerAddress] || {});
-                                            var percent = parseFloat(worker.roundShares) / totalShares;
+                                        let totalAmount = 0;
+                                        for (const workerAddress in workerShares) {
+                                            const worker = workers[workerAddress] = (workers[workerAddress] || {});
+                                            const percent = parseFloat(worker.roundShares) / totalShares;
                                             // calculate workers immature for this round
                                             const workerImmatureTotal = Math.round(immature * percent);
                                             worker.immature = (worker.immature || 0) + workerImmatureTotal;
@@ -1024,30 +1025,31 @@ function SetupForPool(logger, poolOptions, setupFinished) {
 
                                         //console.log('----------------------------');
                                         break;
+                                    }
 
                                     /* calculate reward balances */
-                                    case 'generate':
-                                        var feeSatoshi = coinsToSatoshies(fee);
-                                        var reward = coinsToSatoshies(round.reward);
-                                        var totalShares = parseFloat(0);
-                                        var sharesLost = parseFloat(0);
+                                    case 'generate': {
+                                        const feeSatoshi = coinsToSatoshies(fee);
+                                        let reward = coinsToSatoshies(round.reward);
+                                        let totalShares = parseFloat(0);
+                                        let sharesLost = parseFloat(0);
 
                                         // adjust block reward .. tx fees
                                         reward = Math.round(reward - feeSatoshi);
 
                                         // total up shares for round
-                                        for (var workerAddress in workerShares) {
-                                            var worker = workers[workerAddress] = (workers[workerAddress] || {});
-                                            var shares = parseFloat((workerShares[workerAddress] || 0));
+                                        for (const workerAddress in workerShares) {
+                                            const worker = workers[workerAddress] = (workers[workerAddress] || {});
+                                            let shares = parseFloat((workerShares[workerAddress] || 0));
                                             // if pplnt mode
                                             if (pplntEnabled === true && maxTime > 0) {
-                                                var tshares = shares;
-                                                var lost = parseFloat(0);
-                                                var address = workerAddress.split('.')[0];
+                                                const tshares = shares;
+                                                let lost = parseFloat(0);
+                                                const address = workerAddress.split('.')[0];
                                                 if (workerTimes[address] != null && parseFloat(workerTimes[address]) > 0) {
-                                                    var timePeriod = roundTo(parseFloat(workerTimes[address] || 1) / maxTime, 2);
+                                                    const timePeriod = roundTo(parseFloat(workerTimes[address] || 1) / maxTime, 2);
                                                     if (timePeriod > 0 && timePeriod < pplntTimeQualify) {
-                                                        var lost = shares - (shares * timePeriod / pplntTimeQualify);
+                                                        lost = shares - (shares * timePeriod / pplntTimeQualify);
                                                         sharesLost += lost;
                                                         shares = Math.max(shares - lost, 0);
                                                         logger.warning(logSystem, logComponent, `PPLNT: Reduced shares for ${workerAddress} round:${round.height} maxTime:${maxTime}sec timePeriod:${roundTo(timePeriod, 6)} shares:${tshares} lost:${lost} new:${shares}`);
@@ -1072,10 +1074,10 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                                         //console.log('blockConfirmations: '+round.confirmations);
 
                                         // calculate rewards for round
-                                        var totalAmount = 0;
-                                        for (var workerAddress in workerShares) {
-                                            var worker = workers[workerAddress] = (workers[workerAddress] || {});
-                                            var percent = parseFloat(worker.roundShares) / totalShares;
+                                        let totalAmount = 0;
+                                        for (const workerAddress in workerShares) {
+                                            const worker = workers[workerAddress] = (workers[workerAddress] || {});
+                                            const percent = parseFloat(worker.roundShares) / totalShares;
                                             if (percent > 1.0) {
                                                 err = true;
                                                 logger.error(logSystem, logComponent, `Share percent is greater than 1.0 for ${workerAddress} round:${round.height} blockHash:${round.blockHash}`);
@@ -1089,6 +1091,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
 
                                         //console.log('----------------------------');
                                         break;
+                                    }
                                 }
                             });
 
@@ -1129,14 +1132,14 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                     tries++;
 
                     // total up miner's balances
-                    for (var w in workers) {
-                        var worker = workers[w];
+                    for (const w in workers) {
+                        const worker = workers[w];
                         totalShares += (worker.totalShares || 0);
                         worker.balance = worker.balance || 0;
                         worker.reward = worker.reward || 0;
                         // get miner payout totals
-                        var toSendSatoshis = Math.round((worker.balance + worker.reward) * (1 - withholdPercent));
-                        var address = worker.address = (worker.address || getProperAddress(w.split('.')[0])).trim();
+                        const toSendSatoshis = Math.round((worker.balance + worker.reward) * (1 - withholdPercent));
+                        const address = worker.address = (worker.address || getProperAddress(w.split('.')[0])).trim();
                         if (minerTotals[address] != null && minerTotals[address] > 0) {
                             minerTotals[address] += toSendSatoshis;
                         } else {
@@ -1144,12 +1147,12 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                         }
                     }
                     // now process each workers balance, and pay the miner
-                    for (var w in workers) {
-                        var worker = workers[w];
+                    for (const w in workers) {
+                        const worker = workers[w];
                         worker.balance = worker.balance || 0;
                         worker.reward = worker.reward || 0;
-                        var toSendSatoshis = Math.round((worker.balance + worker.reward) * (1 - withholdPercent));
-                        var address = worker.address = (worker.address || getProperAddress(w.split('.')[0])).trim();
+                        const toSendSatoshis = Math.round((worker.balance + worker.reward) * (1 - withholdPercent));
+                        const address = worker.address = (worker.address || getProperAddress(w.split('.')[0])).trim();
                         // if miners total is enough, go ahead and add this worker balance
                         if (minerTotals[address] >= minPaymentSatoshis) {
                             totalSent += toSendSatoshis;
@@ -1449,13 +1452,13 @@ function SetupForPool(logger, poolOptions, setupFinished) {
     };
 
 
-    var getProperAddress = function (address) {
+    const getProperAddress = function (address) {
         // Validation of Public and Identity addresses
         const isvalid = WAValidator.validate(String(address).split('.')[0], 'VRSC');
         if (isvalid !== true) {
             /*
             // Validation of sapling addreses (disabled until paymentProcessor.js can handle sapling payments)
-            var isvalid = WAValidator.validate(String(address).split(".")[0], 'VRSC', 'sapling');
+            const isvalidSapling = WAValidator.validate(String(address).split(".")[0], 'VRSC', 'sapling');
         }
         if (isvalid !== true){
 */

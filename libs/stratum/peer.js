@@ -103,9 +103,9 @@ const Peer = module.exports = function (options) {
                 _this.emit('connectionRejected');
                 if (attemptCount < maxAttempts) {
                     if (options.logger && typeof options.logger.error === 'function') {
-                        options.logger.error('Pool', 'P2P', '', `Retrying P2P connection attempt ${  attemptCount  } of ${  maxAttempts  } in 5 seconds...`);
+                        options.logger.error('Pool', 'P2P', '', `Retrying P2P connection attempt ${attemptCount} of ${maxAttempts} in 5 seconds...`);
                     } else {
-                        console.error(`Retrying P2P connection attempt ${  attemptCount  } of ${  maxAttempts  } in 5 seconds...`);
+                        console.error(`Retrying P2P connection attempt ${attemptCount} of ${maxAttempts} in 5 seconds...`);
                     }
                     setTimeout(() => {
                         Connect();
@@ -178,10 +178,10 @@ const Peer = module.exports = function (options) {
                 case invCodes.error:
                     break;
                 case invCodes.tx:
-                    var tx = payload.subarray(4, 36).toString('hex');
+                    const tx = payload.subarray(4, 36).toString('hex');
                     break;
                 case invCodes.block:
-                    var block = payload.subarray(4, 36).toString('hex');
+                    const block = payload.subarray(4, 36).toString('hex');
                     _this.emit('blockFound', block);
                     break;
             }

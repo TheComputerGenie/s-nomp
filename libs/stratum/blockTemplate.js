@@ -39,9 +39,6 @@ const BlockTemplate = module.exports = function BlockTemplate(
     // generate the fees and coinbase tx
     let blockReward = (this.rpcData.miner) * 100000000;
 
-    let masternodeReward;
-    let masternodePayee;
-    let masternodePayment;
 
     if (coin.payFoundersReward === true) {
         if (!this.rpcData.founders || this.rpcData.founders.length <= 0) {
@@ -51,9 +48,9 @@ const BlockTemplate = module.exports = function BlockTemplate(
         }
     }
 
-    masternodeReward = rpcData.payee_amount;
-    masternodePayee = rpcData.payee;
-    masternodePayment = rpcData.masternode_payments;
+    const masternodeReward = rpcData.payee_amount;
+    const masternodePayee = rpcData.payee;
+    const masternodePayment = rpcData.masternode_payments;
 
     const fees = [];
     rpcData.transactions.forEach((value) => {
@@ -145,19 +142,20 @@ const BlockTemplate = module.exports = function BlockTemplate(
 
         let txCount = this.txCount.toString(16);
         if (Math.abs(txCount.length % 2) == 1) {
-            txCount = `0${  txCount}`;
+            txCount = `0${txCount}`;
         }
 
+        let varInt;
         if (this.txCount <= 0x7f) {
-            var varInt = Buffer.from(txCount, 'hex');
+            varInt = Buffer.from(txCount, 'hex');
         } else if (this.txCount <= 0x7fff) {
             if (txCount.length == 2) {
-                txCount = `00${  txCount}`;
+                txCount = `00${txCount}`;
             }
-            var varInt = Buffer.concat([Buffer.from('FD', 'hex'), util.reverseBuffer(Buffer.from(txCount, 'hex'))]);
+            varInt = Buffer.concat([Buffer.from('FD', 'hex'), util.reverseBuffer(Buffer.from(txCount, 'hex'))]);
         }
 
-        buf = Buffer.concat([
+        let buf = Buffer.concat([
             header,
             soln,
             varInt,
@@ -166,7 +164,7 @@ const BlockTemplate = module.exports = function BlockTemplate(
 
         if (this.rpcData.transactions.length > 0) {
             this.rpcData.transactions.forEach((value) => {
-                tmpBuf = Buffer.concat([buf, Buffer.from(value.data, 'hex')]);
+                const tmpBuf = Buffer.concat([buf, Buffer.from(value.data, 'hex')]);
                 buf = tmpBuf;
             });
         }

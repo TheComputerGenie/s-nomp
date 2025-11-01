@@ -331,7 +331,7 @@ const spawnPoolWorkers = function () {
     };
 
     let i = 0;
-    var spawnInterval = setInterval(() => {
+    const spawnInterval = setInterval(() => {
         createPoolWorker(i);
         i++;
         if (i === numForks) {
@@ -377,7 +377,7 @@ const startCliListener = function () {
 };
 
 
-var processCoinSwitchCommand = function (params, options, reply) {
+const processCoinSwitchCommand = function (params, options, reply) {
 
     const logSystem = 'CLI';
     const logComponent = 'coinswitch';

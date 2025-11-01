@@ -49,16 +49,13 @@ function toFixed(num, len) {
 const varDiff = module.exports = function varDiff(port, varDiffOptions) {
     const _this = this;
 
-    let bufferSize, tMin, tMax;
-
     //if (!varDiffOptions) return;
 
     const variance = varDiffOptions.targetTime * (varDiffOptions.variancePercent / 100);
 
-
-    bufferSize = varDiffOptions.retargetTime / varDiffOptions.targetTime * 4;
-    tMin = varDiffOptions.targetTime - variance;
-    tMax = varDiffOptions.targetTime + variance;
+    const bufferSize = varDiffOptions.retargetTime / varDiffOptions.targetTime * 4;
+    const tMin = varDiffOptions.targetTime - variance;
+    const tMax = varDiffOptions.targetTime + variance;
 
 
     this.manageClient = function (client) {
