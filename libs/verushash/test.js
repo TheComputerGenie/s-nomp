@@ -1,8 +1,8 @@
 // var cluster = require('cluster');
-var vh = require('bindings')('verushash.node');
+const vh = require('bindings')('verushash.node');
 
 
-var reverseHex = function (hex) {
+const reverseHex = function (hex) {
     return Buffer.from(hex, 'hex').reverse().toString('hex');
 };
 
@@ -23,15 +23,15 @@ var reverseHex = function (hex) {
     
 // } else {
     
-    var output = vh.hash(Buffer.from('Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234','utf8'));
-    console.log(process.pid,'VerusHash1   Output', reverseHex(output.toString('hex')), '\n');
+let output = vh.hash(Buffer.from('Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234','utf8'));
+console.log(process.pid,'VerusHash1   Output', reverseHex(output.toString('hex')), '\n');
 
-    output = vh.hash2(Buffer.from('Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234','utf8'));
-    console.log(process.pid,'VerusHash2   Output', reverseHex(output.toString('hex')), '\n');
+output = vh.hash2(Buffer.from('Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234','utf8'));
+console.log(process.pid,'VerusHash2   Output', reverseHex(output.toString('hex')), '\n');
     
-    output = vh.hash2b(Buffer.from('Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234','utf8'));
-    console.log(process.pid,'VerusHash2b  Output', reverseHex(output.toString('hex')), '\n');
+output = vh.hash2b(Buffer.from('Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234','utf8'));
+console.log(process.pid,'VerusHash2b  Output', reverseHex(output.toString('hex')), '\n');
     
-    output = vh.hash2b1(Buffer.from('Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234','utf8'));
-    console.log(process.pid,'VerusHash2b1 Output', reverseHex(output.toString('hex')), '\n');
+output = vh.hash2b1(Buffer.from('Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234Test1234','utf8'));
+console.log(process.pid,'VerusHash2b1 Output', reverseHex(output.toString('hex')), '\n');
 // }
