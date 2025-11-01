@@ -2,7 +2,6 @@ const Stratum = require('./stratum');
 const redis = require('redis');
 const net = require('net');
 
-const MposCompatibility = require('./mposCompatibility.js');
 const ShareProcessor = require('./shareProcessor.js');
 const CreateRedisClient = require('./createRedisClient.js');
 const WAValidator = require('wallet-address-validator');
@@ -115,52 +114,32 @@ module.exports = function (logger) {
             diff: function () { }
         };
 
-        //Functions required for MPOS compatibility
-        if (poolOptions.mposMode && poolOptions.mposMode.enabled) {
-            const mposCompat = new MposCompatibility(logger, poolOptions);
+        // Functions required for internal payment processing
+        const shareProcessor = new ShareProcessor(logger, poolOptions);
 
-            handlers.auth = function (port, workerName, password, authCallback) {
-                mposCompat.handleAuth(workerName, password, authCallback);
-            };
-
-            handlers.share = function (isValidShare, isValidBlock, data) {
-                mposCompat.handleShare(isValidShare, isValidBlock, data);
-            };
-
-            handlers.diff = function (workerName, diff) {
-                mposCompat.handleDifficultyUpdate(workerName, diff);
-            };
-        }
-
-        //Functions required for internal payment processing
-        else {
-
-            const shareProcessor = new ShareProcessor(logger, poolOptions);
-
-            handlers.auth = function (port, workerName, password, authCallback) {
-                if (poolOptions.bannedAddresses.banned.indexOf(workerName) !== -1 && poolOptions.bannedAddresses.enabled == true) {
-                    //Banned addresses return false if that option is enabled
-                    isvalid = false;
-                } else if (poolOptions.validateWorkerUsername !== true) {
-                    //Addresses are not checked for validity
-                    isvalid = true;
-                } else {
-                    //Validation of Public and Identity addresses
-                    var isvalid = WAValidator.validate(String(workerName).split('.')[0], 'VRSC');
-                    /*
-                    //Validation of sapling addreses (disabled until paymentProcessor.js can handle sapling payments)
-                    if(isvalid !== true){
-                        var isvalid = WAValidator.validate(String(address).split(".")[0], 'VRSC', 'sapling');
-                    }
-*/
+        handlers.auth = function (port, workerName, password, authCallback) {
+            if (poolOptions.bannedAddresses.banned.indexOf(workerName) !== -1 && poolOptions.bannedAddresses.enabled == true) {
+                //Banned addresses return false if that option is enabled
+                isvalid = false;
+            } else if (poolOptions.validateWorkerUsername !== true) {
+                //Addresses are not checked for validity
+                isvalid = true;
+            } else {
+                //Validation of Public and Identity addresses
+                var isvalid = WAValidator.validate(String(workerName).split('.')[0], 'VRSC');
+                /*
+                //Validation of sapling addreses (disabled until paymentProcessor.js can handle sapling payments)
+                if(isvalid !== true){
+                    var isvalid = WAValidator.validate(String(address).split(".")[0], 'VRSC', 'sapling');
                 }
-                authCallback(isvalid);
-            };
+*/
+            }
+            authCallback(isvalid);
+        };
 
-            handlers.share = function (isValidShare, isValidBlock, data) {
-                shareProcessor.handleShare(isValidShare, isValidBlock, data);
-            };
-        }
+        handlers.share = function (isValidShare, isValidBlock, data) {
+            shareProcessor.handleShare(isValidShare, isValidBlock, data);
+        };
 
         const authorizeFN = function (ip, port, workerName, password, callback) {
             handlers.auth(port, workerName, password, (authorized) => {

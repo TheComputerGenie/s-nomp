@@ -1,7 +1,7 @@
 export default [
   {
     files: ['**/*.js'],
-    ignores: ['website/public/lib/*.min.js'],
+    ignores: ['website/static/nvd3.js'],
     languageOptions: {
       'ecmaVersion': 2022,
       'sourceType': 'commonjs',
