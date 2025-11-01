@@ -152,7 +152,7 @@ const buildPoolConfigs = function () {
         if (poolOptions.coin.name in configs) {
 
             logger.error('Master', poolOptions.fileName, `coins/${poolOptions.coinFileName
-                } has same configured coin name ${poolOptions.coin.name} as coins/${configs[poolOptions.coin.name].coinFileName} used by pool config ${configs[poolOptions.coin.name].fileName}`);
+            } has same configured coin name ${poolOptions.coin.name} as coins/${configs[poolOptions.coin.name].coinFileName} used by pool config ${configs[poolOptions.coin.name].fileName}`);
 
             process.exit(1);
             return;
@@ -431,7 +431,7 @@ var processCoinSwitchCommand = function (params, options, reply) {
     switchNames.forEach((name) => {
         if (poolConfigs[newCoin].coin.algorithm !== portalConfig.switching[name].algorithm) {
             replyError(`Cannot switch a ${portalConfig.switching[name].algorithm
-                } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
+            } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
             return;
         }
 
