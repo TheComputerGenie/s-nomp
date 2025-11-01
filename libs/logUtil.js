@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 /**
  * PoolLogger
@@ -58,7 +58,9 @@ class PoolLogger {
     // note: argument order is (system, component, subcat, text) to match existing callers
     _log(severity, system = '', component = '', subcat = '', text = '') {
         const sevRank = severityValues[severity] || Number.POSITIVE_INFINITY;
-        if (sevRank < this.logLevelInt) return;
+        if (sevRank < this.logLevelInt) {
+            return;
+        }
 
         // Build timestamp and prefix correctly
         const timeStr = dateFormat(new Date(), 'hh:MM:ssTT mm-dd-yyyy');
@@ -68,24 +70,33 @@ class PoolLogger {
         const systemLabel = this.logColors ? String(system).white : String(system);
         const closingBracket = this.logColors ? ']'.grey : ']';
         const prefix = `${timeStr} ${openingBracket}${systemLabel}${closingBracket}`;
-        let entryDesc = prefix.padEnd(62) + '\t';
-        if (this.logColors) entryDesc = entryDesc.grey;
+        let entryDesc = `${prefix.padEnd(62)  }\t`;
+        if (this.logColors) {
+            entryDesc = entryDesc.grey;
+        }
 
         // Ensure subcategory (thread) is always printed before the main text
         let logString = '';
         if (this.logColors) {
             logString = entryDesc + (`[${component}] `).white;
-            if (subcat) logString += (`(${subcat}) `).bold.grey;
+            if (subcat) {
+                logString += (`(${subcat}) `).bold.grey;
+            }
             logString += severityToColor(severity, String(text));
         } else {
             logString = `${entryDesc}[${component}] `;
-            if (subcat) logString += `(${subcat}) `;
+            if (subcat) {
+                logString += `(${subcat}) `;
+            }
             logString += String(text);
         }
 
         // Use console.error for errors to help log aggregation, otherwise console.log
-        if (severity === 'error') console.error(logString);
-        else console.log(logString);
+        if (severity === 'error') {
+            console.error(logString);
+        } else {
+            console.log(logString);
+        }
     }
 }
 
