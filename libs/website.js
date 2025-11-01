@@ -362,7 +362,7 @@ module.exports = function (logger) {
     } catch (e) {
         console.log(e);
         logger.error(logSystem, 'Server', `Could not start website on ${portalConfig.website.host}:${portalConfig.website.port
-            } - its either in use or you do not have permission`);
+        } - its either in use or you do not have permission`);
     }
 
 
