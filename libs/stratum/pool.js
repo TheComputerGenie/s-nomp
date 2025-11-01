@@ -1,42 +1,42 @@
-var events = require('events');
-var async = require('async');
+const events = require('events');
+const async = require('async');
 
-var varDiff = require('./varDiff.js');
-var daemon = require('./daemon.js');
-var peer = require('./peer.js');
-var stratum = require('./stratum.js');
-var jobManager = require('./jobManager.js');
-var util = require('./util.js');
+const varDiff = require('./varDiff.js');
+const daemon = require('./daemon.js');
+const peer = require('./peer.js');
+const stratum = require('./stratum.js');
+const jobManager = require('./jobManager.js');
+const util = require('./util.js');
 
 /*process.on('uncaughtException', function(err) {
  console.log(err.stack);
  throw err;
  });*/
 
-var pool = module.exports = function pool(options, authorizeFn) {
+const pool = module.exports = function pool(options, authorizeFn) {
 
     this.options = options;
 
-    var _this = this;
-    var blockPollingIntervalId;
+    const _this = this;
+    let blockPollingIntervalId;
 
 
-    var emitLog = function (text) {
+    const emitLog = function (text) {
         _this.emit('log', 'debug', text);
     };
-    var emitWarningLog = function (text) {
+    const emitWarningLog = function (text) {
         _this.emit('log', 'warning', text);
     };
-    var emitErrorLog = function (text) {
+    const emitErrorLog = function (text) {
         _this.emit('log', 'error', text);
     };
-    var emitSpecialLog = function (text) {
+    const emitSpecialLog = function (text) {
         _this.emit('log', 'special', text);
     };
 
 
     if (!(options.coin.algorithm in algos)) {
-        emitErrorLog('The ' + options.coin.algorithm + ' hashing algorithm is not supported.');
+        emitErrorLog(`The ${  options.coin.algorithm  } hashing algorithm is not supported.`);
         throw new Error();
     }
 
@@ -44,15 +44,15 @@ var pool = module.exports = function pool(options, authorizeFn) {
     this.start = function () {
         SetupVarDiff();
         SetupApi();
-        SetupDaemonInterface(function () {
-            DetectCoinData(function () {
+        SetupDaemonInterface(() => {
+            DetectCoinData(() => {
                 SetupRecipients();
                 SetupJobManager();
-                OnBlockchainSynced(function () {
-                    GetFirstJob(function () {
+                OnBlockchainSynced(() => {
+                    GetFirstJob(() => {
                         SetupBlockPolling();
                         SetupPeer();
-                        StartStratumServer(function () {
+                        StartStratumServer(() => {
                             OutputPoolInfo();
                             _this.emit('started');
                         });
@@ -65,26 +65,27 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
     function GetFirstJob(finishedCallback) {
 
-        GetBlockTemplate(function (error, result) {
+        GetBlockTemplate((error, result) => {
             if (error) {
                 emitErrorLog('Error with getblocktemplate on creating first job, server cannot start');
                 return;
             }
 
-            var portWarnings = [];
+            const portWarnings = [];
 
-            var networkDiffAdjusted = options.initStats.difficulty;
+            const networkDiffAdjusted = options.initStats.difficulty;
 
-            Object.keys(options.ports).forEach(function (port) {
-                var portDiff = options.ports[port].diff;
-                if (networkDiffAdjusted < portDiff)
-                    portWarnings.push('port ' + port + ' w/ diff ' + portDiff);
+            Object.keys(options.ports).forEach((port) => {
+                const portDiff = options.ports[port].diff;
+                if (networkDiffAdjusted < portDiff) {
+                    portWarnings.push(`port ${  port  } w/ diff ${  portDiff}`);
+                }
             });
 
             //Only let the first fork show synced status or the log wil look flooded with it
             if (portWarnings.length > 0 && (!process.env.forkId || process.env.forkId === '0')) {
-                var warnMessage = 'Network diff of ' + networkDiffAdjusted + ' is lower than '
-                    + portWarnings.join(' and ');
+                const warnMessage = `Network diff of ${  networkDiffAdjusted  } is lower than ${
+                    portWarnings.join(' and ')}`;
                 emitWarningLog(warnMessage);
             }
 
@@ -96,26 +97,27 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
     function OutputPoolInfo() {
 
-        var startMessage = '\r\n\t\t\t\t\t\tStratum Pool Server Started for ' + options.coin.name +
-            ' [' + options.coin.symbol.toUpperCase() + '] {' + options.coin.algorithm + '}';
+        const startMessage = `\r\n\t\t\t\t\t\tStratum Pool Server Started for ${  options.coin.name 
+        } [${  options.coin.symbol.toUpperCase()  }] {${  options.coin.algorithm  }}`;
         if (process.env.forkId && process.env.forkId !== '0') {
             emitLog(startMessage);
             return;
         }
-        var infoLines = [startMessage,
-            'Network Connected:\t' + (options.testnet ? 'Testnet' : 'Mainnet'),
-            'Detected Reward Type:\t' + options.coin.reward,
-            'Current Block Height:\t' + _this.jobManager.currentJob.rpcData.height,
-            'Current Block Diff:\t' + _this.jobManager.currentJob.difficulty * algos[options.coin.algorithm].multiplier,
-            'Current Connect Peers:\t' + options.initStats.connections,
-            'Network Difficulty:\t' + options.initStats.difficulty,
-            'Network Hash Rate:\t' + util.getReadableHashRateString(options.initStats.networkHashRate),
-            'Stratum Port(s):\t' + _this.options.initStats.stratumPorts.join(', '),
-            'Pool Fee Percent:\t' + _this.options.feePercent + '%'
+        const infoLines = [startMessage,
+            `Network Connected:\t${  options.testnet ? 'Testnet' : 'Mainnet'}`,
+            `Detected Reward Type:\t${  options.coin.reward}`,
+            `Current Block Height:\t${  _this.jobManager.currentJob.rpcData.height}`,
+            `Current Block Diff:\t${  _this.jobManager.currentJob.difficulty * algos[options.coin.algorithm].multiplier}`,
+            `Current Connect Peers:\t${  options.initStats.connections}`,
+            `Network Difficulty:\t${  options.initStats.difficulty}`,
+            `Network Hash Rate:\t${  util.getReadableHashRateString(options.initStats.networkHashRate)}`,
+            `Stratum Port(s):\t${  _this.options.initStats.stratumPorts.join(', ')}`,
+            `Pool Fee Percent:\t${  _this.options.feePercent  }%`
         ];
 
-        if (typeof options.blockRefreshInterval === "number" && options.blockRefreshInterval > 0)
-            infoLines.push('Block polling every:\t' + options.blockRefreshInterval + ' ms');
+        if (typeof options.blockRefreshInterval === 'number' && options.blockRefreshInterval > 0) {
+            infoLines.push(`Block polling every:\t${  options.blockRefreshInterval  } ms`);
+        }
 
         emitSpecialLog(infoLines.join('\n\t\t\t\t\t\t'));
     }
@@ -123,49 +125,52 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
     function OnBlockchainSynced(syncedCallback) {
 
-        var checkSynced = function (displayNotSynced) {
-            _this.daemon.cmd('getblocktemplate', [], function (results) {
-                var synced = results.every(function (r) {
+        const checkSynced = function (displayNotSynced) {
+            _this.daemon.cmd('getblocktemplate', [], (results) => {
+                const synced = results.every((r) => {
                     return !r.error || r.error.code !== -9;
                 });
                 if (synced) {
                     syncedCallback();
-                }
-                else {
-                    if (displayNotSynced) displayNotSynced();
+                } else {
+                    if (displayNotSynced) {
+                        displayNotSynced();
+                    }
                     setTimeout(checkSynced, 5000);
 
                     //Only let the first fork show synced status or the log wil look flooded with it
-                    if (!process.env.forkId || process.env.forkId === '0')
+                    if (!process.env.forkId || process.env.forkId === '0') {
                         generateProgress();
+                    }
                 }
 
             });
         };
-        checkSynced(function () {
+        checkSynced(() => {
             //Only let the first fork show synced status or the log wil look flooded with it
-            if (!process.env.forkId || process.env.forkId === '0')
+            if (!process.env.forkId || process.env.forkId === '0') {
                 emitErrorLog('Daemon is still syncing with network (download blockchain) - server will be started once synced');
+            }
         });
 
 
         var generateProgress = function () {
 
-            _this.daemon.cmd('getinfo', [], function (results) {
-                var blockCount = results.sort(function (a, b) {
+            _this.daemon.cmd('getinfo', [], (results) => {
+                const blockCount = results.sort((a, b) => {
                     return b.response.blocks - a.response.blocks;
                 })[0].response.blocks;
 
                 //get list of peers and their highest block height to compare to ours
-                _this.daemon.cmd('getpeerinfo', [], function (results) {
+                _this.daemon.cmd('getpeerinfo', [], (results) => {
 
-                    var peers = results[0].response;
-                    var totalBlocks = peers.sort(function (a, b) {
+                    const peers = results[0].response;
+                    const totalBlocks = peers.sort((a, b) => {
                         return b.startingheight - a.startingheight;
                     })[0].startingheight;
 
-                    var percent = (blockCount / totalBlocks * 100).toFixed(2);
-                    emitWarningLog('Downloaded ' + percent + '% of blockchain from ' + peers.length + ' peers');
+                    const percent = (blockCount / totalBlocks * 100).toFixed(2);
+                    emitWarningLog(`Downloaded ${  percent  }% of blockchain from ${  peers.length  } peers`);
                 });
 
             });
@@ -183,32 +188,32 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
 
     function SetupPeer() {
-        if (!options.p2p || !options.p2p.enabled)
+        if (!options.p2p || !options.p2p.enabled) {
             return;
+        }
 
         if (options.testnet && !options.coin.peerMagicTestnet) {
             emitErrorLog('p2p cannot be enabled in testnet without peerMagicTestnet set in coin configuration');
             return;
-        }
-        else if (!options.coin.peerMagic) {
+        } else if (!options.coin.peerMagic) {
             emitErrorLog('p2p cannot be enabled without peerMagic set in coin configuration');
             return;
         }
 
         _this.peer = new peer(options);
-        _this.peer.on('connected', function () {
+        _this.peer.on('connected', () => {
             emitLog('p2p connection successful');
-        }).on('connectionRejected', function () {
+        }).on('connectionRejected', () => {
             emitErrorLog('p2p connection failed - rejected by peer');
-        }).on('disconnected', function () {
+        }).on('disconnected', () => {
             emitWarningLog('p2p peer node disconnected - attempting reconnection...');
-        }).on('connectionFailed', function (e) {
+        }).on('connectionFailed', (e) => {
             emitErrorLog('p2p connection failed - likely incorrect host or port');
-        }).on('socketError', function (e) {
-            emitErrorLog('p2p had a socket error ' + JSON.stringify(e));
-        }).on('error', function (msg) {
-            emitWarningLog('p2p had an error ' + msg);
-        }).on('blockFound', function (hash) {
+        }).on('socketError', (e) => {
+            emitErrorLog(`p2p had a socket error ${  JSON.stringify(e)}`);
+        }).on('error', (msg) => {
+            emitWarningLog(`p2p had an error ${  msg}`);
+        }).on('blockFound', (hash) => {
             _this.processBlockNotify(hash, 'p2p');
         });
     }
@@ -216,9 +221,10 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
     function SetupVarDiff() {
         _this.varDiff = {};
-        Object.keys(options.ports).forEach(function (port) {
-            if (options.ports[port].varDiff)
+        Object.keys(options.ports).forEach((port) => {
+            if (options.ports[port].varDiff) {
                 _this.setVarDiff(port, options.ports[port].varDiff);
+            }
         });
     }
 
@@ -228,52 +234,50 @@ var pool = module.exports = function pool(options, authorizeFn) {
      */
     function SubmitBlock(height, blockHex, callback) {
 
-        var rpcCommand, rpcArgs;
+        let rpcCommand, rpcArgs;
         if (options.hasSubmitMethod) {
             rpcCommand = 'submitblock';
             // if pbaas solution version is 7 or higher, use submitmergedblock
-            let solution_ver = parseInt(util.reverseBuffer(Buffer.from(blockHex.substr(286, 8), 'hex')).toString('hex'), 16);
+            const solution_ver = parseInt(util.reverseBuffer(Buffer.from(blockHex.substr(286, 8), 'hex')).toString('hex'), 16);
             if (solution_ver > 6) {
                 rpcCommand = 'submitmergedblock';
             }
             rpcArgs = [blockHex];
-        }
-        else {
+        } else {
             rpcCommand = 'getblocktemplate';
             rpcArgs = [{ 'mode': 'submit', 'data': blockHex }];
         }
 
         _this.daemon.cmd(rpcCommand,
             rpcArgs,
-            function (results) {
-                for (var i = 0; i < results.length; i++) {
-                    var result = results[i];
+            (results) => {
+                for (let i = 0; i < results.length; i++) {
+                    const result = results[i];
                     if (result.error) {
-                        emitErrorLog('rpc error with daemon instance ' +
-                            result.instance.index + ' when submitting block with ' + rpcCommand + ' ' +
-                            JSON.stringify(result.error)
+                        emitErrorLog(`rpc error with daemon instance ${ 
+                            result.instance.index  } when submitting block with ${  rpcCommand  } ${ 
+                            JSON.stringify(result.error)}`
                         );
                         return;
-                    }
-                    else if (result.response === 'rejected') {
-                        emitErrorLog('Daemon instance ' + result.instance.index + ' rejected a supposedly valid block');
+                    } else if (result.response === 'rejected') {
+                        emitErrorLog(`Daemon instance ${  result.instance.index  } rejected a supposedly valid block`);
                         return;
                     }
                 }
-                emitLog('Submitted Block using ' + rpcCommand + ' successfully to daemon instance(s)');
+                emitLog(`Submitted Block using ${  rpcCommand  } successfully to daemon instance(s)`);
                 callback();
             }
         );
     }
 
     function SetupRecipients() {
-        var recipients = [];
+        const recipients = [];
         options.feePercent = 0;
         options.rewardRecipients = options.rewardRecipients || {};
 
-        for (var r in options.rewardRecipients) {
-            var percent = options.rewardRecipients[r];
-            var rObj = {
+        for (const r in options.rewardRecipients) {
+            const percent = options.rewardRecipients[r];
+            const rObj = {
                 percent: percent,
                 address: r
             };
@@ -287,29 +291,29 @@ var pool = module.exports = function pool(options, authorizeFn) {
         options.recipients = recipients;
     }
 
-    var jobManagerLastSubmitBlockHex = false;
+    let jobManagerLastSubmitBlockHex = false;
 
     function SetupJobManager() {
 
         _this.jobManager = new jobManager(options);
 
-        _this.jobManager.on('newBlock', function (blockTemplate) {
+        _this.jobManager.on('newBlock', (blockTemplate) => {
             //Check if stratumServer has been initialized yet
             if (_this.stratumServer) {
                 _this.stratumServer.broadcastMiningJobs(blockTemplate.getJobParams());
             }
-        }).on('updatedBlock', function (blockTemplate, cleanjob) {
+        }).on('updatedBlock', (blockTemplate, cleanjob) => {
             //Check if stratumServer has been initialized yet
             if (_this.stratumServer) {
-                var job = blockTemplate.getJobParams();
+                const job = blockTemplate.getJobParams();
                 job[7] = cleanjob;
                 _this.stratumServer.broadcastMiningJobs(job);
             }
-        }).on('share', function (shareData, blockHex) {
+        }).on('share', (shareData, blockHex) => {
             //console.log('share :', isValidShare, isValidBlock, shareData)
-            var isValidShare = !shareData.error;
-            var isValidBlock = !!blockHex;
-            var emitShare = function () {
+            const isValidShare = !shareData.error;
+            let isValidBlock = !!blockHex;
+            const emitShare = function () {
                 _this.emit('share', isValidShare, isValidBlock, shareData);
             };
 
@@ -319,16 +323,16 @@ var pool = module.exports = function pool(options, authorizeFn) {
              then check if it was accepted using RPC getblock
              */
 
-            if (!isValidBlock)
+            if (!isValidBlock) {
                 emitShare();
-            else {
+            } else {
                 if (jobManagerLastSubmitBlockHex === blockHex) {
-                    emitWarningLog('Warning, ignored duplicate submit block ' + blockHex);
+                    emitWarningLog(`Warning, ignored duplicate submit block ${  blockHex}`);
                 } else {
                     jobManagerLastSubmitBlockHex = blockHex;
-                    SubmitBlock(shareData.height, blockHex, function () {
+                    SubmitBlock(shareData.height, blockHex, () => {
                         if (!shareData.blockOnlyPBaaS) {
-                            CheckBlockAccepted(shareData.blockHash, function (isAccepted, tx) {
+                            CheckBlockAccepted(shareData.blockHash, (isAccepted, tx) => {
                                 isValidBlock = isAccepted === true;
                                 if (isValidBlock === true) {
                                     shareData.txHash = tx;
@@ -336,7 +340,7 @@ var pool = module.exports = function pool(options, authorizeFn) {
                                     shareData.error = tx;
                                 }
                                 emitShare();
-                                GetBlockTemplate(function (error, result, foundNewBlock) {
+                                GetBlockTemplate((error, result, foundNewBlock) => {
                                     if (foundNewBlock) {
                                         emitLog('Block notification via RPC after block submission');
                                     }
@@ -348,7 +352,7 @@ var pool = module.exports = function pool(options, authorizeFn) {
                     });
                 }
             }
-        }).on('log', function (severity, message) {
+        }).on('log', (severity, message) => {
             _this.emit('log', severity, message);
         });
     }
@@ -361,17 +365,17 @@ var pool = module.exports = function pool(options, authorizeFn) {
             return;
         }
 
-        _this.daemon = new daemon.interface(options.daemons, function (severity, message) {
+        _this.daemon = new daemon.interface(options.daemons, ((severity, message) => {
             _this.emit('log', severity, message);
-        });
+        }));
 
-        _this.daemon.once('online', function () {
+        _this.daemon.once('online', () => {
             finishedCallback();
 
-        }).on('connectionFailed', function (error) {
-            emitErrorLog('Failed to connect daemon(s): ' + JSON.stringify(error));
+        }).on('connectionFailed', (error) => {
+            emitErrorLog(`Failed to connect daemon(s): ${  JSON.stringify(error)}`);
 
-        }).on('error', function (message) {
+        }).on('error', (message) => {
             emitErrorLog(message);
 
         });
@@ -382,7 +386,7 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
     function DetectCoinData(finishedCallback) {
 
-        var batchRpcCalls = [
+        const batchRpcCalls = [
             ['validateaddress', [options.address]],
             ['getdifficulty', []],
             ['getinfo', []],
@@ -390,21 +394,21 @@ var pool = module.exports = function pool(options, authorizeFn) {
             ['submitblock', []]
         ];
 
-        _this.daemon.batchCmd(batchRpcCalls, function (error, results) {
+        _this.daemon.batchCmd(batchRpcCalls, (error, results) => {
             if (error || !results) {
-                emitErrorLog('Could not start pool, error with init batch RPC call: ' + JSON.stringify(error));
+                emitErrorLog(`Could not start pool, error with init batch RPC call: ${  JSON.stringify(error)}`);
                 return;
             }
 
-            var rpcResults = {};
+            const rpcResults = {};
 
-            for (var i = 0; i < results.length; i++) {
-                var rpcCall = batchRpcCalls[i][0];
-                var r = results[i];
+            for (let i = 0; i < results.length; i++) {
+                const rpcCall = batchRpcCalls[i][0];
+                const r = results[i];
                 rpcResults[rpcCall] = r.result || r.error;
 
                 if (rpcCall !== 'submitblock' && (r.error || !r.result)) {
-                    emitErrorLog('Could not start pool, error with init RPC ' + rpcCall + ' - ' + JSON.stringify(r.error));
+                    emitErrorLog(`Could not start pool, error with init RPC ${  rpcCall  } - ${  JSON.stringify(r.error)}`);
                     return;
                 }
             }
@@ -414,10 +418,11 @@ var pool = module.exports = function pool(options, authorizeFn) {
                 return;
             }
 
-            if (isNaN(rpcResults.getdifficulty) && 'proof-of-stake' in rpcResults.getdifficulty)
+            if (isNaN(rpcResults.getdifficulty) && 'proof-of-stake' in rpcResults.getdifficulty) {
                 options.coin.reward = 'POS';
-            else
+            } else {
                 options.coin.reward = 'POW';
+            }
 
 
             /* POS coins must use the pubkey in coinbase transaction, and pubkey is
@@ -443,12 +448,10 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
             if (rpcResults.submitblock.message === 'Method not found') {
                 options.hasSubmitMethod = false;
-            }
-            else if (rpcResults.submitblock.code === -1) {
+            } else if (rpcResults.submitblock.code === -1) {
                 options.hasSubmitMethod = true;
-            }
-            else {
-                emitErrorLog('Could not detect block submission RPC method, ' + JSON.stringify(results));
+            } else {
+                emitErrorLog(`Could not detect block submission RPC method, ${  JSON.stringify(results)}`);
                 return;
             }
 
@@ -461,30 +464,32 @@ var pool = module.exports = function pool(options, authorizeFn) {
     function StartStratumServer(finishedCallback) {
         _this.stratumServer = new stratum.Server(options, authorizeFn);
 
-        _this.stratumServer.on('started', function () {
+        _this.stratumServer.on('started', () => {
             options.initStats.stratumPorts = Object.keys(options.ports);
             _this.stratumServer.broadcastMiningJobs(_this.jobManager.currentJob.getJobParams());
             finishedCallback();
 
-        }).on('broadcastTimeout', function () {
-            emitLog('No new blocks for ' + options.jobRebroadcastTimeout + ' seconds - updating transactions & rebroadcasting work');
+        }).on('broadcastTimeout', () => {
+            emitLog(`No new blocks for ${  options.jobRebroadcastTimeout  } seconds - updating transactions & rebroadcasting work`);
 
-            GetBlockTemplate(function (error, rpcData, processedBlock) {
-                if (error || processedBlock) return;
+            GetBlockTemplate((error, rpcData, processedBlock) => {
+                if (error || processedBlock) {
+                    return;
+                }
                 _this.jobManager.updateCurrentJob(rpcData);
             });
 
-        }).on('client.connected', function (client) {
+        }).on('client.connected', (client) => {
             if (typeof (_this.varDiff[client.socket.localPort]) !== 'undefined') {
                 _this.varDiff[client.socket.localPort].manageClient(client);
             }
 
-            client.on('difficultyChanged', function (diff) {
+            client.on('difficultyChanged', (diff) => {
                 _this.emit('difficultyUpdate', client.workerName, diff);
 
             }).on('subscription', function (params, resultCallback) {
 
-                var extraNonce = _this.jobManager.extraNonceCounter.next();
+                const extraNonce = _this.jobManager.extraNonceCounter.next();
                 resultCallback(null,
                     extraNonce,
                     extraNonce
@@ -498,8 +503,8 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
                 this.sendMiningJob(_this.jobManager.currentJob.getJobParams());
 
-            }).on('submit', function (params, resultCallback) {
-                var result = _this.jobManager.processShare(
+            }).on('submit', (params, resultCallback) => {
+                const result = _this.jobManager.processShare(
                     params.jobId,
                     client.previousDifficulty,
                     client.difficulty,
@@ -515,38 +520,38 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
                 resultCallback(result.error, result.result ? true : null);
 
-            }).on('malformedMessage', function (message) {
-                emitWarningLog('Malformed message from ' + client.getLabel() + ': ' + message);
+            }).on('malformedMessage', (message) => {
+                emitWarningLog(`Malformed message from ${  client.getLabel()  }: ${  message}`);
 
-            }).on('socketError', function (err) {
-                emitWarningLog('Socket error from ' + client.getLabel() + ': ' + JSON.stringify(err));
+            }).on('socketError', (err) => {
+                emitWarningLog(`Socket error from ${  client.getLabel()  }: ${  JSON.stringify(err)}`);
 
-            }).on('socketTimeout', function (reason) {
-                emitWarningLog('Connected timed out for ' + client.getLabel() + ': ' + reason)
+            }).on('socketTimeout', (reason) => {
+                emitWarningLog(`Connected timed out for ${  client.getLabel()  }: ${  reason}`);
 
-            }).on('socketDisconnect', function () {
+            }).on('socketDisconnect', () => {
                 //emitLog('Socket disconnected from ' + client.getLabel());
 
-            }).on('kickedBannedIP', function (remainingBanTime) {
-                emitLog('Rejected incoming connection from ' + client.remoteAddress + ' banned for ' + remainingBanTime + ' more seconds');
+            }).on('kickedBannedIP', (remainingBanTime) => {
+                emitLog(`Rejected incoming connection from ${  client.remoteAddress  } banned for ${  remainingBanTime  } more seconds`);
 
-            }).on('forgaveBannedIP', function () {
-                emitLog('Forgave banned IP ' + client.remoteAddress);
+            }).on('forgaveBannedIP', () => {
+                emitLog(`Forgave banned IP ${  client.remoteAddress}`);
 
-            }).on('unknownStratumMethod', function (fullMessage) {
-                emitLog('Unknown stratum method from ' + client.getLabel() + ': ' + fullMessage.method);
+            }).on('unknownStratumMethod', (fullMessage) => {
+                emitLog(`Unknown stratum method from ${  client.getLabel()  }: ${  fullMessage.method}`);
 
-            }).on('socketFlooded', function () {
-                emitWarningLog('Detected socket flooding from ' + client.getLabel());
+            }).on('socketFlooded', () => {
+                emitWarningLog(`Detected socket flooding from ${  client.getLabel()}`);
 
-            }).on('tcpProxyError', function (data) {
-                emitErrorLog('Client IP detection failed, tcpProxyProtocol is enabled yet did not receive proxy protocol message, instead got data: ' + data);
+            }).on('tcpProxyError', (data) => {
+                emitErrorLog(`Client IP detection failed, tcpProxyProtocol is enabled yet did not receive proxy protocol message, instead got data: ${  data}`);
 
-            }).on('bootedBannedWorker', function () {
-                emitWarningLog('Booted worker ' + client.getLabel() + ' who was connected from an IP address that was just banned');
+            }).on('bootedBannedWorker', () => {
+                emitWarningLog(`Booted worker ${  client.getLabel()  } who was connected from an IP address that was just banned`);
 
-            }).on('triggerBan', function (reason) {
-                emitWarningLog('Banned triggered for ' + client.getLabel() + ': ' + reason);
+            }).on('triggerBan', (reason) => {
+                emitWarningLog(`Banned triggered for ${  client.getLabel()  }: ${  reason}`);
                 _this.emit('banIP', client.remoteAddress, client.workerName);
             });
         });
@@ -554,16 +559,18 @@ var pool = module.exports = function pool(options, authorizeFn) {
 
 
     function SetupBlockPolling() {
-        if (typeof options.blockRefreshInterval !== "number" || options.blockRefreshInterval <= 0) {
+        if (typeof options.blockRefreshInterval !== 'number' || options.blockRefreshInterval <= 0) {
             emitLog('Block template polling has been disabled');
             return;
         }
 
-        var pollingInterval = options.blockRefreshInterval;
+        const pollingInterval = options.blockRefreshInterval;
 
-        blockPollingIntervalId = setInterval(function () {
-            GetBlockTemplate(function (error, rpcData, newJob) {
-                if (newJob) { emitLog('Block update via RPC polling'); }
+        blockPollingIntervalId = setInterval(() => {
+            GetBlockTemplate((error, rpcData, newJob) => {
+                if (newJob) {
+                    emitLog('Block update via RPC polling'); 
+                }
             });
         }, pollingInterval);
     }
@@ -574,8 +581,8 @@ var pool = module.exports = function pool(options, authorizeFn) {
         function getCurrentBlockHeight() {
             _this.daemon.cmd('getblockcount',
                 [],
-                function (result) {
-                    let next = parseInt(result[0].response)
+                (result) => {
+                    const next = parseInt(result[0].response);
                     getBlockSubsidyandTemplate(next + 1);
                 });
         }
@@ -583,25 +590,24 @@ var pool = module.exports = function pool(options, authorizeFn) {
         function getBlockSubsidyandTemplate(next_height) {
             _this.daemon.cmd('getblocksubsidy',
                 [],
-                function (result) {
+                (result) => {
                     if (result.error) {
-                        callback(result.error)
-                    }
-                    else {
+                        callback(result.error);
+                    } else {
                         getBlockTemplate(next_height, result[0].response);
                     }
                 });
         }
 
         function getBlockTemplate(next_height, subsidy) {
-            let gbtFunction = "getblocktemplate";
-            let gbtArgs = { "capabilities": ["coinbasetxn", "workid", "coinbase/append"] };
+            const gbtFunction = 'getblocktemplate';
+            const gbtArgs = { 'capabilities': ['coinbasetxn', 'workid', 'coinbase/append'] };
             _this.daemon.cmd(gbtFunction,
                 [gbtArgs],
-                function (result) {
+                (result) => {
                     if (result.error) {
-                        emitErrorLog('getblocktemplate call failed for daemon instance ' +
-                            result.instance.index + ' with error ' + JSON.stringify(result.error));
+                        emitErrorLog(`getblocktemplate call failed for daemon instance ${ 
+                            result.instance.index  } with error ${  JSON.stringify(result.error)}`);
                         callback(result.error);
                     } else {
 
@@ -612,33 +618,33 @@ var pool = module.exports = function pool(options, authorizeFn) {
                         // correct response for getblocksubsidy so this allows
                         // us to override.
                         if (options.coin.rewardMinersPercent) {
-                            result.response.miner = options.coin.blockReward * options.coin.rewardMinersPercent
+                            result.response.miner = options.coin.blockReward * options.coin.rewardMinersPercent;
                         }
 
                         if (options.coin.rewardFoundersPercent) {
-                            result.response.founders = options.coin.blockReward * options.coin.rewardFoundersPercent
+                            result.response.founders = options.coin.blockReward * options.coin.rewardFoundersPercent;
                         }
 
                         result.response.securenodes = (subsidy.securenodes || 0);
                         result.response.supernodes = (subsidy.supernodes || 0);
 
-                        var processedNewBlock = _this.jobManager.processTemplate(result.response);
+                        const processedNewBlock = _this.jobManager.processTemplate(result.response);
                         callback(null, result.response, processedNewBlock);
-                        callback = () => { }
+                        callback = () => { };
                     }
                 }, true
             );
         }
 
         function getVerusBlockTemplate() {
-            let gbtFunction = "getblocktemplate";
-            let gbtArgs = { "capabilities": ["coinbasetxn", "workid", "coinbase/append"] };
+            const gbtFunction = 'getblocktemplate';
+            const gbtArgs = { 'capabilities': ['coinbasetxn', 'workid', 'coinbase/append'] };
             _this.daemon.cmd(gbtFunction,
                 [gbtArgs],
-                function (result) {
+                (result) => {
                     if (result.error) {
-                        emitErrorLog('getblocktemplate call failed for daemon instance ' +
-                            result.instance.index + ' with error ' + JSON.stringify(result.error));
+                        emitErrorLog(`getblocktemplate call failed for daemon instance ${ 
+                            result.instance.index  } with error ${  JSON.stringify(result.error)}`);
                         callback(result.error);
                     } else {
 
@@ -647,16 +653,16 @@ var pool = module.exports = function pool(options, authorizeFn) {
                         result.response.securenodes = 0;
                         result.response.supernodes = 0;
 
-                        var processedNewBlock = _this.jobManager.processTemplate(result.response);
+                        const processedNewBlock = _this.jobManager.processTemplate(result.response);
                         callback(null, result.response, processedNewBlock);
-                        callback = () => { }
+                        callback = () => { };
                     }
                 }, true
             );
         }
 
         // If algo is verushash, the daemon will build the block, so there's no need for a blockheight or blocksubsidy.
-        if (options.coin.algorithm == "verushash") {
+        if (options.coin.algorithm == 'verushash') {
             getVerusBlockTemplate();
         } else {
             getCurrentBlockHeight();
@@ -668,9 +674,9 @@ var pool = module.exports = function pool(options, authorizeFn) {
         //setTimeout(function(){
         _this.daemon.cmd('getblock',
             [blockHash],
-            function (results) {
-                var validResults = results.filter(function (result) {
-                    return result.response && (result.response.hash === blockHash)
+            (results) => {
+                const validResults = results.filter((result) => {
+                    return result.response && (result.response.hash === blockHash);
                 });
                 // do we have any results?
                 if (validResults.length >= 1) {
@@ -680,12 +686,12 @@ var pool = module.exports = function pool(options, authorizeFn) {
                         callback(true, validResults[0].response.tx[0]);
                     } else {
                         // reject invalid block, due to confirmations
-                        callback(false, { "confirmations": validResults[0].response.confirmations });
+                        callback(false, { 'confirmations': validResults[0].response.confirmations });
                     }
                     return;
                 }
                 // invalid block, rejected
-                callback(false, { "unknown": "check coin daemon logs" });
+                callback(false, { 'unknown': 'check coin daemon logs' });
             }
         );
     }
@@ -696,7 +702,7 @@ var pool = module.exports = function pool(options, authorizeFn) {
      * We can inform our miners about the newly found block
      **/
     this.processBlockNotify = function (blockHash, sourceTrigger) {
-        emitWarningLog('Block notification via ' + sourceTrigger + ':  now working on ' + (parseInt(_this.jobManager.currentJob.rpcData.height) + 1));
+        emitWarningLog(`Block notification via ${  sourceTrigger  }:  now working on ${  parseInt(_this.jobManager.currentJob.rpcData.height) + 1}`);
         if (typeof (_this.jobManager) !== 'undefined' &&
             typeof (_this.jobManager.currentJob) !== 'undefined' &&
             //typeof(_this.jobManager.currentJob.rpcData.previousblockhash) !== 'undefined' &&
@@ -704,45 +710,46 @@ var pool = module.exports = function pool(options, authorizeFn) {
             // * Note, on verus, we may get the same block hash because a PBaaS chain has changed
             //         so we need to generate a new block template to get the update ...
             typeof (_this.jobManager.currentJob.rpcData.previousblockhash) !== 'undefined') {
-            GetBlockTemplate(function (error, result) {
-                if (error)
-                    emitErrorLog('Block notify error getting block template for ' + options.coin.name);
-            })
+            GetBlockTemplate((error, result) => {
+                if (error) {
+                    emitErrorLog(`Block notify error getting block template for ${  options.coin.name}`);
+                }
+            });
         }
     };
 
     this.relinquishMiners = function (filterFn, resultCback) {
-        var origStratumClients = this.stratumServer.getStratumClients();
+        const origStratumClients = this.stratumServer.getStratumClients();
 
-        var stratumClients = [];
-        Object.keys(origStratumClients).forEach(function (subId) {
+        const stratumClients = [];
+        Object.keys(origStratumClients).forEach((subId) => {
             stratumClients.push({ subId: subId, client: origStratumClients[subId] });
         });
         async.filter(
             stratumClients,
             filterFn,
-            function (clientsToRelinquish) {
-                clientsToRelinquish.forEach(function (cObj) {
+            (clientsToRelinquish) => {
+                clientsToRelinquish.forEach((cObj) => {
                     cObj.client.removeAllListeners();
                     _this.stratumServer.removeStratumClientBySubId(cObj.subId);
                 });
 
-                process.nextTick(function () {
+                process.nextTick(() => {
                     resultCback(
                         clientsToRelinquish.map(
-                            function (item) {
+                            (item) => {
                                 return item.client;
                             }
                         )
                     );
                 });
             }
-        )
+        );
     };
 
 
     this.attachMiners = function (miners) {
-        miners.forEach(function (clientObj) {
+        miners.forEach((clientObj) => {
             _this.stratumServer.manuallyAddStratumClient(clientObj);
         });
         _this.stratumServer.broadcastMiningJobs(_this.jobManager.currentJob.getJobParams());
@@ -760,7 +767,7 @@ var pool = module.exports = function pool(options, authorizeFn) {
             _this.varDiff[port].removeAllListeners();
         }
         _this.varDiff[port] = new varDiff(port, varDiffConfig);
-        _this.varDiff[port].on('newDifficulty', function (client, newDiff) {
+        _this.varDiff[port].on('newDifficulty', (client, newDiff) => {
 
             /* We request to set the newDiff @ the next difficulty retarget
              (which should happen when a new job comes in - AKA BLOCK) */

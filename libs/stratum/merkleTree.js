@@ -1,22 +1,22 @@
-var Promise = require('promise');
-var merklebitcoin = Promise.denodeify(require('merkle-bitcoin'));
-var util = require('./util.js');
+const Promise = require('promise');
+const merklebitcoin = Promise.denodeify(require('merkle-bitcoin'));
+const util = require('./util.js');
 
 
 function calcRoot(hashes) {
-    var result = merklebitcoin(hashes);
+    const result = merklebitcoin(hashes);
     //console.log(Object.values(result)[2].root);
     return Object.values(result)[2].root;
 }
 
 exports.getRoot = function (rpcData, generateTxRaw) {
     hashes = [util.reverseBuffer(Buffer.from(generateTxRaw, 'hex')).toString('hex')];
-    rpcData.transactions.forEach(function (value) {
+    rpcData.transactions.forEach((value) => {
         hashes.push(value.hash);
     });
     if (hashes.length === 1) {
         return hashes[0];
     }
-    var result = calcRoot(hashes);
+    const result = calcRoot(hashes);
     return result;
 };

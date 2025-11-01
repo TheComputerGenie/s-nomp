@@ -1,47 +1,48 @@
-var events = require('events');
-var crypto = require('crypto');
+const events = require('events');
+const crypto = require('crypto');
 
-var bignum = require('bignum');
+const bignum = require('bignum');
 
-var util = require('./util.js');
-var blockTemplate = require('./blockTemplate.js');
+const util = require('./util.js');
+const blockTemplate = require('./blockTemplate.js');
 
-var vh = require('../verushash/build/Release/verushash.node');
+const vh = require('../verushash/build/Release/verushash.node');
 
 const EH_PARAMS_MAP = {
-    "144_5": {
+    '144_5': {
         SOLUTION_LENGTH: 202,
         SOLUTION_SLICE: 2,
     },
-    "192_7": {
+    '192_7': {
         SOLUTION_LENGTH: 806,
         SOLUTION_SLICE: 6,
     },
-    "200_9": {
+    '200_9': {
         SOLUTION_LENGTH: 2694,
         SOLUTION_SLICE: 6,
     }
-}
+};
 
 //Unique extranonce per subscriber
-var ExtraNonceCounter = function (configInstanceId) {
-    var instanceId = configInstanceId || crypto.randomBytes(4).readUInt32LE(0);
-    var counter = instanceId << 27;
+const ExtraNonceCounter = function (configInstanceId) {
+    const instanceId = configInstanceId || crypto.randomBytes(4).readUInt32LE(0);
+    let counter = instanceId << 27;
     this.next = function () {
-        var extraNonce = util.packUInt32BE(Math.abs(counter++));
+        const extraNonce = util.packUInt32BE(Math.abs(counter++));
         return extraNonce.toString('hex');
     };
     this.size = 4; //bytes
 };
 
 //Unique job per new block template
-var JobCounter = function () {
-    var counter = 0x0000cccc;
+const JobCounter = function () {
+    let counter = 0x0000cccc;
 
     this.next = function () {
         counter++;
-        if (counter % 0xffffffffff === 0)
+        if (counter % 0xffffffffff === 0) {
             counter = 1;
+        }
         return this.cur();
     };
 
@@ -50,22 +51,23 @@ var JobCounter = function () {
     };
 };
 function isHexString(s) {
-    var check = String(s).toLowerCase();
+    const check = String(s).toLowerCase();
     if (check.length % 2) {
         return false;
     }
     for (i = 0; i < check.length; i = i + 2) {
-        var c = check[i] + check[i + 1];
-        if (!isHex(c))
+        const c = check[i] + check[i + 1];
+        if (!isHex(c)) {
             return false;
+        }
     }
     return true;
 }
 function isHex(c) {
-    var a = parseInt(c, 16);
-    var b = a.toString(16).toLowerCase();
+    const a = parseInt(c, 16);
+    let b = a.toString(16).toLowerCase();
     if (b.length % 2) {
-        b = '0' + b;
+        b = `0${  b}`;
     }
     if (b !== c) {
         return false;
@@ -78,15 +80,15 @@ function isHex(c) {
  * - newBlock(blockTemplate) - When a new block (previously unknown to the JobManager) is added, use this event to broadcast new jobs
  * - share(shareData, blockHex) - When a worker submits a share. It will have blockHex if a block was found
  **/
-var JobManager = module.exports = function JobManager(options) {
+const JobManager = module.exports = function JobManager(options) {
 
 
     //private members
 
-    var _this = this;
-    var jobCounter = new JobCounter();
+    const _this = this;
+    const jobCounter = new JobCounter();
 
-    var shareMultiplier = algos[options.coin.algorithm].multiplier;
+    const shareMultiplier = algos[options.coin.algorithm].multiplier;
 
     //public members
 
@@ -96,9 +98,9 @@ var JobManager = module.exports = function JobManager(options) {
     this.validJobs = {};
     this.lastCleanJob = Date.now();
 
-    var hashDigest = algos[options.coin.algorithm].hash(options.coin);
+    const hashDigest = algos[options.coin.algorithm].hash(options.coin);
 
-    var coinbaseHasher = (function () {
+    const coinbaseHasher = (function () {
         switch (options.coin.algorithm) {
             default:
                 return util.sha256d;
@@ -106,7 +108,7 @@ var JobManager = module.exports = function JobManager(options) {
     })();
 
 
-    var blockHasher = (function () {
+    const blockHasher = (function () {
         switch (options.coin.algorithm) {
             case 'sha1':
                 return function (d) {
@@ -120,7 +122,7 @@ var JobManager = module.exports = function JobManager(options) {
     })();
 
     this.updateCurrentJob = function (rpcData) {
-        var tmpBlockTemplate = new blockTemplate(
+        const tmpBlockTemplate = new blockTemplate(
             jobCounter.next(),
             rpcData,
             _this.extraNoncePlaceholder,
@@ -134,16 +136,21 @@ var JobManager = module.exports = function JobManager(options) {
         let cleanJob = typeof (_this.currentJob) === 'undefined';
         if (!cleanJob) {
             // check non-canonical data for changes and force clean job
-            if (_this.currentJob.prevHashReversed != tmpBlockTemplate.prevHashReversed)
+            if (_this.currentJob.prevHashReversed != tmpBlockTemplate.prevHashReversed) {
                 cleanJob = true;
-            if (_this.currentJob.merkleRootReversed != tmpBlockTemplate.merkleRootReversed)
+            }
+            if (_this.currentJob.merkleRootReversed != tmpBlockTemplate.merkleRootReversed) {
                 cleanJob = true;
-            if (_this.currentJob.finalSaplingRootHashReversed != tmpBlockTemplate.finalSaplingRootHashReversed)
+            }
+            if (_this.currentJob.finalSaplingRootHashReversed != tmpBlockTemplate.finalSaplingRootHashReversed) {
                 cleanJob = true;
-            if (_this.currentJob.rpcData.bits != tmpBlockTemplate.rpcData.bits)
+            }
+            if (_this.currentJob.rpcData.bits != tmpBlockTemplate.rpcData.bits) {
                 cleanJob = true;
-            if (_this.currentJob.rpcData.solution != tmpBlockTemplate.rpcData.solution)
+            }
+            if (_this.currentJob.rpcData.solution != tmpBlockTemplate.rpcData.solution) {
                 cleanJob = true;
+            }
         }
         // do not send too many clean jobs too fast
         if ((Date.now() - this.lastCleanJob) < 15000) {
@@ -163,7 +170,7 @@ var JobManager = module.exports = function JobManager(options) {
     //returns true if processed a new block
     this.processTemplate = function (rpcData) {
         // generate template for processing
-        var tmpBlockTemplate = new blockTemplate(
+        const tmpBlockTemplate = new blockTemplate(
             jobCounter.next(),
             rpcData,
             _this.extraNoncePlaceholder,
@@ -176,25 +183,33 @@ var JobManager = module.exports = function JobManager(options) {
         let cleanJob = typeof (_this.currentJob) === 'undefined';
         if (!cleanJob) {
             // if outdated block ignore ...
-            if (rpcData.height < _this.currentJob.rpcData.height)
+            if (rpcData.height < _this.currentJob.rpcData.height) {
                 return false;
+            }
 
             // check non-canonical data for changes and force clean job
-            if (_this.currentJob.prevHashReversed != tmpBlockTemplate.prevHashReversed)
+            if (_this.currentJob.prevHashReversed != tmpBlockTemplate.prevHashReversed) {
                 cleanJob = true;
-            if (_this.currentJob.merkleRootReversed != tmpBlockTemplate.merkleRootReversed)
+            }
+            if (_this.currentJob.merkleRootReversed != tmpBlockTemplate.merkleRootReversed) {
                 cleanJob = true;
-            if (_this.currentJob.finalSaplingRootHashReversed != tmpBlockTemplate.finalSaplingRootHashReversed)
+            }
+            if (_this.currentJob.finalSaplingRootHashReversed != tmpBlockTemplate.finalSaplingRootHashReversed) {
                 cleanJob = true;
-            if (_this.currentJob.rpcData.bits != tmpBlockTemplate.rpcData.bits)
+            }
+            if (_this.currentJob.rpcData.bits != tmpBlockTemplate.rpcData.bits) {
                 cleanJob = true;
-            if (_this.currentJob.rpcData.solution != tmpBlockTemplate.rpcData.solution)
+            }
+            if (_this.currentJob.rpcData.solution != tmpBlockTemplate.rpcData.solution) {
                 cleanJob = true;
+            }
         }
         // if not a new clean block template
-        if (!cleanJob) return false;
+        if (!cleanJob) {
+            return false;
+        }
 
-        let newBlock = !this.currentJob || (rpcData.height !== _this.currentJob.rpcData.height);
+        const newBlock = !this.currentJob || (rpcData.height !== _this.currentJob.rpcData.height);
         if (!newBlock) {
             this.updateCurrentJob(rpcData);
             return false;
@@ -214,7 +229,7 @@ var JobManager = module.exports = function JobManager(options) {
     };
 
     this.processShare = function (jobId, previousDifficulty, difficulty, extraNonce1, extraNonce2, nTime, nonce, ipAddress, port, workerName, soln) {
-        var shareError = function (error) {
+        const shareError = function (error) {
             _this.emit('share', {
                 job: jobId,
                 ip: ipAddress,
@@ -227,9 +242,9 @@ var JobManager = module.exports = function JobManager(options) {
 
         //console.log('processShare ck1: ', jobId, previousDifficulty, difficulty, extraNonce1, extraNonce2, nTime, nonce, ipAddress, port, workerName, soln)
 
-        var submitTime = Date.now() / 1000 | 0;
+        const submitTime = Date.now() / 1000 | 0;
 
-        var job = this.validJobs[jobId];
+        const job = this.validJobs[jobId];
 
         if (typeof job === 'undefined' || job.jobId != jobId) {
             return shareError([21, 'job not found']);
@@ -240,16 +255,16 @@ var JobManager = module.exports = function JobManager(options) {
             return shareError([20, 'incorrect size of ntime']);
         }
 
-        let nTimeInt = parseInt(nTime.substr(6, 2) + nTime.substr(4, 2) + nTime.substr(2, 2) + nTime.substr(0, 2), 16)
+        const nTimeInt = parseInt(nTime.substr(6, 2) + nTime.substr(4, 2) + nTime.substr(2, 2) + nTime.substr(0, 2), 16);
 
         if (Number.isNaN(nTimeInt)) {
             // console.log('Invalid nTime: ', nTimeInt, nTime)
-            return shareError([20, 'invalid ntime'])
+            return shareError([20, 'invalid ntime']);
         }
 
         if (nTimeInt != job.rpcData.curtime) {
             // console.log('ntime out of range !(', submitTime + 7200, '<', nTimeInt, '<', job.rpcData.curtime, ') original: ', nTime)
-            return shareError([20, 'ntime out of range'])
+            return shareError([20, 'ntime out of range']);
         }
 
         // console.log(
@@ -270,27 +285,27 @@ var JobManager = module.exports = function JobManager(options) {
         /**
          * TODO: This is currently accounting only for equihash. make it smarter.
          */
-        let parameters = options.coin.parameters
+        let parameters = options.coin.parameters;
         if (!parameters) {
             parameters = {
                 N: 200,
                 K: 9,
                 personalization: 'ZcashPoW'
-            }
+            };
         }
 
-        let N = parameters.N || 200
-        let K = parameters.K || 9
-        let expectedLength = EH_PARAMS_MAP[`${N}_${K}`].SOLUTION_LENGTH || 2694
-        let solutionSlice = EH_PARAMS_MAP[`${N}_${K}`].SOLUTION_SLICE || 0
+        const N = parameters.N || 200;
+        const K = parameters.K || 9;
+        const expectedLength = EH_PARAMS_MAP[`${N}_${K}`].SOLUTION_LENGTH || 2694;
+        const solutionSlice = EH_PARAMS_MAP[`${N}_${K}`].SOLUTION_SLICE || 0;
 
         if (soln.length !== expectedLength) {
-            console.log('Error: Incorrect size of solution (' + soln.length + '), expected ' + expectedLength);
-            return shareError([20, 'Error: Incorrect size of solution (' + soln.length + '), expected ' + expectedLength]);
+            console.log(`Error: Incorrect size of solution (${  soln.length  }), expected ${  expectedLength}`);
+            return shareError([20, `Error: Incorrect size of solution (${  soln.length  }), expected ${  expectedLength}`]);
         }
         if (soln.substr(6, 8) !== job.rpcData.solution.substr(0, 8)) {
-            console.log('Error: Incorrect solution version (' + soln.substr(6, 8) + '), expected ' + job.rpcData.solution.substr(0, 8));
-            return shareError([20, 'invalid solution version (' + soln.substr(6, 8) + '), expected ' + job.rpcData.solution.substr(0, 8)]);
+            console.log(`Error: Incorrect solution version (${  soln.substr(6, 8)  }), expected ${  job.rpcData.solution.substr(0, 8)}`);
+            return shareError([20, `invalid solution version (${  soln.substr(6, 8)  }), expected ${  job.rpcData.solution.substr(0, 8)}`]);
         }
         if (!isHexString(extraNonce2)) {
             console.log('invalid hex in extraNonce2');
@@ -301,37 +316,37 @@ var JobManager = module.exports = function JobManager(options) {
         }
 
         // when pbaas activates use block header nonce from daemon, pool/miner can no longer manipulate
-        let solution_ver = parseInt(util.reverseBuffer(Buffer.from(job.rpcData.solution.substr(0, 8), 'hex')).toString('hex'), 16);
+        const solution_ver = parseInt(util.reverseBuffer(Buffer.from(job.rpcData.solution.substr(0, 8), 'hex')).toString('hex'), 16);
         if (solution_ver > 6) {
             nonce = undefined;
             // verify pool nonce presence in solution
-            let solExtraData = soln.substr(-30);
+            const solExtraData = soln.substr(-30);
             if (solExtraData.indexOf(extraNonce1) < 0) {
                 return shareError([20, 'invalid solution, pool nonce missing']);
             }
         }
 
-        var headerBuffer = job.serializeHeader(nTime, nonce); // 144 bytes (doesn't contain soln)
-        var headerSolnBuffer = Buffer.concat([headerBuffer, Buffer.from(soln, 'hex')]);
-        var headerHash;
+        const headerBuffer = job.serializeHeader(nTime, nonce); // 144 bytes (doesn't contain soln)
+        const headerSolnBuffer = Buffer.concat([headerBuffer, Buffer.from(soln, 'hex')]);
+        let headerHash;
 
         switch (options.coin.algorithm) {
             case 'verushash':
                 //console.log('processShare ck6a, buffer length: ', headerSolnBuffer.length)
                 if (job.rpcData.version > 4 && job.rpcData.solution !== undefined) {
                     // make sure verus solution version matches expected version
-                    if (soln.substr(solutionSlice, 2) !== job.rpcData.solution.substr(0, 2))
+                    if (soln.substr(solutionSlice, 2) !== job.rpcData.solution.substr(0, 2)) {
                         return shareError([22, 'invalid solution version']);
+                    }
 
-                    if (soln.substr(solutionSlice, 2) == "03")
+                    if (soln.substr(solutionSlice, 2) == '03') {
                         headerHash = vh.hash2b1(headerSolnBuffer);
-                    else
+                    } else {
                         headerHash = vh.hash2b2(headerSolnBuffer);
-                }
-                else if (job.rpcData.version > 4) {
+                    }
+                } else if (job.rpcData.version > 4) {
                     headerHash = vh.hash2b(headerSolnBuffer);
-                }
-                else {
+                } else {
                     headerHash = vh.hash(headerSolnBuffer);
                 }
                 break;
@@ -343,14 +358,14 @@ var JobManager = module.exports = function JobManager(options) {
 
         //console.log('processShare ck7')
 
-        var headerBigNum = bignum.fromBuffer(headerHash, { endian: 'little', size: 32 });
+        const headerBigNum = bignum.fromBuffer(headerHash, { endian: 'little', size: 32 });
 
-        var blockHashInvalid;
-        var blockHash;
-        var blockHex;
+        let blockHashInvalid;
+        let blockHash;
+        let blockHex;
 
-        var shareDiff = diff1 / headerBigNum.toNumber() * shareMultiplier;
-        var blockDiffAdjusted = job.difficulty * shareMultiplier;
+        const shareDiff = diff1 / headerBigNum.toNumber() * shareMultiplier;
+        const blockDiffAdjusted = job.difficulty * shareMultiplier;
 
         //console.log('processShare ck8')
 
@@ -373,14 +388,16 @@ var JobManager = module.exports = function JobManager(options) {
             blockHex = job.serializeBlock(headerBuffer, Buffer.from(soln, 'hex')).toString('hex');
             blockHash = util.reverseBuffer(headerHash).toString('hex');
             // check if pbaas only submission
-            if (!headerBigNum.le(job.target))
+            if (!headerBigNum.le(job.target)) {
                 isOnlyPBaaS = true;
+            }
 
             //console.log('end serialization');
         } else {
             //console.log('low difficulty share');
-            if (options.emitInvalidBlockHashes)
+            if (options.emitInvalidBlockHashes) {
                 blockHashInvalid = util.reverseBuffer(util.sha256d(headerSolnBuffer)).toString('hex');
+            }
 
             //Check if share didn't reached the miner's difficulty)
             if (shareDiff / difficulty < 0.99) {
@@ -388,11 +405,10 @@ var JobManager = module.exports = function JobManager(options) {
                 //Check if share matched a previous difficulty from before a vardiff retarget
                 if (previousDifficulty && shareDiff >= previousDifficulty) {
                     difficulty = previousDifficulty;
-                }
-                else {
+                } else {
                     // Allow low-diff shares if configured for solo mining
                     if (!options.acceptLowDiffShares) {
-                        return shareError([23, 'low difficulty share of ' + shareDiff]);
+                        return shareError([23, `low difficulty share of ${  shareDiff}`]);
                     }
                 }
             }

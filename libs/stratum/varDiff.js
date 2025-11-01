@@ -1,4 +1,4 @@
-var events = require('events');
+const events = require('events');
 
 /*
 
@@ -9,15 +9,14 @@ var events = require('events');
 
 
 function RingBuffer(maxSize) {
-    var data = [];
-    var cursor = 0;
-    var isFull = false;
+    let data = [];
+    let cursor = 0;
+    let isFull = false;
     this.append = function (x) {
         if (isFull) {
             data[cursor] = x;
             cursor = (cursor + 1) % maxSize;
-        }
-        else {
+        } else {
             data.push(x);
             cursor++;
             if (data.length === maxSize) {
@@ -27,8 +26,8 @@ function RingBuffer(maxSize) {
         }
     };
     this.avg = function () {
-        var sum = data.reduce(function (a, b) {
-            return a + b
+        const sum = data.reduce((a, b) => {
+            return a + b;
         });
         return sum / (isFull ? maxSize : cursor);
     };
@@ -47,14 +46,14 @@ function toFixed(num, len) {
     return parseFloat(num.toFixed(len));
 }
 
-var varDiff = module.exports = function varDiff(port, varDiffOptions) {
-    var _this = this;
+const varDiff = module.exports = function varDiff(port, varDiffOptions) {
+    const _this = this;
 
-    var bufferSize, tMin, tMax;
+    let bufferSize, tMin, tMax;
 
     //if (!varDiffOptions) return;
 
-    var variance = varDiffOptions.targetTime * (varDiffOptions.variancePercent / 100);
+    const variance = varDiffOptions.targetTime * (varDiffOptions.variancePercent / 100);
 
 
     bufferSize = varDiffOptions.retargetTime / varDiffOptions.targetTime * 4;
@@ -64,20 +63,20 @@ var varDiff = module.exports = function varDiff(port, varDiffOptions) {
 
     this.manageClient = function (client) {
 
-        var stratumPort = client.socket.localPort;
+        const stratumPort = client.socket.localPort;
 
         if (stratumPort != port) {
-            console.error("Handling a client which is not of this vardiff?");
+            console.error('Handling a client which is not of this vardiff?');
         }
-        var options = varDiffOptions;
+        const options = varDiffOptions;
 
-        var lastTs;
-        var lastRtc;
-        var timeBuffer;
+        let lastTs;
+        let lastRtc;
+        let timeBuffer;
 
-        client.on('submit', function () {
+        client.on('submit', () => {
 
-            var ts = (Date.now() / 1000) | 0;
+            const ts = (Date.now() / 1000) | 0;
 
             if (!lastRtc) {
                 lastRtc = ts - options.retargetTime / 2;
@@ -86,17 +85,18 @@ var varDiff = module.exports = function varDiff(port, varDiffOptions) {
                 return;
             }
 
-            var sinceLast = ts - lastTs;
+            const sinceLast = ts - lastTs;
 
             timeBuffer.append(sinceLast);
             lastTs = ts;
 
-            if ((ts - lastRtc) < options.retargetTime && timeBuffer.size() > 0)
+            if ((ts - lastRtc) < options.retargetTime && timeBuffer.size() > 0) {
                 return;
+            }
 
             lastRtc = ts;
-            var avg = timeBuffer.avg();
-            var ddiff = options.targetTime / avg;
+            const avg = timeBuffer.avg();
+            let ddiff = options.targetTime / avg;
 
             if (avg > tMax && client.difficulty > options.minDiff) {
                 if (options.x2mode) {
@@ -109,16 +109,15 @@ var varDiff = module.exports = function varDiff(port, varDiffOptions) {
                 if (options.x2mode) {
                     ddiff = 2;
                 }
-                var diffMax = options.maxDiff;
+                const diffMax = options.maxDiff;
                 if (ddiff * client.difficulty > diffMax) {
                     ddiff = diffMax / client.difficulty;
                 }
-            }
-            else {
+            } else {
                 return;
             }
 
-            var newDiff = toFixed(client.difficulty * ddiff, 8);
+            const newDiff = toFixed(client.difficulty * ddiff, 8);
             timeBuffer.clear();
             _this.emit('newDifficulty', client, newDiff);
         });

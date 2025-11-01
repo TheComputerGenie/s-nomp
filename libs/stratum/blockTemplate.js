@@ -1,14 +1,14 @@
-var bignum = require('bignum');
+const bignum = require('bignum');
 
-var merkle = require('./merkleTree.js');
-var transactions = require('./transactions.js');
-var util = require('./util.js');
+const merkle = require('./merkleTree.js');
+const transactions = require('./transactions.js');
+const util = require('./util.js');
 
 /**
  * The BlockTemplate class holds a single job.
  * and provides several methods to validate and submit it to the daemon coin
 **/
-var BlockTemplate = module.exports = function BlockTemplate(
+const BlockTemplate = module.exports = function BlockTemplate(
     jobId,
     rpcData,
     extraNoncePlaceholder,
@@ -18,7 +18,7 @@ var BlockTemplate = module.exports = function BlockTemplate(
     coin
 ) {
     //private members
-    var submits = [];
+    const submits = [];
 
     //public members
     this.rpcData = rpcData;
@@ -37,11 +37,11 @@ var BlockTemplate = module.exports = function BlockTemplate(
 
 
     // generate the fees and coinbase tx
-    var blockReward = (this.rpcData.miner) * 100000000;
+    let blockReward = (this.rpcData.miner) * 100000000;
 
-    var masternodeReward;
-    var masternodePayee;
-    var masternodePayment;
+    let masternodeReward;
+    let masternodePayee;
+    let masternodePayment;
 
     if (coin.payFoundersReward === true) {
         if (!this.rpcData.founders || this.rpcData.founders.length <= 0) {
@@ -55,8 +55,8 @@ var BlockTemplate = module.exports = function BlockTemplate(
     masternodePayee = rpcData.payee;
     masternodePayment = rpcData.masternode_payments;
 
-    var fees = [];
-    rpcData.transactions.forEach(function (value) {
+    const fees = [];
+    rpcData.transactions.forEach((value) => {
         fees.push(value);
     });
     this.rewardFees = transactions.getFees(fees);
@@ -68,9 +68,9 @@ var BlockTemplate = module.exports = function BlockTemplate(
     // *Note, verus daemon must be setup with -minerdistribution '{"address": 0.9, "address2":0.1}' option
     //        or setup with -pubkey, -mineraddres, etc.
 
-    let solver = parseInt(this.rpcData.solution.substr(0, 2), 16);
+    const solver = parseInt(this.rpcData.solution.substr(0, 2), 16);
     // when PBaaS activates we must use the coinbasetxn from daemon to get proper fee pool calculations in coinbase
-    if (coin.algorithm && coin.algorithm == "verushash" && solver > 6 && this.rpcData.coinbasetxn) {
+    if (coin.algorithm && coin.algorithm == 'verushash' && solver > 6 && this.rpcData.coinbasetxn) {
         this.blockReward = this.rpcData.coinbasetxn.coinbasevalue;
         this.genTx = this.rpcData.coinbasetxn.data;
         this.genTxHash = util.reverseBuffer(Buffer.from(this.rpcData.coinbasetxn.hash, 'hex')).toString('hex');
@@ -102,8 +102,7 @@ var BlockTemplate = module.exports = function BlockTemplate(
     this.prevHashReversed = util.reverseBuffer(Buffer.from(rpcData.previousblockhash, 'hex')).toString('hex');
     if (rpcData.finalsaplingroothash) {
         this.finalSaplingRootHashReversed = util.reverseBuffer(Buffer.from(rpcData.finalsaplingroothash, 'hex')).toString('hex');
-    }
-    else {
+    } else {
         this.finalSaplingRootHashReversed = '0000000000000000000000000000000000000000000000000000000000000000'; //hashReserved
     }
 
@@ -112,8 +111,8 @@ var BlockTemplate = module.exports = function BlockTemplate(
 
     //block header per https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
     this.serializeHeader = function (nTime, nonce) {
-        var header = Buffer.alloc(140);
-        var position = 0;
+        const header = Buffer.alloc(140);
+        let position = 0;
 
         /*
         console.log('nonce:' + nonce);
@@ -136,7 +135,7 @@ var BlockTemplate = module.exports = function BlockTemplate(
         } else if (nonce) {
             header.write(nonce, position += 4, 32, 'hex');
         } else {
-            console.log("ERROR, block header nonce not provided by daemon!");
+            console.log('ERROR, block header nonce not provided by daemon!');
         }
         return header;
     };
@@ -144,16 +143,17 @@ var BlockTemplate = module.exports = function BlockTemplate(
     // join the header and txs together
     this.serializeBlock = function (header, soln) {
 
-        var txCount = this.txCount.toString(16);
+        let txCount = this.txCount.toString(16);
         if (Math.abs(txCount.length % 2) == 1) {
-            txCount = "0" + txCount;
+            txCount = `0${  txCount}`;
         }
 
         if (this.txCount <= 0x7f) {
             var varInt = Buffer.from(txCount, 'hex');
-        }
-        else if (this.txCount <= 0x7fff) {
-            if (txCount.length == 2) txCount = "00" + txCount;
+        } else if (this.txCount <= 0x7fff) {
+            if (txCount.length == 2) {
+                txCount = `00${  txCount}`;
+            }
             var varInt = Buffer.concat([Buffer.from('FD', 'hex'), util.reverseBuffer(Buffer.from(txCount, 'hex'))]);
         }
 
@@ -165,7 +165,7 @@ var BlockTemplate = module.exports = function BlockTemplate(
         ]);
 
         if (this.rpcData.transactions.length > 0) {
-            this.rpcData.transactions.forEach(function (value) {
+            this.rpcData.transactions.forEach((value) => {
                 tmpBuf = Buffer.concat([buf, Buffer.from(value.data, 'hex')]);
                 buf = tmpBuf;
             });
@@ -184,7 +184,7 @@ var BlockTemplate = module.exports = function BlockTemplate(
 
     // submit the block header
     this.registerSubmit = function (header, soln) {
-        var submission = (header + soln).toLowerCase();
+        const submission = (header + soln).toLowerCase();
         if (submits.indexOf(submission) === -1) {
 
             submits.push(submission);
@@ -195,7 +195,7 @@ var BlockTemplate = module.exports = function BlockTemplate(
 
     // used for mining.notify
     this.getJobParams = function () {
-        let nbits = util.reverseBuffer(Buffer.from(this.rpcData.bits, 'hex'));
+        const nbits = util.reverseBuffer(Buffer.from(this.rpcData.bits, 'hex'));
         if (!this.jobParams) {
             this.jobParams = [
                 this.jobId,
@@ -208,11 +208,11 @@ var BlockTemplate = module.exports = function BlockTemplate(
                 true
             ];
             // VerusHash V2.1 activation
-            if (this.rpcData.solution !== undefined && typeof this.rpcData.solution === "string") {
+            if (this.rpcData.solution !== undefined && typeof this.rpcData.solution === 'string') {
                 // trim trailing 0's
-                let reservedSolutionSpace = this.rpcData.solution.replace(/[0]+$/, "");
+                let reservedSolutionSpace = this.rpcData.solution.replace(/[0]+$/, '');
                 if ((reservedSolutionSpace.length % 2) == 1) {
-                    reservedSolutionSpace += "0";
+                    reservedSolutionSpace += '0';
                 }
                 this.jobParams.push(reservedSolutionSpace);
             }

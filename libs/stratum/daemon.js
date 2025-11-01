@@ -1,8 +1,8 @@
-var http = require('http');
-var cp = require('child_process');
-var events = require('events');
+const http = require('http');
+const cp = require('child_process');
+const events = require('events');
 
-var async = require('async');
+const async = require('async');
 
 /**
  * The daemon interface interacts with the coin daemon by using the rpc interface.
@@ -16,34 +16,37 @@ var async = require('async');
 function DaemonInterface(daemons, logger) {
 
     //private members
-    var _this = this;
+    const _this = this;
     logger = logger || function (severity, message) {
-            console.log(severity + ': ' + message);
-        };
+        console.log(`${severity  }: ${  message}`);
+    };
 
 
-    var instances = (function () {
-        for (var i = 0; i < daemons.length; i++)
+    const instances = (function () {
+        for (let i = 0; i < daemons.length; i++) {
             daemons[i]['index'] = i;
+        }
         return daemons;
     })();
 
 
     function init() {
-        isOnline(function (online) {
-            if (online)
+        isOnline((online) => {
+            if (online) {
                 _this.emit('online');
+            }
         });
     }
 
     function isOnline(callback) {
-        cmd('getinfo', [], function (results) {
-            var allOnline = results.every(function (result) {
+        cmd('getinfo', [], (results) => {
+            const allOnline = results.every((result) => {
                 return !results.error;
             });
             callback(allOnline);
-            if (!allOnline)
+            if (!allOnline) {
                 _this.emit('connectionFailed', results);
+            }
         });
     }
 
@@ -53,21 +56,21 @@ function DaemonInterface(daemons, logger) {
      */
     function performHttpRequest(instance, jsonData, callback, timeout) {
         if (!timeout) {
-            timeout = 60
+            timeout = 60;
         }
 
-        var options = {
+        const options = {
             hostname: (typeof(instance.host) === 'undefined' ? '127.0.0.1' : instance.host),
             port: instance.port,
             method: 'POST',
-            auth: instance.user + ':' + instance.password,
+            auth: `${instance.user  }:${  instance.password}`,
             headers: {
                 'Content-Length': jsonData.length
             }
         };
 
-        var parseJson = function (res, data) {
-            var dataJson;
+        const parseJson = function (res, data) {
+            let dataJson;
 
             if (res.statusCode === 401) {
                 logger('error', 'Unauthorized RPC access - invalid RPC username or password');
@@ -76,16 +79,15 @@ function DaemonInterface(daemons, logger) {
 
             try {
                 dataJson = JSON.parse(data);
-            }
-            catch (e) {
+            } catch (e) {
                 if (data.indexOf(':-nan') !== -1) {
-                    data = data.replace(/:-nan,/g, ":0");
+                    data = data.replace(/:-nan,/g, ':0');
                     parseJson(res, data);
                     return;
                 }
-                logger('error', 'Could not parse rpc data from daemon instance  ' + instance.index
-                    + '\nRequest Data: ' + jsonData
-                    + '\nReponse Data: ' + data);
+                logger('error', `Could not parse rpc data from daemon instance  ${  instance.index
+                }\nRequest Data: ${  jsonData
+                }\nReponse Data: ${  data}`);
 
             }
             if (dataJson) {
@@ -93,26 +95,27 @@ function DaemonInterface(daemons, logger) {
             }
         };
 
-        var req = http.request(options, function (res) {
-            var data = '';
+        const req = http.request(options, (res) => {
+            let data = '';
             res.setEncoding('utf8');
-            res.on('data', function (chunk) {
+            res.on('data', (chunk) => {
                 data += chunk;
             });
-            res.on('end', function () {
+            res.on('end', () => {
                 parseJson(res, data);
             });
         });
 
-        req.setTimeout(timeout * 1000, function() {
+        req.setTimeout(timeout * 1000, () => {
             req.abort();
         });
 
-        req.on('error', function (e) {
-            if (e.code === 'ECONNREFUSED')
+        req.on('error', (e) => {
+            if (e.code === 'ECONNREFUSED') {
                 callback({type: 'offline', message: e.message}, null);
-            else
+            } else {
                 callback({type: 'request error', message: e.message}, null);
+            }
         });
 
         req.end(jsonData);
@@ -129,9 +132,9 @@ function DaemonInterface(daemons, logger) {
 
     function batchCmd(cmdArray, callback, timeout) {
 
-        var requestJson = [];
+        const requestJson = [];
 
-        for (var i = 0; i < cmdArray.length; i++) {
+        for (let i = 0; i < cmdArray.length; i++) {
             requestJson.push({
                 method: cmdArray[i][0],
                 params: cmdArray[i][1],
@@ -139,9 +142,9 @@ function DaemonInterface(daemons, logger) {
             });
         }
 
-        var serializedRequest = JSON.stringify(requestJson);
+        const serializedRequest = JSON.stringify(requestJson);
 
-        performHttpRequest(instances[0], serializedRequest, function (error, result) {
+        performHttpRequest(instances[0], serializedRequest, (error, result) => {
             callback(error, result);
         }, timeout);
     }
@@ -151,37 +154,42 @@ function DaemonInterface(daemons, logger) {
      set to true. */
     function cmd(method, params, callback, streamResults, returnRawData) {
 
-        var results = [];
+        const results = [];
 
-        async.each(instances, function (instance, eachCallback) {
+        async.each(instances, (instance, eachCallback) => {
 
-            var itemFinished = function (error, result, data) {
+            let itemFinished = function (error, result, data) {
 
-                var returnObj = {
+                const returnObj = {
                     error: error,
                     response: (result || {}).result,
                     instance: instance
                 };
-                if (returnRawData) returnObj.data = data;
-                if (streamResults) callback(returnObj);
-                else results.push(returnObj);
+                if (returnRawData) {
+                    returnObj.data = data;
+                }
+                if (streamResults) {
+                    callback(returnObj);
+                } else {
+                    results.push(returnObj);
+                }
                 eachCallback();
                 itemFinished = function () {
                 };
             };
 
-            var requestJson = JSON.stringify({
+            const requestJson = JSON.stringify({
                 method: method,
                 params: params,
                 id: Date.now() + Math.floor(Math.random() * 10)
             });
 
-            performHttpRequest(instance, requestJson, function (error, result, data) {
+            performHttpRequest(instance, requestJson, (error, result, data) => {
                 itemFinished(error, result, data);
             });
 
 
-        }, function () {
+        }, () => {
             if (!streamResults) {
                 callback(results);
             }

@@ -1,5 +1,5 @@
-const bitcoin = require('bitgo-utxo-lib')
-const util = require('./util.js')
+const bitcoin = require('bitgo-utxo-lib');
+const util = require('./util.js');
 
 const scriptCompile = addrHash => bitcoin.script.compile([
     bitcoin.opcodes.OP_DUP,
@@ -7,51 +7,50 @@ const scriptCompile = addrHash => bitcoin.script.compile([
     addrHash,
     bitcoin.opcodes.OP_EQUALVERIFY,
     bitcoin.opcodes.OP_CHECKSIG
-])
+]);
 
 const scriptFoundersCompile = address => bitcoin.script.compile([
     bitcoin.opcodes.OP_HASH160,
     address,
     bitcoin.opcodes.OP_EQUAL
-])
+]);
 
 // public members
-let txHash
-exports.txHash = () => txHash
+let txHash;
+exports.txHash = () => txHash;
 
 exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poolAddress, poolHex, coin, masternodeReward, masternodePayee, masternodePayment) => {
-    let poolAddrHash = bitcoin.address.fromBase58Check(poolAddress).hash
+    const poolAddrHash = bitcoin.address.fromBase58Check(poolAddress).hash;
 
-    let network = bitcoin.networks[coin.symbol]
+    const network = bitcoin.networks[coin.symbol];
     //console.log('network: ', network)
-    let txb = new bitcoin.TransactionBuilder(network)
+    const txb = new bitcoin.TransactionBuilder(network);
 
     if (coin.sapling) {
         if (coin.sapling === true || (typeof coin.sapling === 'number' && coin.sapling <= blockHeight)) {
             txb.setVersion(bitcoin.Transaction.ZCASH_SAPLING_VERSION);
         }
-    }
-    else if (coin.overwinter) {
+    } else if (coin.overwinter) {
         if (coin.overwinter === true || (typeof coin.overwinter === 'number' && coin.overwinter <= blockHeight)) {
             txb.setVersion(bitcoin.Transaction.ZCASH_OVERWINTER_VERSION);
         }
     }
 
     // input for coinbase tx
-    let blockHeightSerial = (blockHeight.toString(16).length % 2 === 0 ? '' : '0') + blockHeight.toString(16)
+    let blockHeightSerial = (blockHeight.toString(16).length % 2 === 0 ? '' : '0') + blockHeight.toString(16);
 
-    let height = Math.ceil((blockHeight << 1).toString(2).length / 8)
-    let lengthDiff = blockHeightSerial.length / 2 - height
+    const height = Math.ceil((blockHeight << 1).toString(2).length / 8);
+    const lengthDiff = blockHeightSerial.length / 2 - height;
     for (let i = 0; i < lengthDiff; i++) {
-        blockHeightSerial = `${blockHeightSerial}00`
+        blockHeightSerial = `${blockHeightSerial}00`;
     }
 
-    let length = `0${height}`
-    let serializedBlockHeight = Buffer.concat([
+    const length = `0${height}`;
+    const serializedBlockHeight = Buffer.concat([
         Buffer.from(length, 'hex'),
         util.reverseBuffer(Buffer.from(blockHeightSerial, 'hex')),
         Buffer.from('00', 'hex') // OP_0
-    ])
+    ]);
 
     txb.addInput(Buffer.from('0000000000000000000000000000000000000000000000000000000000000000', 'hex'),
         4294967295,
@@ -60,11 +59,11 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
             serializedBlockHeight,
             // Default VRSC
             Buffer.from(poolHex ? poolHex : '56525343', 'hex')
-        ]))
+        ]));
 
     // calculate total fees
-    let feePercent = 0
-    recipients.forEach(recipient => feePercent += recipient.percent)
+    let feePercent = 0;
+    recipients.forEach(recipient => feePercent += recipient.percent);
 
     let feesDivided = false;
 
@@ -76,16 +75,16 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
             // treasury reward or Super Nodes treasury update?
             if (coin.treasuryRewardUpdateStartBlockHeight && blockHeight >= coin.treasuryRewardUpdateStartBlockHeight) {
                 // treasury reward
-                let indexCF = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vTreasuryRewardUpdateAddress.length))
-                let foundersAddrHash = bitcoin.address.fromBase58Check(coin.vTreasuryRewardUpdateAddress[indexCF]).hash
+                const indexCF = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vTreasuryRewardUpdateAddress.length));
+                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vTreasuryRewardUpdateAddress[indexCF]).hash;
 
                 // Secure Nodes reward
-                let indexSN = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vSecureNodesRewardAddress.length))
-                let secureNodesAddrHash = bitcoin.address.fromBase58Check(coin.vSecureNodesRewardAddress[indexSN]).hash
+                const indexSN = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vSecureNodesRewardAddress.length));
+                const secureNodesAddrHash = bitcoin.address.fromBase58Check(coin.vSecureNodesRewardAddress[indexSN]).hash;
 
                 // Super Nodes reward
-                let indexXN = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vSuperNodesRewardAddress.length))
-                let superNodesAddrHash = bitcoin.address.fromBase58Check(coin.vSuperNodesRewardAddress[indexXN]).hash
+                const indexXN = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vSuperNodesRewardAddress.length));
+                const superNodesAddrHash = bitcoin.address.fromBase58Check(coin.vSuperNodesRewardAddress[indexXN]).hash;
 
                 // console.log(`treasuryIndex: ${indexCF}`)
                 // console.log(`treasuryAddr:  ${coin.vTreasuryRewardUpdateAddress[indexCF]}`)
@@ -98,31 +97,31 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                 txb.addOutput(
                     scriptCompile(poolAddrHash),
                     Math.round(blockReward * (1 - (coin.percentTreasuryUpdateReward + coin.percentSecureNodesReward + coin.percentSuperNodesReward + feePercent) / 100)) + feeReward
-                )
+                );
 
                 // treasury t-addr
                 txb.addOutput(
                     scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentTreasuryUpdateReward / 100))
-                )
+                );
 
                 // Secure Nodes t-addr
                 txb.addOutput(
                     scriptFoundersCompile(secureNodesAddrHash),
                     Math.round(blockReward * (coin.percentSecureNodesReward / 100))
-                )
+                );
 
                 // Super Nodes t-addr
                 txb.addOutput(
                     scriptFoundersCompile(superNodesAddrHash),
                     Math.round(blockReward * (coin.percentSuperNodesReward / 100))
-                )
+                );
 
                 // founders or treasury reward?
             } else if (coin.treasuryRewardStartBlockHeight && blockHeight >= coin.treasuryRewardStartBlockHeight) {
                 // treasury reward
-                let index = parseInt(Math.floor(((blockHeight - coin.treasuryRewardStartBlockHeight) / coin.treasuryRewardAddressChangeInterval) % coin.vTreasuryRewardAddress.length))
-                let foundersAddrHash = bitcoin.address.fromBase58Check(coin.vTreasuryRewardAddress[index]).hash
+                const index = parseInt(Math.floor(((blockHeight - coin.treasuryRewardStartBlockHeight) / coin.treasuryRewardAddressChangeInterval) % coin.vTreasuryRewardAddress.length));
+                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vTreasuryRewardAddress[index]).hash;
 
                 // console.log(`treasuryIndex: ${index}`)
                 // console.log(`treasuryAddr:  ${coin.vTreasuryRewardAddress[index]}`)
@@ -131,17 +130,17 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                 txb.addOutput(
                     scriptCompile(poolAddrHash),
                     Math.round(blockReward * (1 - (coin.percentTreasuryReward + feePercent) / 100)) + feeReward
-                )
+                );
 
                 // treasury t-addr
                 txb.addOutput(
                     scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentTreasuryReward / 100))
-                )
+                );
             } else {
                 // founders reward
-                let index = parseInt(Math.floor(blockHeight / coin.foundersRewardAddressChangeInterval))
-                let foundersAddrHash = bitcoin.address.fromBase58Check(coin.vFoundersRewardAddress[index]).hash
+                const index = parseInt(Math.floor(blockHeight / coin.foundersRewardAddressChangeInterval));
+                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vFoundersRewardAddress[index]).hash;
 
                 // console.log(`foundersIndex: ${index}`)
                 // console.log(`foundersAddr:  ${coin.vFoundersRewardAddress[index]}`)
@@ -156,7 +155,7 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                 txb.addOutput(
                     scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentFoundersReward / 100))
-                )
+                );
             }
             // no founders rewards :)
         } else {
@@ -165,19 +164,19 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
             txb.addOutput(
                 scriptCompile(poolAddrHash),
                 Math.round((blockReward + feeReward) * (1 - (feePercent / 100)))
-            )
+            );
         }
     } else {
         // This section is for SnowGem
-        let masternodeAddrHash = masternodePayee ? bitcoin.address.fromBase58Check(masternodePayee).hash : null
+        const masternodeAddrHash = masternodePayee ? bitcoin.address.fromBase58Check(masternodePayee).hash : null;
 
         // txs with founders reward
         if (coin.payFoundersReward === true && (coin.maxFoundersRewardBlockHeight >= blockHeight || coin.treasuryRewardStartBlockHeight)) {
             // founders or treasury reward?
             if (coin.treasuryRewardStartBlockHeight && blockHeight >= coin.treasuryRewardStartBlockHeight) {
                 // treasury reward
-                let index = parseInt(Math.floor(((blockHeight - coin.treasuryRewardStartBlockHeight) / coin.treasuryRewardAddressChangeInterval) % coin.vTreasuryRewardAddress.length))
-                let foundersAddrHash = bitcoin.address.fromBase58Check(coin.vTreasuryRewardAddress[index]).hash
+                const index = parseInt(Math.floor(((blockHeight - coin.treasuryRewardStartBlockHeight) / coin.treasuryRewardAddressChangeInterval) % coin.vTreasuryRewardAddress.length));
+                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vTreasuryRewardAddress[index]).hash;
 
                 // console.log(`treasuryIndex: ${index}`)
                 // console.log(`treasuryAddr:  ${coin.vTreasuryRewardAddress[index]}`)
@@ -186,23 +185,23 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                 txb.addOutput(
                     scriptCompile(poolAddrHash),
                     Math.round(blockReward * (1 - (coin.percentTreasuryReward + feePercent) / 100)) + feeReward - masternodeReward
-                )
+                );
 
                 // treasury t-addr
                 txb.addOutput(
                     scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentTreasuryReward / 100))
-                )
+                );
 
                 //masternode reward
                 txb.addOutput(
                     scriptCompile(masternodeAddrHash),
                     Math.round(masternodeReward)
-                )
+                );
             } else {
                 // founders reward
-                let index = parseInt(Math.floor(blockHeight / coin.foundersRewardAddressChangeInterval))
-                let foundersAddrHash = bitcoin.address.fromBase58Check(coin.vFoundersRewardAddress[index]).hash
+                const index = parseInt(Math.floor(blockHeight / coin.foundersRewardAddressChangeInterval));
+                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vFoundersRewardAddress[index]).hash;
 
                 // console.log(`foundersIndex: ${index}`)
                 // console.log(`foundersAddr:  ${coin.vFoundersRewardAddress[index]}`)
@@ -211,19 +210,19 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                 txb.addOutput(
                     scriptCompile(poolAddrHash),
                     Math.round(blockReward * (1 - (coin.percentFoundersReward + feePercent) / 100)) + feeReward - masternodeReward
-                )
+                );
 
                 // founders t-addr
                 txb.addOutput(
                     scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentFoundersReward / 100))
-                )
+                );
 
                 //masternode reward
                 txb.addOutput(
                     scriptCompile(masternodeAddrHash),
                     Math.round(masternodeReward)
-                )
+                );
             }
             // no founders rewards :)
         } else {
@@ -231,38 +230,38 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
             txb.addOutput(
                 scriptCompile(poolAddrHash),
                 Math.round(blockReward * (1 - (feePercent / 100))) + feeReward - masternodeReward
-            )
+            );
 
             //masternode reward
             txb.addOutput(
                 scriptCompile(masternodeAddrHash),
                 Math.round(masternodeReward)
-            )
+            );
         }
     }
 
     // pool fee recipients t-addr
     recipients.forEach(recipient => {
         txb.addOutput(scriptCompile(bitcoin.address.fromBase58Check(recipient.address).hash),
-            Math.round((blockReward + (feesDivided ? feeReward : 0)) * (recipient.percent / 100)))
-    })
+            Math.round((blockReward + (feesDivided ? feeReward : 0)) * (recipient.percent / 100)));
+    });
 
-    let tx = txb.build()
+    const tx = txb.build();
 
-    txHex = tx.toHex()
+    txHex = tx.toHex();
     // console.log('hex coinbase transaction: ' + txHex)
 
     // assign
-    txHash = tx.getHash().toString('hex')
+    txHash = tx.getHash().toString('hex');
 
     // console.log(`txHex: ${txHex.toString('hex')}`)
     // console.log(`txHash: ${txHash}`)
 
-    return txHex
-}
+    return txHex;
+};
 
 module.exports.getFees = feeArray => {
-    let fee = Number()
-    feeArray.forEach(value => fee += Number(value.fee))
-    return fee
-}
+    let fee = Number();
+    feeArray.forEach(value => fee += Number(value.fee));
+    return fee;
+};
