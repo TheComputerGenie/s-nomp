@@ -38,10 +38,10 @@ module.exports = function (logger) {
             const logComponent = coin;
 
             logger.debug(logSystem, logComponent, `Payment processing setup with daemon (${processingConfig.daemon.user}@${processingConfig.daemon.host}:${processingConfig.daemon.port
-                }) and redis (${(typeof poolOptions.redis.socket !== 'undefined' && poolOptions.redis.socket !== '')
-                    ? poolOptions.redis.socket
-                    : (`${poolOptions.redis.host}:${poolOptions.redis.port}`)
-                })`);
+            }) and redis (${(typeof poolOptions.redis.socket !== 'undefined' && poolOptions.redis.socket !== '')
+                ? poolOptions.redis.socket
+                : (`${poolOptions.redis.host}:${poolOptions.redis.port}`)
+            })`);
         });
     });
 };
@@ -1259,11 +1259,11 @@ function SetupForPool(logger, poolOptions, setupFinished) {
 
                                 // it worked, congrats on your pools payout ;)
                                 logger.special(logSystem, logComponent, `Sent ${satoshisToCoins(totalSent)
-                                    } to ${Object.keys(addressAmounts).length} miners; txid: ${txid}`);
+                                } to ${Object.keys(addressAmounts).length} miners; txid: ${txid}`);
 
                                 if (withholdPercent > 0) {
                                     logger.warning(logSystem, logComponent, `Had to withhold ${withholdPercent * 100
-                                        }% of reward from miners to cover transaction fees. `
+                                    }% of reward from miners to cover transaction fees. `
                                         + `Fund pool wallet with coins to prevent this from happening`);
                                 }
 
