@@ -17,6 +17,7 @@ const ProfitSwitch = require('./libs/profitSwitch.js');
 const CreateRedisClient = require('./libs/createRedisClient.js');
 
 const algos = require('./libs/stratum/algoProperties.js');
+const COIN_CONSTANTS = require('./libs/coinConstants.js');
 
 JSON.minify = JSON.minify || require('node-json-minify');
 
@@ -49,7 +50,7 @@ try {
         posix.setrlimit('nofile', { soft: 100000, hard: 100000 });
     } catch (e) {
         if (cluster.isMaster) {
-            logger.warning('POSIX', 'Connection Limit', '(Safe to ignore) Must be ran as root to increase resource limits');
+            logger.warn('POSIX', 'Connection Limit', '(Safe to ignore) Must be ran as root to increase resource limits');
         }
     } finally {
         // Find out which user used sudo through the environment variable
@@ -124,35 +125,21 @@ const buildPoolConfigs = function () {
                     return;
                 }
             }
-
-            if (poolConfigFiles[f].coin === poolConfigFiles[i].coin) {
-                logger.error('Master', poolConfigFiles[f].fileName, `Pool has same configured coin file coins/${poolConfigFiles[f].coin} as ${poolConfigFiles[i].fileName} pool`);
-                process.exit(1);
-                return;
-            }
-
         }
     }
 
 
     poolConfigFiles.forEach((poolOptions) => {
 
-        poolOptions.coinFileName = poolOptions.coin;
-
-        const coinFilePath = `coins/${poolOptions.coinFileName}`;
-        if (!fs.existsSync(coinFilePath)) {
-            logger.error('Master', poolOptions.coinFileName, `could not find file: ${coinFilePath}`);
-            return;
-        }
-
-        const coinProfile = JSON.parse(JSON.minify(fs.readFileSync(coinFilePath, { encoding: 'utf8' })));
+        // Since we only support Verus Coin now, use hardcoded constants
+        const coinProfile = { ...COIN_CONSTANTS }; // Make a copy to avoid modifying constants
         poolOptions.coin = coinProfile;
         poolOptions.coin.name = poolOptions.coin.name.toLowerCase();
+        poolOptions.redis = portalConfig.redis;
 
         if (poolOptions.coin.name in configs) {
 
-            logger.error('Master', poolOptions.fileName, `coins/${poolOptions.coinFileName
-            } has same configured coin name ${poolOptions.coin.name} as coins/${configs[poolOptions.coin.name].coinFileName} used by pool config ${configs[poolOptions.coin.name].fileName}`);
+            logger.error('Master', poolOptions.fileName, `Pool has same configured coin name ${poolOptions.coin.name} as pool config ${configs[poolOptions.coin.name].fileName}`);
 
             process.exit(1);
             return;
@@ -222,7 +209,7 @@ const spawnPoolWorkers = function () {
     });
 
     if (Object.keys(poolConfigs).length === 0) {
-        logger.warning('Master', 'PoolSpawner', 'No pool configs exists or are enabled in pool_configs folder. No pools spawned.');
+        logger.warn('Master', 'PoolSpawner', 'No pool configs exists or are enabled in pool_configs folder. No pools spawned.');
         return;
     }
 
