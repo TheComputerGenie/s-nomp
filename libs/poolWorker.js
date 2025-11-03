@@ -172,10 +172,12 @@ module.exports = function (logger) {
                 }
             }
             if (isValidShare) {
-                if (data.shareDiff > 1000000000) {
-                    logger.warning(logSystem3, logComponent, logSubCat, 'Share was found with diff higher than 1.000.000.000!');
-                } else if (data.shareDiff > 1000000) {
-                    logger.warning(logSystem3, logComponent, logSubCat, 'Share was found with diff higher than 1.000.000!');
+                if (data.shareDiff > 10000000000) {
+                    logger.fatal(logSystem3, logComponent, logSubCat, `Share was found with diff higher than 10,000,000,000! ${((data.shareDiff / data.blockDiff) * 100).toFixed(2)}%`);
+                } else if (data.shareDiff > 1000000000) {
+                    logger.error(logSystem3, logComponent, logSubCat, `Share was found with diff higher than 1,000,000,000! ${((data.shareDiff / data.blockDiff) * 100).toFixed(2)}%`);
+                } else if (data.shareDiff > 100000000) {
+                    logger.alert(logSystem3, logComponent, logSubCat, `Share was found with diff higher than 100,000,000! ${((data.shareDiff / data.blockDiff) * 100).toFixed(2)}%`);
                 }
                 //logger.debug(logSystem, logComponent, logSubCat, 'Share accepted at diff ' + data.difficulty + '/' + data.shareDiff + ' by ' + data.worker + ' [' + data.ip + ']' );
             } else if (!isValidShare) {
@@ -189,7 +191,11 @@ module.exports = function (logger) {
             process.send({ type: 'shareTrack', thread: (parseInt(forkId) + 1), coin: poolOptions.coin.name, isValidShare: isValidShare, isValidBlock: isValidBlock, data: data });
 
         }).on('difficultyUpdate', (workerName, diff) => {
-            logger.debug(logSystem3, logComponent, logSubCat, `Difficulty update to diff ${diff} workerName=${JSON.stringify(workerName)}`);
+            // Controlled by config: defaultPoolConfigs.showDifficultyUpdate (default true)
+            const show = (portalConfig && portalConfig.defaultPoolConfigs && typeof portalConfig.defaultPoolConfigs.showDifficultyUpdate !== 'undefined') ? !!portalConfig.defaultPoolConfigs.showDifficultyUpdate : true;
+            if (show) {
+                logger.debug(logSystem3, logComponent, logSubCat, `Difficulty update to diff ${diff} workerName=${JSON.stringify(workerName)}`);
+            }
             handlers.diff(workerName, diff);
         }).on('log', (severity, text) => {
             logger[severity](logSystem, logComponent, logSubCat, text);
@@ -298,6 +304,8 @@ module.exports = function (logger) {
     // configuation for any proxy switching ports configured into the stratum pool object.
     //
     this.setDifficultyForProxyPort = function (pool, coin, algo) {
+        const logSystem = 'Switching';
+        const logComponent = 'Setup';
 
         logger.debug(logSystem, logComponent, algo, 'Setting proxy difficulties after pool start');
 
