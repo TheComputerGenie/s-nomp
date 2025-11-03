@@ -111,7 +111,7 @@ module.exports = function (logger) {
 
         if (basename in pageFiles) {
             readPageFiles([basename]);
-            logger.special(logSystem, 'Server', `Reloaded file ${basename}`);
+            logger.info(logSystem, 'Server', `Reloaded file ${basename}`);
         }
     });
 

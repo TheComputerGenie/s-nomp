@@ -25,13 +25,13 @@ const pool = module.exports = function pool(options, authorizeFn) {
         _this.emit('log', 'debug', text);
     };
     const emitWarningLog = function (text) {
-        _this.emit('log', 'warning', text);
+        _this.emit('log', 'warn', text);
     };
     const emitErrorLog = function (text) {
         _this.emit('log', 'error', text);
     };
     const emitSpecialLog = function (text) {
-        _this.emit('log', 'special', text);
+        _this.emit('log', 'info', text);
     };
 
 
@@ -473,6 +473,14 @@ const pool = module.exports = function pool(options, authorizeFn) {
                 if (error || processedBlock) {
                     return;
                 }
+                // Update transactions & rebroadcast work using the latest template
+                if (!rpcData) {
+                    return;
+                }
+                // Avoid duplicate update if this rpcData was already processed by jobManager
+                if (_this.jobManager.isRpcDataProcessed && _this.jobManager.isRpcDataProcessed(rpcData)) {
+                    return;
+                }
                 _this.jobManager.updateCurrentJob(rpcData);
             });
 
@@ -574,6 +582,9 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
 
     function GetBlockTemplate(callback) {
+        // used to dedupe identical getblocktemplate responses coming from
+        // multiple daemon instances when daemon.cmd is run with streamResults=true
+        const processedGbtKeys = new Set();
 
         function getCurrentBlockHeight() {
             _this.daemon.cmd('getblockcount',
@@ -602,6 +613,18 @@ const pool = module.exports = function pool(options, authorizeFn) {
             _this.daemon.cmd(gbtFunction,
                 [gbtArgs],
                 (result) => {
+                    // results may stream from multiple daemon instances; dedupe identical payloads
+                    try {
+                        const key = result.response && result.response.previousblockhash ? `${result.response.previousblockhash}_${result.response.curtime}` : null;
+                        if (key && processedGbtKeys.has(key)) {
+                            // ignore duplicate streamed result
+                            return;
+                        }
+                        if (key) {
+                            processedGbtKeys.add(key);
+                        }
+                    } catch (e) { }
+
                     if (result.error) {
                         emitErrorLog(`getblocktemplate call failed for daemon instance ${result.instance.index} with error ${JSON.stringify(result.error)}`);
                         callback(result.error);
