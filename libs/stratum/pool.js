@@ -1,11 +1,14 @@
 const events = require('events');
 const async = require('async');
 
+const PoolLogger = require('../logUtil.js');
+
 const varDiff = require('./varDiff.js');
 const daemon = require('./daemon.js');
 const peer = require('./peer.js');
 const stratum = require('./stratum.js');
 const jobManager = require('./jobManager.js');
+const algos = require('./algoProperties.js');
 const util = require('./util.js');
 
 /*process.on('uncaughtException', function(err) {
@@ -16,27 +19,19 @@ const util = require('./util.js');
 const pool = module.exports = function pool(options, authorizeFn) {
 
     this.options = options;
+    const logger = new PoolLogger(this.options.logger || {});
+
+    const logSystem = ' Pool ';
+    const logComponent = options.coin.name;
+    const forkId = process.env.forkId || '0';
+    const logSubCat = `Thread ${parseInt(forkId) + 1}`;
 
     const _this = this;
     let blockPollingIntervalId;
 
 
-    const emitLog = function (text) {
-        _this.emit('log', 'debug', text);
-    };
-    const emitWarningLog = function (text) {
-        _this.emit('log', 'warn', text);
-    };
-    const emitErrorLog = function (text) {
-        _this.emit('log', 'error', text);
-    };
-    const emitSpecialLog = function (text) {
-        _this.emit('log', 'info', text);
-    };
-
-
     if (!(options.coin.algorithm in algos)) {
-        emitErrorLog(`The ${options.coin.algorithm} hashing algorithm is not supported.`);
+        logger.error(logSystem, logComponent, logSubCat, `The ${options.coin.algorithm} hashing algorithm is not supported.`);
         throw new Error();
     }
 
@@ -67,7 +62,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
         GetBlockTemplate((error, result) => {
             if (error) {
-                emitErrorLog('Error with getblocktemplate on creating first job, server cannot start');
+                logger.error(logSystem, logComponent, logSubCat, 'Error with getblocktemplate on creating first job, server cannot start');
                 return;
             }
 
@@ -85,7 +80,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
             //Only let the first fork show synced status or the log wil look flooded with it
             if (portWarnings.length > 0 && (!process.env.forkId || process.env.forkId === '0')) {
                 const warnMessage = `Network diff of ${networkDiffAdjusted} is lower than ${portWarnings.join(' and ')}`;
-                emitWarningLog(warnMessage);
+                logger.warn(logSystem, logComponent, logSubCat, warnMessage);
             }
 
             finishedCallback();
@@ -97,9 +92,9 @@ const pool = module.exports = function pool(options, authorizeFn) {
     function OutputPoolInfo() {
 
         const startMessage = `\r\n\t\t\t\t\t\tStratum Pool Server Started for ${options.coin.name
-        } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
+            } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
         if (process.env.forkId && process.env.forkId !== '0') {
-            emitLog(startMessage);
+            logger.debug(logSystem, logComponent, logSubCat, startMessage);
             return;
         }
         const infoLines = [startMessage,
@@ -118,7 +113,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
             infoLines.push(`Block polling every:\t${options.blockRefreshInterval} ms`);
         }
 
-        emitSpecialLog(infoLines.join('\n\t\t\t\t\t\t'));
+        logger.info(logSystem, logComponent, logSubCat, infoLines.join('\n\t\t\t\t\t\t'));
     }
 
 
@@ -148,7 +143,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
         checkSynced(() => {
             //Only let the first fork show synced status or the log wil look flooded with it
             if (!process.env.forkId || process.env.forkId === '0') {
-                emitErrorLog('Daemon is still syncing with network (download blockchain) - server will be started once synced');
+                logger.error(logSystem, logComponent, logSubCat, 'Daemon is still syncing with network (download blockchain) - server will be started once synced');
             }
         });
 
@@ -169,7 +164,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
                     })[0].startingheight;
 
                     const percent = (blockCount / totalBlocks * 100).toFixed(2);
-                    emitWarningLog(`Downloaded ${percent}% of blockchain from ${peers.length} peers`);
+                    logger.warn(logSystem, logComponent, logSubCat, `Downloaded ${percent}% of blockchain from ${peers.length} peers`);
                 });
 
             });
@@ -192,26 +187,26 @@ const pool = module.exports = function pool(options, authorizeFn) {
         }
 
         if (options.testnet && !options.coin.peerMagicTestnet) {
-            emitErrorLog('p2p cannot be enabled in testnet without peerMagicTestnet set in coin configuration');
+            logger.error(logSystem, logComponent, logSubCat, 'p2p cannot be enabled in testnet without peerMagicTestnet set in coin configuration');
             return;
         } else if (!options.coin.peerMagic) {
-            emitErrorLog('p2p cannot be enabled without peerMagic set in coin configuration');
+            logger.error(logSystem, logComponent, logSubCat, 'p2p cannot be enabled without peerMagic set in coin configuration');
             return;
         }
 
         _this.peer = new peer(options);
         _this.peer.on('connected', () => {
-            emitLog('p2p connection successful');
+            logger.debug(logSystem, logComponent, logSubCat, 'p2p connection successful');
         }).on('connectionRejected', () => {
-            emitErrorLog('p2p connection failed - rejected by peer');
+            logger.error(logSystem, logComponent, logSubCat, 'p2p connection failed - rejected by peer');
         }).on('disconnected', () => {
-            emitWarningLog('p2p peer node disconnected - attempting reconnection...');
+            logger.warn(logSystem, logComponent, logSubCat, 'p2p peer node disconnected - attempting reconnection...');
         }).on('connectionFailed', (e) => {
-            emitErrorLog('p2p connection failed - likely incorrect host or port');
+            logger.error(logSystem, logComponent, logSubCat, 'p2p connection failed - likely incorrect host or port');
         }).on('socketError', (e) => {
-            emitErrorLog(`p2p had a socket error ${JSON.stringify(e)}`);
+            logger.error(logSystem, logComponent, logSubCat, `p2p had a socket error ${JSON.stringify(e)}`);
         }).on('error', (msg) => {
-            emitWarningLog(`p2p had an error ${msg}`);
+            logger.warn(logSystem, logComponent, logSubCat, `p2p had an error ${msg}`);
         }).on('blockFound', (hash) => {
             _this.processBlockNotify(hash, 'p2p');
         });
@@ -253,15 +248,15 @@ const pool = module.exports = function pool(options, authorizeFn) {
                 for (let i = 0; i < results.length; i++) {
                     const result = results[i];
                     if (result.error) {
-                        emitErrorLog(`rpc error with daemon instance ${result.instance.index} when submitting block with ${rpcCommand} ${JSON.stringify(result.error)}`
+                        logger.error(logSystem, logComponent, logSubCat, `rpc error with daemon instance ${result.instance.index} when submitting block with ${rpcCommand} ${JSON.stringify(result.error)}`
                         );
                         return;
                     } else if (result.response === 'rejected') {
-                        emitErrorLog(`Daemon instance ${result.instance.index} rejected a supposedly valid block`);
+                        logger.error(logSystem, logComponent, logSubCat, `Daemon instance ${result.instance.index} rejected a supposedly valid block`);
                         return;
                     }
                 }
-                emitLog(`Submitted Block using ${rpcCommand} successfully to daemon instance(s)`);
+                logger.debug(logSystem, logComponent, logSubCat, `Submitted Block using ${rpcCommand} successfully to daemon instance(s)`);
                 callback();
             }
         );
@@ -283,7 +278,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
         }
 
         if (recipients.length === 0) {
-            emitErrorLog('No rewardRecipients have been setup which means no fees will be taken');
+            logger.error(logSystem, logComponent, logSubCat, 'No rewardRecipients have been setup which means no fees will be taken');
         }
         options.recipients = recipients;
     }
@@ -324,7 +319,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
                 emitShare();
             } else {
                 if (jobManagerLastSubmitBlockHex === blockHex) {
-                    emitWarningLog(`Warning, ignored duplicate submit block ${blockHex}`);
+                    logger.warn(logSystem, logComponent, logSubCat, `Warning, ignored duplicate submit block ${blockHex}`);
                 } else {
                     jobManagerLastSubmitBlockHex = blockHex;
                     SubmitBlock(shareData.height, blockHex, () => {
@@ -339,7 +334,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
                                 emitShare();
                                 GetBlockTemplate((error, result, foundNewBlock) => {
                                     if (foundNewBlock) {
-                                        emitLog('Block notification via RPC after block submission');
+                                        logger.debug(logSystem, logComponent, logSubCat, 'Block notification via RPC after block submission');
                                     }
                                 });
                             });
@@ -350,7 +345,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
                 }
             }
         }).on('log', (severity, message) => {
-            _this.emit('log', severity, message);
+            logger[severity](logSystem, logComponent, logSubCat, message);
         });
     }
 
@@ -358,22 +353,22 @@ const pool = module.exports = function pool(options, authorizeFn) {
     function SetupDaemonInterface(finishedCallback) {
 
         if (!Array.isArray(options.daemons) || options.daemons.length < 1) {
-            emitErrorLog('No daemons have been configured - pool cannot start');
+            logger.error(logSystem, logComponent, logSubCat, 'No daemons have been configured - pool cannot start');
             return;
         }
 
         _this.daemon = new daemon.interface(options.daemons, ((severity, message) => {
-            _this.emit('log', severity, message);
+            logger[severity](logSystem, logComponent, logSubCat, message);
         }));
 
         _this.daemon.once('online', () => {
             finishedCallback();
 
         }).on('connectionFailed', (error) => {
-            emitErrorLog(`Failed to connect daemon(s): ${JSON.stringify(error)}`);
+            logger.error(logSystem, logComponent, logSubCat, `Failed to connect daemon(s): ${JSON.stringify(error)}`);
 
         }).on('error', (message) => {
-            emitErrorLog(message);
+            logger.error(logSystem, logComponent, logSubCat, message);
 
         });
 
@@ -393,7 +388,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
         _this.daemon.batchCmd(batchRpcCalls, (error, results) => {
             if (error || !results) {
-                emitErrorLog(`Could not start pool, error with init batch RPC call: ${JSON.stringify(error)}`);
+                logger.error(logSystem, logComponent, logSubCat, `Could not start pool, error with init batch RPC call: ${JSON.stringify(error)}`);
                 return;
             }
 
@@ -405,13 +400,13 @@ const pool = module.exports = function pool(options, authorizeFn) {
                 rpcResults[rpcCall] = r.result || r.error;
 
                 if (rpcCall !== 'submitblock' && (r.error || !r.result)) {
-                    emitErrorLog(`Could not start pool, error with init RPC ${rpcCall} - ${JSON.stringify(r.error)}`);
+                    logger.error(logSystem, logComponent, logSubCat, `Could not start pool, error with init RPC ${rpcCall} - ${JSON.stringify(r.error)}`);
                     return;
                 }
             }
 
             if (!rpcResults.validateaddress.isvalid) {
-                emitErrorLog('Daemon reports address is not valid');
+                logger.error(logSystem, logComponent, logSubCat, 'Daemon reports address is not valid');
                 return;
             }
 
@@ -425,7 +420,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
             /* POS coins must use the pubkey in coinbase transaction, and pubkey is
              only given if address is owned by wallet.*/
             if (options.coin.reward === 'POS' && typeof (rpcResults.validateaddress.pubkey) === 'undefined') {
-                emitErrorLog('The address provided is not from the daemon wallet - this is required for POS coins.');
+                logger.error(logSystem, logComponent, logSubCat, 'The address provided is not from the daemon wallet - this is required for POS coins.');
                 return;
             }
 
@@ -448,7 +443,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
             } else if (rpcResults.submitblock.code === -1) {
                 options.hasSubmitMethod = true;
             } else {
-                emitErrorLog(`Could not detect block submission RPC method, ${JSON.stringify(results)}`);
+                logger.error(logSystem, logComponent, logSubCat, `Could not detect block submission RPC method, ${JSON.stringify(results)}`);
                 return;
             }
 
@@ -467,7 +462,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
             finishedCallback();
 
         }).on('broadcastTimeout', () => {
-            emitLog(`No new blocks for ${options.jobRebroadcastTimeout} seconds - updating transactions & rebroadcasting work`);
+            logger.debug(logSystem, logComponent, logSubCat, `No new blocks for ${options.jobRebroadcastTimeout} seconds - updating transactions & rebroadcasting work`);
 
             GetBlockTemplate((error, rpcData, processedBlock) => {
                 if (error || processedBlock) {
@@ -526,37 +521,37 @@ const pool = module.exports = function pool(options, authorizeFn) {
                 resultCallback(result.error, result.result ? true : null);
 
             }).on('malformedMessage', (message) => {
-                emitWarningLog(`Malformed message from ${client.getLabel()}: ${message}`);
+                logger.warn(logSystem, logComponent, logSubCat, `Malformed message from ${client.getLabel()}: ${message}`);
 
             }).on('socketError', (err) => {
-                emitWarningLog(`Socket error from ${client.getLabel()}: ${JSON.stringify(err)}`);
+                logger.warn(logSystem, logComponent, logSubCat, `Socket error from ${client.getLabel()}: ${JSON.stringify(err)}`);
 
             }).on('socketTimeout', (reason) => {
-                emitWarningLog(`Connected timed out for ${client.getLabel()}: ${reason}`);
+                logger.warn(logSystem, logComponent, logSubCat, `Connected timed out for ${client.getLabel()}: ${reason}`);
 
             }).on('socketDisconnect', () => {
-                //emitLog('Socket disconnected from ' + client.getLabel());
+                //logger.debug(logSystem, logComponent, logSubCat, 'Socket disconnected from ' + client.getLabel());
 
             }).on('kickedBannedIP', (remainingBanTime) => {
-                emitLog(`Rejected incoming connection from ${client.remoteAddress} banned for ${remainingBanTime} more seconds`);
+                logger.debug(logSystem, logComponent, logSubCat, `Rejected incoming connection from ${client.remoteAddress} banned for ${remainingBanTime} more seconds`);
 
             }).on('forgaveBannedIP', () => {
-                emitLog(`Forgave banned IP ${client.remoteAddress}`);
+                logger.debug(logSystem, logComponent, logSubCat, `Forgave banned IP ${client.remoteAddress}`);
 
             }).on('unknownStratumMethod', (fullMessage) => {
-                emitLog(`Unknown stratum method from ${client.getLabel()}: ${fullMessage.method}`);
+                logger.debug(logSystem, logComponent, logSubCat, `Unknown stratum method from ${client.getLabel()}: ${fullMessage.method}`);
 
             }).on('socketFlooded', () => {
-                emitWarningLog(`Detected socket flooding from ${client.getLabel()}`);
+                logger.warn(logSystem, logComponent, logSubCat, `Detected socket flooding from ${client.getLabel()}`);
 
             }).on('tcpProxyError', (data) => {
-                emitErrorLog(`Client IP detection failed, tcpProxyProtocol is enabled yet did not receive proxy protocol message, instead got data: ${data}`);
+                logger.error(logSystem, logComponent, logSubCat, `Client IP detection failed, tcpProxyProtocol is enabled yet did not receive proxy protocol message, instead got data: ${data}`);
 
             }).on('bootedBannedWorker', () => {
-                emitWarningLog(`Booted worker ${client.getLabel()} who was connected from an IP address that was just banned`);
+                logger.warn(logSystem, logComponent, logSubCat, `Booted worker ${client.getLabel()} who was connected from an IP address that was just banned`);
 
             }).on('triggerBan', (reason) => {
-                emitWarningLog(`Banned triggered for ${client.getLabel()}: ${reason}`);
+                logger.warn(logSystem, logComponent, logSubCat, `Banned triggered for ${client.getLabel()}: ${reason}`);
                 _this.emit('banIP', client.remoteAddress, client.workerName);
             });
         });
@@ -565,7 +560,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
     function SetupBlockPolling() {
         if (typeof options.blockRefreshInterval !== 'number' || options.blockRefreshInterval <= 0) {
-            emitLog('Block template polling has been disabled');
+            logger.debug(logSystem, logComponent, logSubCat, 'Block template polling has been disabled');
             return;
         }
 
@@ -574,7 +569,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
         blockPollingIntervalId = setInterval(() => {
             GetBlockTemplate((error, rpcData, newJob) => {
                 if (newJob) {
-                    emitLog('Block update via RPC polling');
+                    logger.debug(logSystem, logComponent, logSubCat, 'Block update via RPC polling');
                 }
             });
         }, pollingInterval);
@@ -626,7 +621,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
                     } catch (e) { }
 
                     if (result.error) {
-                        emitErrorLog(`getblocktemplate call failed for daemon instance ${result.instance.index} with error ${JSON.stringify(result.error)}`);
+                        logger.error(logSystem, logComponent, logSubCat, `getblocktemplate call failed for daemon instance ${result.instance.index} with error ${JSON.stringify(result.error)}`);
                         callback(result.error);
                     } else {
 
@@ -662,7 +657,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
                 [gbtArgs],
                 (result) => {
                     if (result.error) {
-                        emitErrorLog(`getblocktemplate call failed for daemon instance ${result.instance.index} with error ${JSON.stringify(result.error)}`);
+                        logger.error(logSystem, logComponent, logSubCat, `getblocktemplate call failed for daemon instance ${result.instance.index} with error ${JSON.stringify(result.error)}`);
                         callback(result.error);
                     } else {
 
@@ -720,7 +715,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * We can inform our miners about the newly found block
      **/
     this.processBlockNotify = function (blockHash, sourceTrigger) {
-        emitWarningLog(`Block notification via ${sourceTrigger}:  now working on ${parseInt(_this.jobManager.currentJob.rpcData.height) + 1}`);
+        logger.warn(logSystem, logComponent, logSubCat, `Block notification via ${sourceTrigger}:  now working on ${parseInt(_this.jobManager.currentJob.rpcData.height) + 1}`);
         if (typeof (_this.jobManager) !== 'undefined' &&
             typeof (_this.jobManager.currentJob) !== 'undefined' &&
             //typeof(_this.jobManager.currentJob.rpcData.previousblockhash) !== 'undefined' &&
@@ -730,7 +725,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
             typeof (_this.jobManager.currentJob.rpcData.previousblockhash) !== 'undefined') {
             GetBlockTemplate((error, result) => {
                 if (error) {
-                    emitErrorLog(`Block notify error getting block template for ${options.coin.name}`);
+                    logger.error(logSystem, logComponent, logSubCat, `Block notify error getting block template for ${options.coin.name}`);
                 }
             });
         }

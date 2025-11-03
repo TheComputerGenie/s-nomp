@@ -233,6 +233,6 @@ const BlockTemplate = module.exports = function BlockTemplate(
     this.difficulty = util.calculateDifficulty(this.rpcData.target);
 
     if (!process.env.forkId || process.env.forkId === '0') {
-        logger.warn('Blocks', coin.name, `Thread ${parseInt(process.env.forkId) + 1}`, `${this.rpcData.height} block diff is: ${this.difficulty}`);
+        logger.trace('Blocks', coin.name, `Thread ${parseInt(process.env.forkId) + 1}`, `${this.rpcData.height} block diff is: ${this.difficulty}`);
     }
 };

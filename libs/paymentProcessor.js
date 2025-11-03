@@ -9,9 +9,26 @@ const util = require('./stratum/util.js');
 const CreateRedisClient = require('./createRedisClient.js');
 const WAValidator = require('wallet-address-validator');
 
+const PoolLogger = require('./logUtil.js');
+
 const badBlocks = {};
 
-module.exports = function (logger) {
+module.exports = function () {
+
+    let logger;
+    if (!process.env.portalConfig || process.env.portalConfig === 'undefined') {
+        logger = new PoolLogger({});
+    } else {
+        try {
+            const portalConfig = JSON.parse(process.env.portalConfig);
+            logger = new PoolLogger({
+                logLevel: portalConfig.logLevel,
+                logColors: portalConfig.logColors
+            });
+        } catch (e) {
+            logger = new PoolLogger({});
+        }
+    }
 
     const poolConfigs = JSON.parse(process.env.pools);
 
@@ -38,10 +55,10 @@ module.exports = function (logger) {
             const logComponent = coin;
 
             logger.debug(logSystem, logComponent, `Payment processing setup with daemon (${processingConfig.daemon.user}@${processingConfig.daemon.host}:${processingConfig.daemon.port
-            }) and redis (${(typeof poolOptions.redis.socket !== 'undefined' && poolOptions.redis.socket !== '')
-                ? poolOptions.redis.socket
-                : (`${poolOptions.redis.host}:${poolOptions.redis.port}`)
-            })`);
+                }) and redis (${(typeof poolOptions.redis.socket !== 'undefined' && poolOptions.redis.socket !== '')
+                    ? poolOptions.redis.socket
+                    : (`${poolOptions.redis.host}:${poolOptions.redis.port}`)
+                })`);
         });
     });
 };
@@ -82,11 +99,11 @@ function SetupForPool(logger, poolOptions, setupFinished) {
     const requireShielding = poolOptions.coin.requireShielding === true;
     const fee = parseFloat(poolOptions.coin.txfee) || parseFloat(0.0004);
 
-    logger.debug(logSystem, logComponent, `${logComponent} requireShielding: ${requireShielding}`);
-    logger.debug(logSystem, logComponent, `${logComponent} minConf: ${minConfShield}`);
-    logger.debug(logSystem, logComponent, `${logComponent} payments txfee reserve: ${fee}`);
-    logger.debug(logSystem, logComponent, `${logComponent} maxBlocksPerPayment: ${maxBlocksPerPayment}`);
-    logger.debug(logSystem, logComponent, `${logComponent} PPLNT: ${pplntEnabled}, time period: ${pplntTimeQualify}`);
+    logger.verbose(logSystem, logComponent, `${logComponent} requireShielding: ${requireShielding}`);
+    logger.verbose(logSystem, logComponent, `${logComponent} minConf: ${minConfShield}`);
+    logger.verbose(logSystem, logComponent, `${logComponent} payments txfee reserve: ${fee}`);
+    logger.verbose(logSystem, logComponent, `${logComponent} maxBlocksPerPayment: ${maxBlocksPerPayment}`);
+    logger.verbose(logSystem, logComponent, `${logComponent} PPLNT: ${pplntEnabled}, time period: ${pplntTimeQualify}`);
 
     const daemon = new Stratum.daemon.interface([processingConfig.daemon], ((severity, message) => {
         logger[severity](logSystem, logComponent, message);
@@ -1263,11 +1280,11 @@ function SetupForPool(logger, poolOptions, setupFinished) {
 
                                 // it worked, congrats on your pools payout ;)
                                 logger.info(logSystem, logComponent, `Sent ${satoshisToCoins(totalSent)
-                                } to ${Object.keys(addressAmounts).length} miners; txid: ${txid}`);
+                                    } to ${Object.keys(addressAmounts).length} miners; txid: ${txid}`);
 
                                 if (withholdPercent > 0) {
                                     logger.warn(logSystem, logComponent, `Had to withhold ${withholdPercent * 100
-                                    }% of reward from miners to cover transaction fees. `
+                                        }% of reward from miners to cover transaction fees. `
                                         + `Fund pool wallet with coins to prevent this from happening`);
                                 }
 
@@ -1447,7 +1464,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
         ], () => {
 
             const paymentProcessTime = Date.now() - startPaymentProcess;
-            logger.debug(logSystem, logComponent, logSubCat, `Finished interval - time spent: ${paymentProcessTime}ms total, ${timeSpentRedis}ms redis, ${timeSpentRPC}ms daemon RPC`);
+            logger.notice(logSystem, logComponent, logSubCat, `Finished interval - time spent: ${paymentProcessTime}ms total, ${timeSpentRedis}ms redis, ${timeSpentRPC}ms daemon RPC`);
 
         });
     };

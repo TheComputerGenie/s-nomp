@@ -150,7 +150,7 @@ const severityToColor = (severity, text) => {
         case 'info':
             return `${colors.cyan}${colors.underline}${text}${colors.reset}`;
         case 'notice':
-            return `${colors.lblue}${text}${colors.reset}`;
+            return `${colors.blue}${text}${colors.reset}`;
         case 'warn':
             return `${colors.yellow}${text}${colors.reset}`;
         case 'error':

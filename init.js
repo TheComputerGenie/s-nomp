@@ -74,7 +74,7 @@ if (cluster.isWorker) {
             new PoolWorker(logger);
             break;
         case 'paymentProcessor':
-            new PaymentProcessor(logger);
+            PaymentProcessor();
             break;
         case 'website':
             new Website(logger);
@@ -418,7 +418,7 @@ const processCoinSwitchCommand = function (params, options, reply) {
     switchNames.forEach((name) => {
         if (poolConfigs[newCoin].coin.algorithm !== portalConfig.switching[name].algorithm) {
             replyError(`Cannot switch a ${portalConfig.switching[name].algorithm
-            } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
+                } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
             return;
         }
 
