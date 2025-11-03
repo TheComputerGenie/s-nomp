@@ -3,6 +3,8 @@ const bignum = require('bignum');
 const merkle = require('./merkleTree.js');
 const transactions = require('./transactions.js');
 const util = require('./util.js');
+const PoolLogger = require('../logUtil.js');
+
 
 /**
  * The BlockTemplate class holds a single job.
@@ -17,6 +19,12 @@ const BlockTemplate = module.exports = function BlockTemplate(
     poolHex,
     coin
 ) {
+
+    const logger = new PoolLogger({
+        logLevel: `debug`,
+        logColors: `true`
+    });
+
     //private members
     const submits = [];
 
@@ -221,4 +229,10 @@ const BlockTemplate = module.exports = function BlockTemplate(
         }
         return this.jobParams;
     };
+
+    this.difficulty = util.calculateDifficulty(this.rpcData.target);
+
+    if (!process.env.forkId || process.env.forkId === '0') {
+        logger.warn('Blocks', coin.name, `Thread ${parseInt(process.env.forkId) + 1}`, `${this.rpcData.height} block diff is: ${this.difficulty}`);
+    }
 };

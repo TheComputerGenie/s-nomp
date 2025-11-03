@@ -67,7 +67,7 @@ function isHex(c) {
     const a = parseInt(c, 16);
     let b = a.toString(16).toLowerCase();
     if (b.length % 2) {
-        b = `0${  b}`;
+        b = `0${b}`;
     }
     if (b !== c) {
         return false;
@@ -97,6 +97,34 @@ const JobManager = module.exports = function JobManager(options) {
     this.currentJob;
     this.validJobs = {};
     this.lastCleanJob = Date.now();
+    // recent processed getblocktemplate keys to dedupe RPC responses across
+    // different result objects (key: previousblockhash_curtime -> timestamp)
+    const processedGbtKeys = new Map();
+    const PROCESSED_GBT_TTL = 15000; // ms
+
+    this.isRpcDataProcessed = function (rpcData) {
+        if (!rpcData || !rpcData.previousblockhash) {
+            return false;
+        }
+        const key = `${rpcData.previousblockhash}_${rpcData.curtime}`;
+        const ts = processedGbtKeys.get(key);
+        if (!ts) {
+            return false;
+        }
+        if ((Date.now() - ts) > PROCESSED_GBT_TTL) {
+            processedGbtKeys.delete(key);
+            return false;
+        }
+        return true;
+    };
+
+    this.markRpcDataProcessed = function (rpcData) {
+        if (!rpcData || !rpcData.previousblockhash) {
+            return;
+        }
+        const key = `${rpcData.previousblockhash}_${rpcData.curtime}`;
+        processedGbtKeys.set(key, Date.now());
+    };
 
     const hashDigest = algos[options.coin.algorithm].hash(options.coin);
 
@@ -122,6 +150,7 @@ const JobManager = module.exports = function JobManager(options) {
     })();
 
     this.updateCurrentJob = function (rpcData) {
+        // create and apply an update using a new template
         const tmpBlockTemplate = new blockTemplate(
             jobCounter.next(),
             rpcData,
@@ -132,6 +161,12 @@ const JobManager = module.exports = function JobManager(options) {
             options.coin
         );
 
+        applyUpdateFromTemplate(tmpBlockTemplate);
+    };
+
+    // Helper to apply an update using a prepared BlockTemplate instance.
+    // This lets callers reuse a single constructed template (avoid double construction).
+    function applyUpdateFromTemplate(tmpBlockTemplate) {
         // if any non-canonical data has changed, this is a new block template (even if the height didn't change)
         let cleanJob = typeof (_this.currentJob) === 'undefined';
         if (!cleanJob) {
@@ -153,11 +188,11 @@ const JobManager = module.exports = function JobManager(options) {
             }
         }
         // do not send too many clean jobs too fast
-        if ((Date.now() - this.lastCleanJob) < 15000) {
+        if ((Date.now() - _this.lastCleanJob) < 15000) {
             cleanJob = false;
         }
         if (cleanJob) {
-            this.lastCleanJob = Date.now();
+            _this.lastCleanJob = Date.now();
         }
 
         _this.currentJob = tmpBlockTemplate;
@@ -165,7 +200,7 @@ const JobManager = module.exports = function JobManager(options) {
         _this.emit('updatedBlock', tmpBlockTemplate, cleanJob);
 
         _this.validJobs[tmpBlockTemplate.jobId] = tmpBlockTemplate;
-    };
+    }
 
     //returns true if processed a new block
     this.processTemplate = function (rpcData) {
@@ -211,7 +246,10 @@ const JobManager = module.exports = function JobManager(options) {
 
         const newBlock = !this.currentJob || (rpcData.height !== _this.currentJob.rpcData.height);
         if (!newBlock) {
-            this.updateCurrentJob(rpcData);
+            // reuse the tmpBlockTemplate to apply updates instead of constructing another
+            applyUpdateFromTemplate(tmpBlockTemplate);
+            // mark the rpcData as processed in a shared map to dedupe other callers
+            _this.markRpcDataProcessed(tmpBlockTemplate.rpcData);
             return false;
         }
 
@@ -223,6 +261,8 @@ const JobManager = module.exports = function JobManager(options) {
         _this.emit('newBlock', tmpBlockTemplate);
 
         this.validJobs[tmpBlockTemplate.jobId] = tmpBlockTemplate;
+        // mark rpcData processed so other callers see it's already handled
+        _this.markRpcDataProcessed(tmpBlockTemplate.rpcData);
 
         return true;
 
@@ -247,7 +287,27 @@ const JobManager = module.exports = function JobManager(options) {
         const job = this.validJobs[jobId];
 
         if (typeof job === 'undefined' || job.jobId != jobId) {
-            return shareError([21, 'job not found']);
+            if (options.acceptOldJobShares) {
+                // Accept old job share for hashrate accuracy in solo mining
+                _this.emit('share', {
+                    job: jobId,
+                    ip: ipAddress,
+                    port: port,
+                    worker: workerName,
+                    height: _this.currentJob ? _this.currentJob.rpcData.height : 0,
+                    blockReward: _this.currentJob ? _this.currentJob.rpcData.reward : 0,
+                    difficulty: difficulty,
+                    shareDiff: difficulty.toFixed(8),
+                    blockDiff: _this.currentJob ? _this.currentJob.difficulty : 0,
+                    blockDiffActual: _this.currentJob ? _this.currentJob.difficulty : 0,
+                    blockHash: null,
+                    blockHashInvalid: false,
+                    blockOnlyPBaaS: false
+                }, null);
+                return { result: true, error: null };
+            } else {
+                return shareError([21, 'job not found']);
+            }
         }
 
         if (nTime.length !== 8) {
@@ -300,12 +360,12 @@ const JobManager = module.exports = function JobManager(options) {
         const solutionSlice = EH_PARAMS_MAP[`${N}_${K}`].SOLUTION_SLICE || 0;
 
         if (soln.length !== expectedLength) {
-            console.log(`Error: Incorrect size of solution (${  soln.length  }), expected ${  expectedLength}`);
-            return shareError([20, `Error: Incorrect size of solution (${  soln.length  }), expected ${  expectedLength}`]);
+            console.log(`Error: Incorrect size of solution (${soln.length}), expected ${expectedLength}`);
+            return shareError([20, `Error: Incorrect size of solution (${soln.length}), expected ${expectedLength}`]);
         }
         if (soln.substr(6, 8) !== job.rpcData.solution.substr(0, 8)) {
-            console.log(`Error: Incorrect solution version (${  soln.substr(6, 8)  }), expected ${  job.rpcData.solution.substr(0, 8)}`);
-            return shareError([20, `invalid solution version (${  soln.substr(6, 8)  }), expected ${  job.rpcData.solution.substr(0, 8)}`]);
+            console.log(`Error: Incorrect solution version (${soln.substr(6, 8)}), expected ${job.rpcData.solution.substr(0, 8)}`);
+            return shareError([20, `invalid solution version (${soln.substr(6, 8)}), expected ${job.rpcData.solution.substr(0, 8)}`]);
         }
         if (!isHexString(extraNonce2)) {
             console.log('invalid hex in extraNonce2');
@@ -408,7 +468,7 @@ const JobManager = module.exports = function JobManager(options) {
                 } else {
                     // Allow low-diff shares if configured for solo mining
                     if (!options.acceptLowDiffShares) {
-                        return shareError([23, `low difficulty share of ${  shareDiff}`]);
+                        return shareError([23, `low difficulty share of ${shareDiff}`]);
                     }
                 }
             }

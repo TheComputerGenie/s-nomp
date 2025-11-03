@@ -248,7 +248,7 @@ exports.range = (start, stop, step) => {
  */
 exports.pubkeyToScript = key => {
     if (key.length !== 66) {
-        console.error(`Invalid pubkey: ${  key}`);
+        console.error(`Invalid pubkey: ${key}`);
         throw new Error();
     }
 
@@ -272,12 +272,12 @@ exports.addressToScript = addr => {
     const decoded = base58.decode(addr);
 
     if (decoded.length !== 25 && decoded.length !== 26) {
-        console.error(`invalid address length for ${  addr}`);
+        console.error(`invalid address length for ${addr}`);
         throw new Error();
     }
 
     if (!decoded) {
-        console.error(`base58 decode failed for ${  addr}`);
+        console.error(`base58 decode failed for ${addr}`);
         throw new Error();
     }
 
@@ -377,4 +377,13 @@ exports.getTruncatedDiff = shift => {
             exports.shiftMax256Right(shift)
         )
     );
+};
+
+// Calculate difficulty given a target hex string (big-endian as provided by daemon)
+exports.calculateDifficulty = targetHex => {
+    // Uses the project's hardcoded diff1 from `libs/stratum/algoProperties.js` (global.diff1)
+    const targetBigInt = BigInt(`0x${targetHex}`);
+    const diff1BigInt = BigInt(global.diff1);
+    const diff = diff1BigInt / targetBigInt;
+    return parseFloat(Number(diff).toFixed(9));
 };

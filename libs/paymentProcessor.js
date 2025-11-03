@@ -62,13 +62,13 @@ function SetupForPool(logger, poolOptions, setupFinished) {
     const minConfShield = Math.max((processingConfig.minConf || 10), 1); // Don't allow 0 conf transactions.
     const minConfPayout = Math.max((processingConfig.minConf || 10), 1);
     if (minConfPayout < 3) {
-        logger.warning(logSystem, logComponent, `${logComponent} minConf of 3 is recommended.`);
+        logger.warn(logSystem, logComponent, `${logComponent} minConf of 3 is recommended.`);
     }
 
     // minimum paymentInterval of 60 seconds
     const paymentIntervalSecs = Math.max((processingConfig.paymentInterval || 120), 30);
     if (parseInt(processingConfig.paymentInterval) < 120) {
-        logger.warning(logSystem, logComponent, ' minimum paymentInterval of 120 seconds recommended.');
+        logger.warn(logSystem, logComponent, ' minimum paymentInterval of 120 seconds recommended.');
     }
 
     const maxBlocksPerPayment = Math.max(processingConfig.maxBlocksPerPayment || 3, 1);
@@ -206,7 +206,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                     tBalance = coinsRound(tBalance);
                 }
                 if (displayBool === true) {
-                    logger.special(logSystem, logComponent, `${addr} balance of ${tBalance}`);
+                    logger.info(logSystem, logComponent, `${addr} balance of ${tBalance}`);
                 }
                 callback(null, coinsToSatoshies(tBalance));
             }
@@ -226,7 +226,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                     zBalance = coinsRound(result[0].response);
                 }
                 if (displayBool === true) {
-                    logger.special(logSystem, logComponent, `${addr.substring(0, 14)}...${addr.substring(addr.length - 14)} balance: ${(zBalance).toFixed(8)}`);
+                    logger.info(logSystem, logComponent, `${addr.substring(0, 14)}...${addr.substring(addr.length - 14)} balance: ${(zBalance).toFixed(8)}`);
                 }
                 callback(null, coinsToSatoshies(zBalance));
             }
@@ -248,7 +248,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
 
         // do not allow more than a single z_sendmany operation at a time
         if (opidCount > 0) {
-            logger.warning(logSystem, logComponent, 'sendTToZ is waiting, too many z_sendmany operations already in progress.');
+            logger.warn(logSystem, logComponent, 'sendTToZ is waiting, too many z_sendmany operations already in progress.');
             return;
         }
 
@@ -265,7 +265,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                     const opid = (result.response || result[0].response);
                     opidCount++;
                     opids.push(opid);
-                    logger.special(logSystem, logComponent, `Shield balance ${amount} ${opid}`);
+                    logger.info(logSystem, logComponent, `Shield balance ${amount} ${opid}`);
                     callback = function () { };
                     callback(null);
                 }
@@ -288,7 +288,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
 
         // do not allow more than a single z_sendmany operation at a time
         if (opidCount > 0) {
-            logger.warning(logSystem, logComponent, 'sendZToT is waiting, too many z_sendmany operations already in progress.');
+            logger.warn(logSystem, logComponent, 'sendZToT is waiting, too many z_sendmany operations already in progress.');
             return;
         }
 
@@ -310,7 +310,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                     const opid = (result.response || result[0].response);
                     opidCount++;
                     opids.push(opid);
-                    logger.special(logSystem, logComponent, `Unshield funds for payout ${amount} ${opid}`);
+                    logger.info(logSystem, logComponent, `Unshield funds for payout ${amount} ${opid}`);
                     callback = function () { };
                     callback(null);
                 }
@@ -459,7 +459,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                         // clear them!
                         opidCount = 0;
                         opids = [];
-                        logger.warning(logSystem, logComponent, 'Clearing operation ids due to empty result set.');
+                        logger.warn(logSystem, logComponent, 'Clearing operation ids due to empty result set.');
                     }
                 }
                 // loop through op-ids checking their status
@@ -482,10 +482,10 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                                 logger.error(logSystem, logComponent, `Shielding operation failed ${op.id}`);
                             }
                         } else {
-                            logger.special(logSystem, logComponent, `Shielding operation success ${op.id}  txid: ${op.result.txid}`);
+                            logger.info(logSystem, logComponent, `Shielding operation success ${op.id}  txid: ${op.result.txid}`);
                         }
                     } else if (op.status == 'executing') {
-                        logger.special(logSystem, logComponent, `Shielding operation in progress ${op.id}`);
+                        logger.info(logSystem, logComponent, `Shielding operation in progress ${op.id}`);
                     }
                 });
                 // if there are no completed operations
@@ -503,7 +503,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                     // check result execution_secs vs pool_config
                     results.forEach((result, i) => {
                         if (result.result[i] && parseFloat(result.result[i].execution_secs || 0) > shielding_interval) {
-                            logger.warning(logSystem, logComponent, `Warning, walletInverval shorter than opid execution time of ${result.result[i].execution_secs} secs.`);
+                            logger.warn(logSystem, logComponent, `Warning, walletInverval shorter than opid execution time of ${result.result[i].execution_secs} secs.`);
                         }
                     });
                     // keep checking operation ids
@@ -527,7 +527,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                     if (opidCount !== 0) {
                         opidCount = 0;
                         opids = [];
-                        logger.warning(logSystem, logComponent, 'Clearing operation ids due to RPC call errors.');
+                        logger.warn(logSystem, logComponent, 'Clearing operation ids due to RPC call errors.');
                     }
                 }
             }, true, true);
@@ -647,7 +647,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                         const dups = rounds.filter((round) => {
                             return round.duplicate;
                         });
-                        logger.warning(logSystem, logComponent, `Duplicate pending blocks found: ${JSON.stringify(dups)}`);
+                        logger.warn(logSystem, logComponent, `Duplicate pending blocks found: ${JSON.stringify(dups)}`);
                         // attempt to find the invalid duplicates
                         const rpcDupCheck = dups.map((r) => {
                             return ['getblock', [r.blockHash]];
@@ -666,14 +666,14 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                                 if (block && block.result) {
                                     // invalid duplicate submit blocks have negative confirmations
                                     if (block.result.confirmations < 0) {
-                                        logger.warning(logSystem, logComponent, `Remove invalid duplicate block ${block.result.height} > ${block.result.hash}`);
+                                        logger.warn(logSystem, logComponent, `Remove invalid duplicate block ${block.result.height} > ${block.result.hash}`);
                                         // move from blocksPending to blocksDuplicate...
                                         invalidBlocks.push(['smove', `${coin}:blocksPending`, `${coin}:blocksDuplicate`, dups[i].serialized]);
                                     } else {
                                         // block must be valid, make sure it is unique
                                         if (validBlocks.hasOwnProperty(dups[i].blockHash)) {
                                             // not unique duplicate block
-                                            logger.warning(logSystem, logComponent, `Remove non-unique duplicate block ${block.result.height} > ${block.result.hash}`);
+                                            logger.warn(logSystem, logComponent, `Remove non-unique duplicate block ${block.result.height} > ${block.result.hash}`);
                                             // move from blocksPending to blocksDuplicate...
                                             invalidBlocks.push(['smove', `${coin}:blocksPending`, `${coin}:blocksDuplicate`, dups[i].serialized]);
                                         } else {
@@ -761,12 +761,12 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                             }
 
                             if (badBlocks[round.txHash] >= 15) {
-                                logger.warning(logSystem, logComponent, `ERROR: Daemon reports invalid transaction: ${round.txHash}`);
+                                logger.warn(logSystem, logComponent, `ERROR: Daemon reports invalid transaction: ${round.txHash}`);
                                 delete badBlocks[round.txHash];
                                 round.category = 'kicked';
                             } else {
                                 badBlocks[round.txHash]++;
-                                logger.warning(logSystem, logComponent, `Abandoned block ${round.txHash} check ${badBlocks[round.txHash]}/15`);
+                                logger.warn(logSystem, logComponent, `Abandoned block ${round.txHash} check ${badBlocks[round.txHash]}/15`);
                             }
                             return;
                         } else if (!tx.result.details || (tx.result.details && tx.result.details.length === 0)) {
@@ -774,12 +774,12 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                                 badBlocks[round.txHash] = 0;
                             }
                             if (badBlocks[round.txHash] >= 15) {
-                                logger.warning(logSystem, logComponent, `ERROR: Daemon reports no details for transaction: ${round.txHash}`);
+                                logger.warn(logSystem, logComponent, `ERROR: Daemon reports no details for transaction: ${round.txHash}`);
                                 delete badBlocks[round.txHash];
                                 round.category = 'kicked';
                             } else {
                                 badBlocks[round.txHash]++;
-                                logger.warning(logSystem, logComponent, `Abandoned block ${round.txHash} check ${badBlocks[round.txHash]}/15`);
+                                logger.warn(logSystem, logComponent, `Abandoned block ${round.txHash} check ${badBlocks[round.txHash]}/15`);
                             }
                             return;
                         }
@@ -1052,7 +1052,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                                                         lost = shares - (shares * timePeriod / pplntTimeQualify);
                                                         sharesLost += lost;
                                                         shares = Math.max(shares - lost, 0);
-                                                        logger.warning(logSystem, logComponent, `PPLNT: Reduced shares for ${workerAddress} round:${round.height} maxTime:${maxTime}sec timePeriod:${roundTo(timePeriod, 6)} shares:${tshares} lost:${lost} new:${shares}`);
+                                                        logger.warn(logSystem, logComponent, `PPLNT: Reduced shares for ${workerAddress} round:${round.height} maxTime:${maxTime}sec timePeriod:${roundTo(timePeriod, 6)} shares:${tshares} lost:${lost} new:${shares}`);
                                                     }
                                                     if (timePeriod > 1.0) {
                                                         err = true;
@@ -1216,16 +1216,16 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                                     // we thought we had enough funds to send payments, but apparently not...
                                     // try decreasing payments by a small percent to cover unexpected tx fees?
                                     const higherPercent = withholdPercent + 0.001; // 0.1%
-                                    logger.warning(logSystem, logComponent, `Insufficient funds (??) for payments (${satoshisToCoins(totalSent)}), decreasing rewards by ${(higherPercent * 100).toFixed(1)}% and retrying`);
+                                    logger.warn(logSystem, logComponent, `Insufficient funds (??) for payments (${satoshisToCoins(totalSent)}), decreasing rewards by ${(higherPercent * 100).toFixed(1)}% and retrying`);
                                     trySend(higherPercent);
                                 } else {
-                                    logger.warning(logSystem, logComponent, rpccallTracking);
+                                    logger.warn(logSystem, logComponent, rpccallTracking);
                                     logger.error(logSystem, logComponent, 'Error sending payments, decreased rewards by too much!!!');
                                     callback(true);
                                 }
                             } else {
                                 // there was some fatal payment error?
-                                logger.warning(logSystem, logComponent, rpccallTracking);
+                                logger.warn(logSystem, logComponent, rpccallTracking);
                                 logger.error(logSystem, logComponent, `Error sending payments ${JSON.stringify(result.error)}`);
                                 // payment failed, prevent updates to redis
                                 callback(true);
@@ -1233,14 +1233,14 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                             return;
                         } else if (result.error && result.error.code === -5) {
                             // invalid address specified in addressAmounts array
-                            logger.warning(logSystem, logComponent, rpccallTracking);
+                            logger.warn(logSystem, logComponent, rpccallTracking);
                             logger.error(logSystem, logComponent, `Error sending payments ${JSON.stringify(result.error)}`);
                             // payment failed, prevent updates to redis
                             callback(true);
                             return;
                         } else if (result.error && result.error.message != null) {
                             // invalid amount, others?
-                            logger.warning(logSystem, logComponent, rpccallTracking);
+                            logger.warn(logSystem, logComponent, rpccallTracking);
                             logger.error(logSystem, logComponent, `Error sending payments ${JSON.stringify(result.error)}`);
                             // payment failed, prevent updates to redis
                             callback(true);
@@ -1261,11 +1261,11 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                             if (txid != null) {
 
                                 // it worked, congrats on your pools payout ;)
-                                logger.special(logSystem, logComponent, `Sent ${satoshisToCoins(totalSent)
+                                logger.info(logSystem, logComponent, `Sent ${satoshisToCoins(totalSent)
                                 } to ${Object.keys(addressAmounts).length} miners; txid: ${txid}`);
 
                                 if (withholdPercent > 0) {
-                                    logger.warning(logSystem, logComponent, `Had to withhold ${withholdPercent * 100
+                                    logger.warn(logSystem, logComponent, `Had to withhold ${withholdPercent * 100
                                     }% of reward from miners to cover transaction fees. `
                                         + `Fund pool wallet with coins to prevent this from happening`);
                                 }
@@ -1347,7 +1347,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
                 const moveSharesToCurrent = function (r) {
                     const workerShares = r.workerShares;
                     if (workerShares != null) {
-                        logger.warning(logSystem, logComponent, `Moving shares from orphaned block ${r.height} to current round.`);
+                        logger.warn(logSystem, logComponent, `Moving shares from orphaned block ${r.height} to current round.`);
                         Object.keys(workerShares).forEach((worker) => {
                             orphanMergeCommands.push(['hincrby', `${coin}:shares:roundCurrent`, worker, workerShares[worker]]);
                         });
@@ -1462,7 +1462,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
         }
         if (isvalid !== true){
 */
-            logger.warning(logSystem, logComponent, `Invalid address ${address}, convert to address ${poolOptions.invalidAddress || poolOptions.address}`);
+            logger.warn(logSystem, logComponent, `Invalid address ${address}, convert to address ${poolOptions.invalidAddress || poolOptions.address}`);
             return (poolOptions.invalidAddress || poolOptions.address);
         }
         return address;
