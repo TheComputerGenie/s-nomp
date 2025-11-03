@@ -54,6 +54,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
 
     const logSystem = 'Payments';
     const logComponent = coin;
+    const logSubCat = ` Global `;
 
     let opidCount = 0;
     let opids = [];
@@ -1446,7 +1447,7 @@ function SetupForPool(logger, poolOptions, setupFinished) {
         ], () => {
 
             const paymentProcessTime = Date.now() - startPaymentProcess;
-            logger.debug(logSystem, logComponent, `Finished interval - time spent: ${paymentProcessTime}ms total, ${timeSpentRedis}ms redis, ${timeSpentRPC}ms daemon RPC`);
+            logger.debug(logSystem, logComponent, logSubCat, `Finished interval - time spent: ${paymentProcessTime}ms total, ${timeSpentRedis}ms redis, ${timeSpentRPC}ms daemon RPC`);
 
         });
     };
