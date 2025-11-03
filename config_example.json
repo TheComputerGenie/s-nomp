@@ -1,13 +1,18 @@
 {
     "logLevel": "debug",
     "logColors": true,
-
     "cliPort": 17117,
     "cliServer": "127.0.0.1",
-
     "clustering": {
         "enabled": true,
         "forks": "auto"
+    },
+
+    "redis": {
+        "host": "127.0.0.1",
+        "port": 6379,
+        "password": "",
+        "_socket_comment": "Set socket to enable UNIX domain sockets, otherwise leave unset and set host and port."
     },
 
     "defaultPoolConfigs": {
@@ -19,6 +24,9 @@
         "tcpProxyProtocol": false,
         "acceptLowDiffShares": false,
         "_acceptLowDiffShares_comment": "Accept shares below the minimum difficulty threshold (useful for solo mining)",
+        "showDifficultyUpdate": true,
+        "_showDifficultyUpdate_comment": "When true, prints 'Difficulty update' messages when vardiff adjusts a miner's difficulty. Set to false to silence these messages.",
+
         "banning": {
             "enabled": true,
             "time": 600,
@@ -35,44 +43,8 @@
             ]
         },
 
-        "redis": {
-            "_disabled_socket": "/var/run/redis/redis.sock",
-            "_socket": "Set socket to enable UNIX domain sockets, otherwise leave unset and set host and port.",
-            "host": "127.0.0.1",
-            "port": 6379,
-            "password": ""
-        },
         "poolHex": "",
         "_poolHex_comment": "Set this HEX value using a template of '<pool name> <pool link>' and provide it to various explorer webmasters."
-    },
-
-    "website": {
-        "enabled": true,
-        "host": "0.0.0.0",
-        "port": 8080,
-        "stratumHost": "cryppit.com",
-        "stats": {
-            "updateInterval": 30,
-            "historicalRetention": 14400,
-            "hashrateWindow": 300
-        },
-        "adminCenter": {
-            "enabled": false,
-            "password": "password"
-        },
-        "tlsOptions" : {
-            "enabled": false,
-            "cert": "",
-            "key": ""
-        }
-    },
-
-    "redis": {
-        "_disabled_socket": "/var/run/redis/redis.sock",
-        "_socket": "Set socket to enable UNIX domain sockets, otherwise leave unset and set host and port.",
-        "host": "127.0.0.1",
-        "port": 6379,
-        "password": ""
     },
 
     "switching": {
@@ -130,5 +102,26 @@
         "enabled": false,
         "updateInterval": 600,
         "depth": 0.90
+    },
+
+    "website": {
+        "enabled": true,
+        "host": "0.0.0.0",
+        "port": 8080,
+        "stratumHost": "cryppit.com",
+        "stats": {
+            "updateInterval": 30,
+            "historicalRetention": 14400,
+            "hashrateWindow": 300
+        },
+        "adminCenter": {
+            "enabled": false,
+            "password": "password"
+        },
+        "tlsOptions": {
+            "enabled": false,
+            "cert": "",
+            "key": ""
+        }
     }
 }
