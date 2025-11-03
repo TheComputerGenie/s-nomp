@@ -51,6 +51,12 @@ class PoolLogger {
             return;
         }
 
+        // If text is empty but subcat has content, treat subcat as the main message
+        if (!text && subcat) {
+            text = subcat;
+            subcat = '';
+        }
+
         const timeStr = formatDate(new Date());
 
         // Build prefix with colored brackets and system name
