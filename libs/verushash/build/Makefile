@@ -309,7 +309,7 @@ endif
 
 quiet_cmd_regen_makefile = ACTION Regenerating $@
 cmd_regen_makefile = cd $(srcdir); /home/computergenie/.nvm/versions/node/v10.24.1/lib/node_modules/npm/node_modules/node-gyp/gyp/gyp_main.py -fmake --ignore-environment "-Dlibrary=shared_library" "-Dvisibility=default" "-Dnode_root_dir=/home/computergenie/.cache/node-gyp/10.24.1" "-Dnode_gyp_dir=/home/computergenie/.nvm/versions/node/v10.24.1/lib/node_modules/npm/node_modules/node-gyp" "-Dnode_lib_file=/home/computergenie/.cache/node-gyp/10.24.1/<(target_arch)/node.lib" "-Dmodule_root_dir=/home/computergenie/GitRepos/oink/s-nomp/libs/verushash" "-Dnode_engine=v8" "--depth=." "-Goutput_dir=." "--generator-output=build" -I/home/computergenie/GitRepos/oink/s-nomp/libs/verushash/build/config.gypi -I/home/computergenie/.nvm/versions/node/v10.24.1/lib/node_modules/npm/node_modules/node-gyp/addon.gypi -I/home/computergenie/.cache/node-gyp/10.24.1/include/node/common.gypi "--toplevel-dir=." binding.gyp
-Makefile: $(srcdir)/../../../../../.cache/node-gyp/10.24.1/include/node/common.gypi $(srcdir)/binding.gyp $(srcdir)/build/config.gypi $(srcdir)/../../../../../.nvm/versions/node/v10.24.1/lib/node_modules/npm/node_modules/node-gyp/addon.gypi
+Makefile: $(srcdir)/build/config.gypi $(srcdir)/../../../../../.cache/node-gyp/10.24.1/include/node/common.gypi $(srcdir)/../../../../../.nvm/versions/node/v10.24.1/lib/node_modules/npm/node_modules/node-gyp/addon.gypi $(srcdir)/binding.gyp
 	$(call do_cmd,regen_makefile)
 
 # "all" is a concatenation of the "all" targets from all the included
