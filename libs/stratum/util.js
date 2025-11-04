@@ -1,9 +1,35 @@
+/**
+ * @fileoverview Stratum utility functions for cryptocurrency mining pool operations.
+ * This module provides essential utilities for handling Bitcoin-like cryptocurrency
+ * operations including address manipulation, hash calculations, buffer operations,
+ * difficulty calculations, and various encoding/decoding functions used in mining
+ * pool stratum protocol implementations.
+ * 
+ * @module libs/stratum/util
+ * @requires crypto - Node.js built-in cryptographic functionality
+ * @requires base58-native - Base58 encoding/decoding library
+ * @requires bignum - Arbitrary precision arithmetic library
+ */
+
 const crypto = require('crypto');
 
 const base58 = require('base58-native');
 const bignum = require('bignum');
 
-
+/**
+ * Creates a cryptocurrency address from an existing address and a RIPEMD160 key.
+ * This function extracts the version byte from an existing address and combines it
+ * with a new RIPEMD160 key to generate a valid cryptocurrency address with proper
+ * checksum validation.
+ * 
+ * @function addressFromEx
+ * @param {string} exAddress - An existing cryptocurrency address to extract version byte from
+ * @param {string} ripdm160Key - RIPEMD160 hash key as a hexadecimal string
+ * @returns {string|null} Base58-encoded cryptocurrency address, or null if operation fails
+ * @example
+ * const address = addressFromEx('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa', 'abcd1234...');
+ * console.log(address); // Returns a valid Bitcoin-like address or null
+ */
 exports.addressFromEx = (exAddress, ripdm160Key) => {
     try {
         const versionByte = exports.getVersionByte(exAddress);
@@ -16,21 +42,74 @@ exports.addressFromEx = (exAddress, ripdm160Key) => {
     }
 };
 
-
+/**
+ * Extracts the version byte from a Base58-encoded cryptocurrency address.
+ * The version byte indicates the type of address (mainnet, testnet, etc.)
+ * and is the first byte of the decoded address.
+ * 
+ * @function getVersionByte
+ * @param {string} addr - Base58-encoded cryptocurrency address
+ * @returns {Buffer} Single-byte buffer containing the version byte
+ * @example
+ * const versionByte = getVersionByte('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa');
+ * console.log(versionByte); // Buffer containing version byte (0x00 for Bitcoin mainnet)
+ */
 exports.getVersionByte = addr => {
     return base58.decode(addr).subarray(0, 1);
 };
 
+/**
+ * Computes the SHA-256 hash of a buffer.
+ * This is a fundamental cryptographic operation used throughout Bitcoin-like
+ * cryptocurrency protocols for generating checksums, block hashes, and merkle trees.
+ * 
+ * @function sha256
+ * @param {Buffer} buffer - Input data to hash
+ * @returns {Buffer} 32-byte SHA-256 hash digest
+ * @example
+ * const data = Buffer.from('Hello World', 'utf8');
+ * const hash = sha256(data);
+ * console.log(hash.toString('hex')); // SHA-256 hash as hex string
+ */
 exports.sha256 = buffer => {
     const hash1 = crypto.createHash('sha256');
     hash1.update(buffer);
     return hash1.digest();
 };
 
+/**
+ * Computes double SHA-256 hash (SHA-256 of SHA-256) of a buffer.
+ * This is the standard hashing method used in Bitcoin and many other cryptocurrencies
+ * for block hashes, transaction IDs, and address checksums. The double hash provides
+ * additional security against length extension attacks.
+ * 
+ * @function sha256d
+ * @param {Buffer} buffer - Input data to double hash
+ * @returns {Buffer} 32-byte double SHA-256 hash digest
+ * @example
+ * const data = Buffer.from('Hello World', 'utf8');
+ * const doubleHash = sha256d(data);
+ * console.log(doubleHash.toString('hex')); // Double SHA-256 hash as hex string
+ */
 exports.sha256d = buffer => {
     return exports.sha256(exports.sha256(buffer));
 };
 
+/**
+ * Reverses the byte order of a buffer.
+ * This is commonly used in cryptocurrency protocols where data needs to be
+ * converted between little-endian and big-endian formats. For example,
+ * Bitcoin uses little-endian for internal representation but displays
+ * hashes in big-endian format for human readability.
+ * 
+ * @function reverseBuffer
+ * @param {Buffer} buff - Input buffer to reverse
+ * @returns {Buffer} New buffer with reversed byte order
+ * @example
+ * const original = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+ * const reversed = reverseBuffer(original);
+ * console.log(reversed); // Buffer [0x04, 0x03, 0x02, 0x01]
+ */
 exports.reverseBuffer = buff => {
     const reversed = Buffer.alloc(buff.length);
     for (let i = buff.length - 1; i >= 0; i--) {
@@ -40,12 +119,40 @@ exports.reverseBuffer = buff => {
     return reversed;
 };
 
+/**
+ * Reverses the byte order of a hexadecimal string.
+ * Convenience function that converts hex string to buffer, reverses it,
+ * and converts back to hex. Useful for endianness conversions in
+ * cryptocurrency hash representations.
+ * 
+ * @function reverseHex
+ * @param {string} hex - Hexadecimal string to reverse
+ * @returns {string} Hex string with reversed byte order
+ * @example
+ * const hash = 'abcd1234';
+ * const reversed = reverseHex(hash);
+ * console.log(reversed); // '3412cdab'
+ */
 exports.reverseHex = hex => {
     return exports.reverseBuffer(
         Buffer.from(hex, 'hex')
     ).toString('hex');
 };
 
+/**
+ * Reverses byte order for 32-byte buffers by swapping endianness of 32-bit words.
+ * This function performs a two-step process: first converts each 32-bit word from
+ * big-endian to little-endian (or vice versa), then reverses the entire buffer.
+ * Commonly used for processing 256-bit hashes in cryptocurrency mining.
+ * 
+ * @function reverseByteOrder
+ * @param {Buffer} buff - 32-byte buffer to process (typically a hash)
+ * @returns {Buffer} Buffer with reversed byte order and swapped word endianness
+ * @example
+ * const hash = Buffer.alloc(32); // 32-byte hash buffer
+ * const processed = reverseByteOrder(hash);
+ * // Returns hash with endianness conversion suitable for mining
+ */
 exports.reverseByteOrder = buff => {
     for (let i = 0; i < 8; i++) {
         buff.writeUInt32LE(buff.readUInt32BE(i * 4), i * 4);
@@ -54,6 +161,20 @@ exports.reverseByteOrder = buff => {
     return exports.reverseBuffer(buff);
 };
 
+/**
+ * Converts a hexadecimal hash string to a 32-byte uint256 buffer with reversed byte order.
+ * Ensures the input is exactly 32 bytes by padding with zeros if necessary.
+ * The result is suitable for use in cryptocurrency mining operations where
+ * hashes need to be in little-endian format.
+ * 
+ * @function uint256BufferFromHash
+ * @param {string} hex - Hexadecimal hash string (any length)
+ * @returns {Buffer} 32-byte buffer with reversed byte order, zero-padded if needed
+ * @example
+ * const hash = 'abcd1234';
+ * const uint256 = uint256BufferFromHash(hash);
+ * console.log(uint256.length); // 32 (padded and reversed)
+ */
 exports.uint256BufferFromHash = hex => {
     let fromHex = Buffer.from(hex, 'hex');
 
@@ -67,14 +188,44 @@ exports.uint256BufferFromHash = hex => {
     return exports.reverseBuffer(fromHex);
 };
 
+/**
+ * Converts a buffer to hexadecimal string with reversed byte order.
+ * Convenience function that reverses a buffer and returns its hex representation.
+ * Useful for converting internal little-endian representations to big-endian
+ * hex strings for display or transmission.
+ * 
+ * @function hexFromReversedBuffer
+ * @param {Buffer} buffer - Input buffer to reverse and convert
+ * @returns {string} Hexadecimal string with reversed byte order
+ * @example
+ * const buffer = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+ * const hex = hexFromReversedBuffer(buffer);
+ * console.log(hex); // '04030201'
+ */
 exports.hexFromReversedBuffer = buffer => {
     return exports.reverseBuffer(buffer).toString('hex');
 };
 
-
-/*
- Defined in bitcoin protocol here:
- https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
+/**
+ * Creates a variable-length integer buffer according to Bitcoin protocol specification.
+ * Variable-length integers (varints) are used to encode integers in a space-efficient
+ * way in Bitcoin transactions and other protocol messages. The encoding uses different
+ * byte lengths based on the value size.
+ * 
+ * Encoding rules:
+ * - Values < 0xfd: 1 byte (the value itself)
+ * - Values < 0xffff: 3 bytes (0xfd + 2-byte little-endian)
+ * - Values < 0xffffffff: 5 bytes (0xfe + 4-byte little-endian)
+ * - Larger values: 9 bytes (0xff + 8-byte little-endian)
+ * 
+ * @function varIntBuffer
+ * @param {number} n - Integer value to encode
+ * @returns {Buffer} Variable-length encoded integer as buffer
+ * @see {@link https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer}
+ * @example
+ * const small = varIntBuffer(100);     // 1 byte: [100]
+ * const medium = varIntBuffer(1000);   // 3 bytes: [0xfd, 0xe8, 0x03]
+ * const large = varIntBuffer(100000);  // 5 bytes: [0xfe, 0xa0, 0x86, 0x01, 0x00]
  */
 exports.varIntBuffer = n => {
     if (n < 0xfd) {
@@ -97,16 +248,46 @@ exports.varIntBuffer = n => {
     }
 };
 
+/**
+ * Creates a variable-length string buffer with length prefix.
+ * Encodes a string with a variable-length integer prefix indicating the string length,
+ * followed by the string data. This format is used in Bitcoin protocol for encoding
+ * strings in transactions and other messages.
+ * 
+ * @function varStringBuffer
+ * @param {string} string - String to encode
+ * @returns {Buffer} Buffer containing varint length + string data
+ * @example
+ * const encoded = varStringBuffer('Hello');
+ * // Returns buffer: [0x05, 'H', 'e', 'l', 'l', 'o']
+ * // where 0x05 is the varint-encoded length
+ */
 exports.varStringBuffer = string => {
     const strBuff = Buffer.from(string);
     return Buffer.concat([exports.varIntBuffer(strBuff.length), strBuff]);
 };
 
-/*
- "serialized CScript" formatting as defined here:
- https://github.com/bitcoin/bips/blob/master/bip-0034.mediawiki#specification
- Used to format height and date when putting into script signature:
- https://en.bitcoin.it/wiki/Script
+/**
+ * Serializes a number for use in Bitcoin script operations (CScript format).
+ * This function implements the Bitcoin script number serialization as defined in BIP-34.
+ * It's used for encoding block heights and timestamps in coinbase transactions.
+ * 
+ * The serialization follows these rules:
+ * - Numbers 1-16 are encoded as single bytes (0x51-0x60)
+ * - Other numbers are encoded with a length prefix followed by little-endian bytes
+ * - Negative numbers have the high bit set on the most significant byte
+ * 
+ * @function serializeNumber
+ * @param {number} n - Number to serialize (typically block height or timestamp)
+ * @returns {Buffer} Serialized number suitable for Bitcoin script inclusion
+ * @see {@link https://github.com/bitcoin/bips/blob/master/bip-0034.mediawiki#specification}
+ * @see {@link https://en.bitcoin.it/wiki/Script}
+ * @example
+ * const height = serializeNumber(12345);
+ * // Returns buffer with length prefix + little-endian encoded number
+ * 
+ * const small = serializeNumber(5);
+ * // Returns [0x55] for numbers 1-16 (optimized encoding)
  */
 exports.serializeNumber = n => {
     // // Old version that is bugged
@@ -146,9 +327,27 @@ exports.serializeNumber = n => {
     return buff.subarray(0, l);
 };
 
-
-/*
- Used for serializing strings used in script signature
+/**
+ * Serializes a string for use in Bitcoin script signatures.
+ * This function encodes strings with a length prefix similar to variable-length integers
+ * but specifically designed for script signature usage. The encoding varies based on
+ * string length to optimize space usage.
+ * 
+ * Encoding rules:
+ * - Length < 253: 1-byte length + string data
+ * - Length < 65536: 253 + 2-byte little-endian length + string data  
+ * - Length < 4294967296: 254 + 4-byte little-endian length + string data
+ * - Longer strings: 255 + 2-byte little-endian length + string data (Note: likely bug in original)
+ * 
+ * @function serializeString
+ * @param {string} s - String to serialize for script usage
+ * @returns {Buffer} Serialized string with appropriate length prefix
+ * @example
+ * const short = serializeString('Hello');
+ * // Returns [5, 'H', 'e', 'l', 'l', 'o']
+ * 
+ * const long = serializeString('Very long string...');  
+ * // Returns [253, length_low, length_high, ...string_bytes]
  */
 exports.serializeString = s => {
     if (s.length < 253) {
@@ -177,37 +376,112 @@ exports.serializeString = s => {
     }
 };
 
-
+/**
+ * Packs a 16-bit unsigned integer into a 2-byte little-endian buffer.
+ * Little-endian format stores the least significant byte first, which is
+ * the standard byte order used in Bitcoin protocol and x86 processors.
+ * 
+ * @function packUInt16LE
+ * @param {number} num - 16-bit unsigned integer (0-65535)
+ * @returns {Buffer} 2-byte buffer containing little-endian representation
+ * @example
+ * const packed = packUInt16LE(0x1234);
+ * console.log(packed); // Buffer [0x34, 0x12] (little-endian)
+ */
 exports.packUInt16LE = num => {
     const buff = Buffer.alloc(2);
     buff.writeUInt16LE(num, 0);
     return buff;
 };
 
+/**
+ * Packs a 32-bit signed integer into a 4-byte little-endian buffer.
+ * Handles both positive and negative integers using two's complement representation.
+ * 
+ * @function packInt32LE
+ * @param {number} num - 32-bit signed integer (-2147483648 to 2147483647)
+ * @returns {Buffer} 4-byte buffer containing little-endian representation
+ * @example
+ * const positive = packInt32LE(123456);
+ * const negative = packInt32LE(-123456);
+ * console.log(positive); // Little-endian bytes for 123456
+ * console.log(negative); // Little-endian two's complement for -123456
+ */
 exports.packInt32LE = num => {
     const buff = Buffer.alloc(4);
     buff.writeInt32LE(num, 0);
     return buff;
 };
 
+/**
+ * Packs a 32-bit signed integer into a 4-byte big-endian buffer.
+ * Big-endian format stores the most significant byte first, which is
+ * network byte order and used in some cryptocurrency protocols for display.
+ * 
+ * @function packInt32BE
+ * @param {number} num - 32-bit signed integer (-2147483648 to 2147483647)
+ * @returns {Buffer} 4-byte buffer containing big-endian representation
+ * @example
+ * const packed = packInt32BE(0x12345678);
+ * console.log(packed); // Buffer [0x12, 0x34, 0x56, 0x78] (big-endian)
+ */
 exports.packInt32BE = num => {
     const buff = Buffer.alloc(4);
     buff.writeInt32BE(num, 0);
     return buff;
 };
 
+/**
+ * Packs a 32-bit unsigned integer into a 4-byte little-endian buffer.
+ * Commonly used for timestamps, block heights, and other numeric values
+ * in cryptocurrency protocols that use little-endian encoding.
+ * 
+ * @function packUInt32LE
+ * @param {number} num - 32-bit unsigned integer (0 to 4294967295)
+ * @returns {Buffer} 4-byte buffer containing little-endian representation
+ * @example
+ * const timestamp = packUInt32LE(Date.now() / 1000);
+ * console.log(timestamp); // 4-byte little-endian timestamp
+ */
 exports.packUInt32LE = num => {
     const buff = Buffer.alloc(4);
     buff.writeUInt32LE(num, 0);
     return buff;
 };
 
+/**
+ * Packs a 32-bit unsigned integer into a 4-byte big-endian buffer.
+ * Big-endian format is useful for network protocols and human-readable
+ * hash representations where most significant bytes come first.
+ * 
+ * @function packUInt32BE
+ * @param {number} num - 32-bit unsigned integer (0 to 4294967295)
+ * @returns {Buffer} 4-byte buffer containing big-endian representation
+ * @example
+ * const version = packUInt32BE(0x20000000);
+ * console.log(version); // Buffer [0x20, 0x00, 0x00, 0x00] (big-endian)
+ */
 exports.packUInt32BE = num => {
     const buff = Buffer.alloc(4);
     buff.writeUInt32BE(num, 0);
     return buff;
 };
 
+/**
+ * Packs a 64-bit integer into an 8-byte little-endian buffer.
+ * Since JavaScript numbers lose precision beyond 53 bits, this function
+ * splits the number into two 32-bit parts for accurate representation.
+ * Used for large values like satoshi amounts and difficulty targets.
+ * 
+ * @function packInt64LE
+ * @param {number} num - 64-bit integer value (up to MAX_SAFE_INTEGER)
+ * @returns {Buffer} 8-byte buffer containing little-endian representation
+ * @example
+ * const reward = packInt64LE(5000000000); // 50 BTC in satoshis
+ * console.log(reward); // 8-byte little-endian representation
+ * 
+ * @note For values larger than Number.MAX_SAFE_INTEGER, precision may be lost
+ */
 exports.packInt64LE = num => {
     const buff = Buffer.alloc(8);
     buff.writeUInt32LE(num % Math.pow(2, 32), 0);
@@ -215,10 +489,22 @@ exports.packInt64LE = num => {
     return buff;
 };
 
-
-/*
- An exact copy of python's range feature. Written by Tadeck:
- http://stackoverflow.com/a/8273091
+/**
+ * Creates an array of numbers in a specified range, similar to Python's range() function.
+ * This utility function generates sequences of numbers commonly used for loops,
+ * array initialization, and mathematical operations in mining calculations.
+ * 
+ * @function range
+ * @param {number} start - Starting value (or stop value if only one parameter provided)
+ * @param {number} [stop] - Ending value (exclusive). If omitted, start becomes stop and start becomes 0
+ * @param {number} [step=1] - Step increment (can be negative for reverse ranges)
+ * @returns {number[]} Array of numbers from start to stop (exclusive) by step
+ * @see {@link http://stackoverflow.com/a/8273091} Original implementation by Tadeck
+ * @example
+ * const simple = range(5);           // [0, 1, 2, 3, 4]
+ * const fromTo = range(2, 8);        // [2, 3, 4, 5, 6, 7]  
+ * const withStep = range(0, 10, 2);  // [0, 2, 4, 6, 8]
+ * const reverse = range(10, 0, -2);  // [10, 8, 6, 4, 2]
  */
 exports.range = (start, stop, step) => {
     if (typeof stop === 'undefined') {
@@ -242,9 +528,25 @@ exports.range = (start, stop, step) => {
     return result;
 };
 
-
-/*
- For POS coins - used to format wallet address for use in generation transaction's output
+/**
+ * Converts a public key to a Bitcoin script for Proof-of-Stake (POS) coins.
+ * Creates a Pay-to-Public-Key (P2PK) script that directly uses the public key
+ * for transaction outputs. This format is commonly used in POS coinbase transactions
+ * where rewards are paid directly to a public key rather than an address.
+ * 
+ * Script format: OP_PUSHDATA(33) + public_key + OP_CHECKSIG
+ * - 0x21: Push next 33 bytes (compressed public key)
+ * - public_key: 33-byte compressed public key  
+ * - 0xac: OP_CHECKSIG opcode
+ * 
+ * @function pubkeyToScript 
+ * @param {string} key - Hexadecimal public key string (must be 66 chars = 33 bytes)
+ * @returns {Buffer} 35-byte P2PK script buffer
+ * @throws {Error} If public key length is not exactly 66 characters
+ * @example
+ * const pubkey = '03a1633cafcc01ebfb6d78e39f687a1f0995c62fc95f51ead10a02ee0be551b5dc';
+ * const script = pubkeyToScript(pubkey);
+ * console.log(script); // [0x21, ...pubkey_bytes..., 0xac]
  */
 exports.pubkeyToScript = key => {
     if (key.length !== 66) {
@@ -259,14 +561,51 @@ exports.pubkeyToScript = key => {
     return pubkey;
 };
 
-
+/**
+ * Converts a mining key to a Pay-to-Public-Key-Hash (P2PKH) script.
+ * Creates a standard Bitcoin script that pays to a hash of a public key.
+ * This is the most common script type used for regular Bitcoin addresses
+ * and mining reward distributions.
+ * 
+ * Script format: OP_DUP + OP_HASH160 + OP_PUSHDATA(20) + key_hash + OP_EQUALVERIFY + OP_CHECKSIG
+ * - 0x76: OP_DUP (duplicate top stack item)
+ * - 0xa9: OP_HASH160 (hash top stack item with RIPEMD160(SHA256))
+ * - 0x14: Push next 20 bytes (key hash length)
+ * - key_hash: 20-byte RIPEMD160 hash of public key
+ * - 0x88: OP_EQUALVERIFY (verify equality and mark invalid if false)
+ * - 0xac: OP_CHECKSIG (check signature)
+ * 
+ * @function miningKeyToScript
+ * @param {string} key - Hexadecimal mining key hash (typically 20 bytes = 40 chars)
+ * @returns {Buffer} Complete P2PKH script buffer
+ * @example
+ * const keyHash = '89abcdefabbaabbaabbaabbaabbaabbaabbaabba';
+ * const script = miningKeyToScript(keyHash);
+ * console.log(script); // [0x76, 0xa9, 0x14, ...key_hash..., 0x88, 0xac]
+ */
 exports.miningKeyToScript = key => {
     const keyBuffer = Buffer.from(key, 'hex');
     return Buffer.concat([Buffer.from([0x76, 0xa9, 0x14]), keyBuffer, Buffer.from([0x88, 0xac])]);
 };
 
-/*
- For POW coins - used to format wallet address for use in generation transaction's output
+/**
+ * Converts a cryptocurrency address to a Pay-to-Public-Key-Hash (P2PKH) script.
+ * Decodes a Base58-encoded address and extracts the public key hash to create
+ * a standard P2PKH script. This is used for Proof-of-Work (POW) coins to format
+ * wallet addresses for use in generation transaction outputs (coinbase rewards).
+ * 
+ * Address format: version_byte + pubkey_hash(20 bytes) + checksum(4 bytes) = 25/26 bytes total
+ * The function extracts the 20-byte pubkey hash and creates a P2PKH script.
+ * 
+ * @function addressToScript
+ * @param {string} addr - Base58-encoded cryptocurrency address
+ * @returns {Buffer} P2PKH script buffer (25 bytes total)
+ * @throws {Error} If address length is invalid (not 25 or 26 bytes when decoded)
+ * @throws {Error} If Base58 decoding fails
+ * @example
+ * const address = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa';
+ * const script = addressToScript(address);
+ * console.log(script); // [0x76, 0xa9, 0x14, ...pubkey_hash..., 0x88, 0xac]
  */
 exports.addressToScript = addr => {
     const decoded = base58.decode(addr);
@@ -286,7 +625,22 @@ exports.addressToScript = addr => {
     return Buffer.concat([Buffer.from([0x76, 0xa9, 0x14]), pubkey, Buffer.from([0x88, 0xac])]);
 };
 
-
+/**
+ * Converts a raw hash rate value to a human-readable string with appropriate units.
+ * Automatically scales the hash rate and selects the most appropriate unit (KH, MH, GH, TH, PH)
+ * to make large numbers more readable for display in mining statistics and dashboards.
+ * 
+ * Units progression: H/s → KH/s → MH/s → GH/s → TH/s → PH/s
+ * Each unit represents 1024x the previous unit (binary scaling).
+ * 
+ * @function getReadableHashRateString
+ * @param {number} hashrate - Raw hash rate value in hashes per second
+ * @returns {string} Formatted hash rate string with appropriate unit suffix
+ * @example
+ * const rate1 = getReadableHashRateString(1500);      // "1.46 KH"
+ * const rate2 = getReadableHashRateString(2500000);   // "2.38 MH" 
+ * const rate3 = getReadableHashRateString(5000000000); // "4.66 GH"
+ */
 exports.getReadableHashRateString = hashrate => {
     let i = -1;
     const byteUnits = [' KH', ' MH', ' GH', ' TH', ' PH'];
@@ -298,8 +652,28 @@ exports.getReadableHashRateString = hashrate => {
     return hashrate.toFixed(2) + byteUnits[i];
 };
 
-
-// Creates a non-truncated max difficulty (diff1) by bitwise right-shifting the max value of a uint256
+/**
+ * Creates a difficulty target by right-shifting the maximum 256-bit value.
+ * This function generates non-truncated maximum difficulty (diff1) values by performing
+ * bitwise right-shift operations on the maximum possible uint256 value. The result
+ * represents the target threshold that block hashes must be below to be considered valid.
+ * 
+ * The algorithm:
+ * 1. Creates an array representing all 256 bits set to 1 (maximum uint256)
+ * 2. Prepends 'shiftRight' number of zero bits
+ * 3. Truncates to maintain 256 bits total (effectively right-shifting)
+ * 4. Converts the bit array to a 32-byte buffer representation
+ * 
+ * @function shiftMax256Right
+ * @param {number} shiftRight - Number of bits to right-shift the maximum value
+ * @returns {Buffer} 32-byte buffer representing the shifted difficulty target
+ * @example
+ * const target = shiftMax256Right(32); // Shift max value right by 32 bits
+ * console.log(target); // 32-byte buffer with difficulty target
+ * 
+ * // Higher shiftRight values = easier difficulty (larger target)
+ * // Lower shiftRight values = harder difficulty (smaller target)
+ */
 exports.shiftMax256Right = shiftRight => {
     //Max value uint256 (an array of ones representing 256 enabled bits)
     let arr256 = Array.apply(null, new Array(256)).map(Number.prototype.valueOf, 1);
@@ -329,7 +703,26 @@ exports.shiftMax256Right = shiftRight => {
     return Buffer.from(octets);
 };
 
-
+/**
+ * Converts a buffer representing a large number to compact bits format.
+ * Compact bits is a compressed representation used in Bitcoin blocks to store
+ * the difficulty target. It consists of a length byte followed by the most
+ * significant bytes of the target value.
+ * 
+ * Format: [length_byte][most_significant_bytes...]
+ * - If the high bit of the first data byte is set, prepend 0x00 to avoid
+ *   the value being interpreted as negative
+ * - The length byte indicates how many bytes follow
+ * - Only the first 3 bytes of data are kept (4 bytes total)
+ * 
+ * @function bufferToCompactBits
+ * @param {Buffer} startingBuff - Buffer containing the target value to compress
+ * @returns {Buffer} 4-byte compact bits representation
+ * @example
+ * const target = Buffer.from('00000000ffff0000000000000000000000000000000000000000000000000000', 'hex');
+ * const compact = bufferToCompactBits(target);
+ * console.log(compact); // 4-byte compact representation like [0x1d, 0x00, 0xff, 0xff]
+ */
 exports.bufferToCompactBits = startingBuff => {
     const bigNum = bignum.fromBuffer(startingBuff);
     let buff = bigNum.toBuffer();
@@ -340,9 +733,25 @@ exports.bufferToCompactBits = startingBuff => {
     return compact = buff.subarray(0, 4);
 };
 
-/*
- Used to convert getblocktemplate bits field into target if target is not included.
- More info: https://en.bitcoin.it/wiki/Target
+/**
+ * Converts a compact bits buffer to a bignum target value.
+ * This function decodes the compact bits format used in Bitcoin block headers
+ * to represent difficulty targets. The compact format compresses large 256-bit
+ * target values into just 4 bytes.
+ * 
+ * Decoding algorithm:
+ * - First byte (numBytes): indicates the length of the uncompressed target
+ * - Remaining bytes: contain the most significant bytes of the target
+ * - Formula: bigBits * 2^(8 * (numBytes - 3))
+ * 
+ * @function bignumFromBitsBuffer
+ * @param {Buffer} bitsBuff - 4-byte compact bits buffer from block header
+ * @returns {bignum} Large integer representing the full 256-bit target
+ * @see {@link https://en.bitcoin.it/wiki/Target}
+ * @example
+ * const compactBits = Buffer.from([0x1d, 0x00, 0xff, 0xff]);
+ * const target = bignumFromBitsBuffer(compactBits);
+ * console.log(target.toString(16)); // Full 256-bit target as hex string
  */
 exports.bignumFromBitsBuffer = bitsBuff => {
     const numBytes = bitsBuff.readUInt8(0);
@@ -356,12 +765,41 @@ exports.bignumFromBitsBuffer = bitsBuff => {
     return target;
 };
 
+/**
+ * Converts a compact bits hex string to a bignum target value.
+ * Convenience wrapper around bignumFromBitsBuffer that accepts a hex string
+ * instead of a buffer. Commonly used when processing block template data
+ * received as JSON where bits values are hex-encoded strings.
+ * 
+ * @function bignumFromBitsHex
+ * @param {string} bitsString - Hexadecimal string representation of compact bits (8 hex chars = 4 bytes)
+ * @returns {bignum} Large integer representing the full 256-bit target
+ * @example
+ * const bitsHex = '1d00ffff';  // Compact bits as hex string
+ * const target = bignumFromBitsHex(bitsHex);
+ * console.log(target.toString(16)); // Full target value
+ */
 exports.bignumFromBitsHex = bitsString => {
     return exports.bignumFromBitsBuffer(
         Buffer.from(bitsString, 'hex')
     );
 };
 
+/**
+ * Converts compact bits to a full 32-byte target buffer.
+ * Expands the compressed compact bits format back to a full 256-bit (32-byte)
+ * target value suitable for comparison with block hashes. The result is
+ * right-padded with zeros to ensure exactly 32 bytes.
+ * 
+ * @function convertBitsToBuff
+ * @param {Buffer} bitsBuff - 4-byte compact bits buffer
+ * @returns {Buffer} 32-byte buffer containing the full target value (big-endian)
+ * @example
+ * const compactBits = Buffer.from([0x1d, 0x00, 0xff, 0xff]);
+ * const fullTarget = convertBitsToBuff(compactBits);
+ * console.log(fullTarget.length); // 32
+ * console.log(fullTarget.toString('hex')); // Full 64-character hex target
+ */
 exports.convertBitsToBuff = bitsBuff => {
     const target = exports.bignumFromBitsBuffer(bitsBuff);
     const resultBuff = target.toBuffer();
@@ -371,6 +809,27 @@ exports.convertBitsToBuff = bitsBuff => {
     return buff256;
 };
 
+/**
+ * Generates a truncated difficulty target by shifting and compacting operations.
+ * This function creates a difficulty target through a multi-step process:
+ * 1. Shifts the maximum 256-bit value right by specified amount
+ * 2. Converts to compact bits format (compression)
+ * 3. Expands back to full 32-byte buffer (decompression)
+ * 
+ * The truncation occurs during the compact bits conversion, where precision
+ * is reduced to fit the 4-byte compact format. This is used for generating
+ * standardized difficulty levels in mining pools.
+ * 
+ * @function getTruncatedDiff
+ * @param {number} shift - Number of bits to right-shift the maximum value
+ * @returns {Buffer} 32-byte truncated difficulty target buffer
+ * @example
+ * const diffTarget = getTruncatedDiff(32);
+ * console.log(diffTarget); // 32-byte target with truncation from compact conversion
+ * 
+ * // Larger shift = easier difficulty (higher target value)
+ * // Smaller shift = harder difficulty (lower target value)
+ */
 exports.getTruncatedDiff = shift => {
     return exports.convertBitsToBuff(
         exports.bufferToCompactBits(
@@ -379,7 +838,28 @@ exports.getTruncatedDiff = shift => {
     );
 };
 
-// Calculate difficulty given a target hex string (big-endian as provided by daemon)
+/**
+ * Calculates mining difficulty from a target hash value.
+ * Difficulty represents how hard it is to find a valid block hash below the target.
+ * The calculation uses the standard formula: difficulty = diff1_target / current_target
+ * 
+ * The function:
+ * 1. Converts the hex target string to a BigInt for precise arithmetic
+ * 2. Uses the global diff1 constant (maximum target for difficulty 1)
+ * 3. Performs division to get the difficulty multiplier
+ * 4. Returns a floating-point result rounded to 9 decimal places
+ * 
+ * @function calculateDifficulty
+ * @param {string} targetHex - Target hash as big-endian hex string (without 0x prefix)
+ * @returns {number} Calculated difficulty value (1.0 = easiest, higher = harder)
+ * @example
+ * const target = '00000000ffff0000000000000000000000000000000000000000000000000000';
+ * const difficulty = calculateDifficulty(target);
+ * console.log(difficulty); // e.g., 16777216.000000000
+ * 
+ * @note Requires global.diff1 to be set from libs/stratum/algoProperties.js
+ * @note Lower target values result in higher difficulty numbers
+ */
 exports.calculateDifficulty = targetHex => {
     // Uses the project's hardcoded diff1 from `libs/stratum/algoProperties.js` (global.diff1)
     const targetBigInt = BigInt(`0x${targetHex}`);
