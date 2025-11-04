@@ -92,7 +92,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
     function OutputPoolInfo() {
 
         const startMessage = `\r\n\t\t\t\t\t\tStratum Pool Server Started for ${options.coin.name
-            } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
+        } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
         if (process.env.forkId && process.env.forkId !== '0') {
             logger.debug(logSystem, logComponent, logSubCat, startMessage);
             return;
