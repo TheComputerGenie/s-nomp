@@ -25,7 +25,6 @@ const net = require('net');
 
 const ShareProcessor = require('./shareProcessor.js');
 const CreateRedisClient = require('./createRedisClient.js');
-const WAValidator = require('wallet-address-validator');
 
 /**
  * Construct pool worker in a forked process.
@@ -187,7 +186,7 @@ module.exports = function (logger) {
          * It supports three modes based on poolOptions:
          * - Disabled validation: when `poolOptions.validateWorkerUsername !== true`, any username is accepted.
          * - Banned addresses list: if `poolOptions.bannedAddresses.enabled` and the username is in the banned list, reject.
-         * - Wallet address validation: uses `wallet-address-validator` to check VRSC addresses.
+         * - Wallet address validation: uses native Verus address validation to check VRSC addresses.
          *
          * @param {number} port - Port the client connected to (used for per-port rules)
          * @param {string} workerName - The submitted worker name / username
@@ -204,11 +203,11 @@ module.exports = function (logger) {
                 isvalid = true;
             } else {
                 // Validation of Public and Identity addresses (coin-specific; here VRSC)
-                isvalid = WAValidator.validate(String(workerName).split('.')[0], 'VRSC');
+                isvalid = Stratum.util.validateVerusAddress(String(workerName).split('.')[0]);
                 /*
                 // Validation of sapling addreses (disabled until paymentProcessor.js can handle sapling payments)
                 if(isvalid !== true){
-                    var isvalid = WAValidator.validate(String(address).split(".")[0], 'VRSC', 'sapling');
+                    var isvalid = Stratum.util.validateVerusAddress(String(address).split(".")[0]);
                 }
 */
             }
@@ -372,9 +371,9 @@ module.exports = function (logger) {
 
                     }).listen(parseInt(port), () => {
                         logger.debug(logSystem, logComponent, logSubCat, `Switching "${switchName
-                        }" listening for ${algorithm
-                        } on port ${port
-                        } into ${proxySwitch[switchName].currentPool}`);
+                            }" listening for ${algorithm
+                            } on port ${port
+                            } into ${proxySwitch[switchName].currentPool}`);
                     });
                     proxySwitch[switchName].servers.push(f);
                 });

@@ -2,7 +2,6 @@
 const fs = require('fs');
 const { promisify } = require('util');
 const redis = require('redis');
-const WAValidator = require('wallet-address-validator');
 
 const Stratum = require('./stratum');
 const CreateRedisClient = require('./createRedisClient');
@@ -910,7 +909,7 @@ class PaymentProcessor {
      * @returns {String} Valid address for payments
      */
     getProperAddress(address) {
-        const isValid = WAValidator.validate(String(address).split('.')[0], 'VRSC');
+        const isValid = Stratum.util.validateVerusAddress(String(address).split('.')[0]);
         if (!isValid) {
             this.logger.warn(this.logSystem, this.logComponent, `Invalid address ${address}, converting to pool address.`);
             return this.poolConfig.invalidAddress || this.poolConfig.address;

@@ -96,6 +96,229 @@ exports.sha256d = buffer => {
 };
 
 /**
+ * Decodes a Base58-encoded string into a byte array.
+ * Base58 is commonly used in cryptocurrency addresses to create human-readable
+ * representations of binary data. This implementation follows the Bitcoin Base58
+ * alphabet and encoding scheme.
+ * 
+ * @function base58Decode
+ * @param {string} string - Base58-encoded string to decode
+ * @returns {Array<number>} Decoded byte array
+ * @throws {Error} If the string contains invalid Base58 characters
+ * @example
+ * const decoded = base58Decode('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa');
+ * console.log(decoded); // [0, 0, 0, ...] (Bitcoin genesis block address)
+ */
+exports.base58Decode = string => {
+    const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const ALPHABET_MAP = {};
+    for (let i = 0; i < ALPHABET.length; ++i) {
+        ALPHABET_MAP[ALPHABET.charAt(i)] = i;
+    }
+    const BASE = ALPHABET.length;
+
+    if (string.length === 0) return [];
+
+    let i, j, bytes = [0];
+    for (i = 0; i < string.length; ++i) {
+        const c = string[i];
+        if (!(c in ALPHABET_MAP)) throw new Error('Non-base58 character');
+
+        for (j = 0; j < bytes.length; ++j) bytes[j] *= BASE;
+        bytes[0] += ALPHABET_MAP[c];
+
+        let carry = 0;
+        for (j = 0; j < bytes.length; ++j) {
+            bytes[j] += carry;
+            carry = bytes[j] >> 8;
+            bytes[j] &= 0xff;
+        }
+
+        while (carry) {
+            bytes.push(carry & 0xff);
+            carry >>= 8;
+        }
+    }
+    // deal with leading zeros
+    for (i = 0; string[i] === '1' && i < string.length - 1; ++i) {
+        bytes.push(0);
+    }
+
+    return bytes.reverse();
+};
+
+/**
+ * Decodes a Bech32-encoded string into an object with hrp and data properties.
+ * Bech32 is used for SegWit addresses and Sapling shielded addresses in cryptocurrencies.
+ * This implementation follows the BIP173 specification for Bech32 encoding.
+ * 
+ * @function bech32Decode
+ * @param {string} bechString - Bech32-encoded string to decode
+ * @returns {Object|null} Object with 'hrp' and 'data' properties, or null if invalid
+ * @example
+ * const decoded = bech32Decode('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4');
+ * console.log(decoded.hrp); // 'bc'
+ * console.log(decoded.data); // [0, 14, 20, ...]
+ */
+exports.bech32Decode = bechString => {
+    const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+    const GENERATOR = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+
+    function polymod(values) {
+        let chk = 1;
+        for (let p = 0; p < values.length; ++p) {
+            const top = chk >> 25;
+            chk = (chk & 0x1ffffff) << 5 ^ values[p];
+            for (let i = 0; i < 5; ++i) {
+                if ((top >> i) & 1) {
+                    chk ^= GENERATOR[i];
+                }
+            }
+        }
+        return chk;
+    }
+
+    function hrpExpand(hrp) {
+        const ret = [];
+        let p;
+        for (p = 0; p < hrp.length; ++p) {
+            ret.push(hrp.charCodeAt(p) >> 5);
+        }
+        ret.push(0);
+        for (p = 0; p < hrp.length; ++p) {
+            ret.push(hrp.charCodeAt(p) & 31);
+        }
+        return ret;
+    }
+
+    function verifyChecksum(hrp, data) {
+        return polymod(hrpExpand(hrp).concat(data)) === 1;
+    }
+
+    let p;
+    let has_lower = false;
+    let has_upper = false;
+    for (p = 0; p < bechString.length; ++p) {
+        if (bechString.charCodeAt(p) < 33 || bechString.charCodeAt(p) > 126) {
+            return null;
+        }
+        if (bechString.charCodeAt(p) >= 97 && bechString.charCodeAt(p) <= 122) {
+            has_lower = true;
+        }
+        if (bechString.charCodeAt(p) >= 65 && bechString.charCodeAt(p) <= 90) {
+            has_upper = true;
+        }
+    }
+    if (has_lower && has_upper) {
+        return null;
+    }
+    bechString = bechString.toLowerCase();
+    const pos = bechString.lastIndexOf('1');
+    if (pos < 1 || pos + 7 > bechString.length || bechString.length > 90) {
+        return null;
+    }
+    const hrp = bechString.substring(0, pos);
+    const data = [];
+    for (p = pos + 1; p < bechString.length; ++p) {
+        const d = CHARSET.indexOf(bechString.charAt(p));
+        if (d === -1) {
+            return null;
+        }
+        data.push(d);
+    }
+    if (!verifyChecksum(hrp, data)) {
+        return null;
+    }
+    return { hrp: hrp, data: data.slice(0, data.length - 6) };
+};
+
+/**
+ * Calculates SHA256 checksum for address validation.
+ * Performs double SHA256 hashing and returns the first 4 bytes as hex.
+ * This is used for validating cryptocurrency address checksums.
+ * 
+ * @function sha256Checksum
+ * @param {string} payload - Hex string payload to checksum
+ * @returns {string} First 8 characters (4 bytes) of double SHA256 hash as hex
+ * @example
+ * const checksum = sha256Checksum('00000000...');
+ * console.log(checksum); // 'abcd1234'
+ */
+exports.sha256Checksum = payload => {
+    return exports.sha256d(Buffer.from(payload, 'hex')).subarray(0, 4).toString('hex');
+};
+
+/**
+ * Validates a Verus (VRSC) cryptocurrency address.
+ * Supports both transparent (base58) and shielded (sapling/bech32) address formats.
+ * Verus addresses use specific version bytes and checksum validation.
+ * 
+ * @function validateVerusAddress
+ * @param {string} address - Verus address to validate
+ * @returns {boolean} True if address is valid, false otherwise
+ * @example
+ * const isValid = validateVerusAddress('RGmX85KFyDf6HHekhH9mQ3QKoyPjS6X');
+ * console.log(isValid); // true
+ */
+exports.validateVerusAddress = address => {
+    // Valid chars test - only alphanumeric characters allowed
+    if (!/^[a-zA-Z0-9]+$/.test(address)) {
+        return false;
+    }
+
+    // Define valid address types for Verus (production network)
+    const validAddressTypes = ['3c', '55', '66']; // Transparent addresses
+    const validSaplingPrefixes = ['zs']; // Shielded sapling addresses
+
+    let decoded;
+
+    // Try base58 decode first (transparent addresses)
+    try {
+        decoded = exports.base58Decode(address);
+    } catch (e) {
+        // If base58 decode fails, try bech32 for sapling addresses
+        if (address.slice(0, 2) === 'zs') {
+            decoded = exports.bech32Decode(address);
+            if (decoded && decoded.data && decoded.data.length === 69) {
+                // Valid sapling address
+                return validSaplingPrefixes.includes(decoded.hrp);
+            }
+        }
+        return false;
+    }
+
+    // Base58 decode succeeded - validate transparent address
+    if (decoded && decoded.length === 25) {
+        const checksum = exports.toHex(decoded.slice(-4));
+        const body = exports.toHex(decoded.slice(0, 21));
+        const goodChecksum = exports.sha256Checksum(body);
+
+        if (checksum === goodChecksum) {
+            const addressType = exports.toHex(decoded.slice(0, 1));
+            return validAddressTypes.includes(addressType);
+        }
+    }
+
+    return false;
+};
+
+/**
+ * Converts a byte array to hexadecimal string.
+ * 
+ * @function toHex
+ * @param {Array<number>|Buffer} arrayOfBytes - Byte array to convert
+ * @returns {string} Hexadecimal representation
+ */
+exports.toHex = arrayOfBytes => {
+    let hex = '';
+    for (let i = 0; i < arrayOfBytes.length; i++) {
+        const byte = arrayOfBytes[i];
+        hex += (byte < 16 ? '0' : '') + byte.toString(16);
+    }
+    return hex;
+};
+
+/**
  * Reverses the byte order of a buffer.
  * This is commonly used in cryptocurrency protocols where data needs to be
  * converted between little-endian and big-endian formats. For example,
