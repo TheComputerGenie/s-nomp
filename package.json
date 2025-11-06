@@ -39,7 +39,6 @@
         "compression": "^1.7.3",
         "dot": "^1.1.2",
         "express": "^4.16.4",
-        "nonce": "^1.0.4",
         "redis": "^3.0.0"
     },
     "engines": {
