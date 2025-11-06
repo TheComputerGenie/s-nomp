@@ -1,7 +1,6 @@
 
 const fs = require('fs');
 const { promisify } = require('util');
-const request = promisify(require('request'));
 const redis = require('redis');
 const WAValidator = require('wallet-address-validator');
 
@@ -832,14 +831,18 @@ class PaymentProcessor {
             } // API name mapping
 
             // Attempt to fetch from CoinMarketCap v1 API (may be rate limited)
-            const { body } = await request({
-                url: `https://api.coinmarketcap.com/v1/ticker/${coinName}/`,
-                json: true,
-                timeout: 10000, // 10 second timeout
+            const response = await fetch(`https://api.coinmarketcap.com/v1/ticker/${coinName}/`, {
                 headers: {
                     'User-Agent': 'NOMP Pool Software'
-                }
+                },
+                signal: AbortSignal.timeout(10000) // 10 second timeout
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const body = await response.json();
 
             if (body && body.length > 0) {
                 await this.redis.hset(`${this.coin}:stats`, 'coinmarketcap', JSON.stringify(body));
@@ -849,9 +852,9 @@ class PaymentProcessor {
             }
         } catch (error) {
             // Market stats are not critical for pool operation, so we log but don't throw
-            if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+            if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED') || error.name === 'TimeoutError') {
                 this.logger.warn(this.logSystem, this.logComponent, `CoinMarketCap API unavailable: ${error.message}`);
-            } else if (error.statusCode === 429) {
+            } else if (error.message.includes('429')) {
                 this.logger.warn(this.logSystem, this.logComponent, `CoinMarketCap API rate limit exceeded`);
             } else {
                 this.logger.error(this.logSystem, this.logComponent, `Error caching market stats: ${error.message}`);
