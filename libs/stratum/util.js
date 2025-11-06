@@ -8,13 +8,34 @@
  * @module libs/stratum/util
  * @requires crypto - Node.js built-in cryptographic functionality
  * @requires base58-native.js - NATIVE Base58 encoding/decoding library
- * @requires bignum - Arbitrary precision arithmetic library
  */
 
 const crypto = require('crypto');
 
 const base58 = require('./base58-native.js');
-const bignum = require('bignum');
+
+// NOTE: Replaced external `bignum` dependency with native BigInt helpers so
+// this file has no non-native package dependencies. The helper functions
+// below operate on Buffers (big-endian) and BigInt to replicate the
+// original bignum.fromBuffer / toBuffer behavior used in compact/target
+// conversions.
+
+// Convert a big-endian Buffer to a BigInt
+function bufferToBigInt(buff) {
+    let result = 0n;
+    for (let i = 0; i < buff.length; i++) {
+        result = (result << 8n) + BigInt(buff[i]);
+    }
+    return result;
+}
+
+// Convert a non-negative BigInt to a minimal big-endian Buffer (no leading zeros)
+function bigIntToBuffer(n) {
+    if (n === 0n) return Buffer.from([0]);
+    let hex = n.toString(16);
+    if (hex.length % 2) hex = '0' + hex;
+    return Buffer.from(hex, 'hex');
+}
 
 /**
  * Creates a cryptocurrency address from an existing address and a RIPEMD160 key.
@@ -947,13 +968,15 @@ exports.shiftMax256Right = shiftRight => {
  * console.log(compact); // 4-byte compact representation like [0x1d, 0x00, 0xff, 0xff]
  */
 exports.bufferToCompactBits = startingBuff => {
-    const bigNum = bignum.fromBuffer(startingBuff);
-    let buff = bigNum.toBuffer();
+    // Convert buffer (big-endian) to BigInt, then to minimal big-endian buffer
+    const bigNum = bufferToBigInt(startingBuff);
+    let buff = bigIntToBuffer(bigNum);
 
-    buff = buff.readUInt8(0) > 0x7f ? Buffer.concat([Buffer.from([0x00]), buff]) : buff;
+    // If high bit set, prepend 0x00 to avoid being interpreted as negative
+    buff = buff[0] > 0x7f ? Buffer.concat([Buffer.from([0x00]), buff]) : buff;
 
     buff = Buffer.concat([Buffer.from([buff.length]), buff]);
-    return compact = buff.subarray(0, 4);
+    return buff.subarray(0, 4);
 };
 
 /**
@@ -978,13 +1001,9 @@ exports.bufferToCompactBits = startingBuff => {
  */
 exports.bignumFromBitsBuffer = bitsBuff => {
     const numBytes = bitsBuff.readUInt8(0);
-    const bigBits = bignum.fromBuffer(bitsBuff.subarray(1));
-    const target = bigBits.mul(
-        bignum(2).pow(
-            bignum(8).mul(numBytes - 3)
-        )
-    );
-
+    const bigBits = bufferToBigInt(bitsBuff.subarray(1));
+    const shift = BigInt(8 * (numBytes - 3));
+    const target = bigBits * (2n ** shift);
     return target;
 };
 
@@ -1003,9 +1022,7 @@ exports.bignumFromBitsBuffer = bitsBuff => {
  * console.log(target.toString(16)); // Full target value
  */
 exports.bignumFromBitsHex = bitsString => {
-    return exports.bignumFromBitsBuffer(
-        Buffer.from(bitsString, 'hex')
-    );
+    return exports.bignumFromBitsBuffer(Buffer.from(bitsString, 'hex'));
 };
 
 /**
@@ -1025,7 +1042,7 @@ exports.bignumFromBitsHex = bitsString => {
  */
 exports.convertBitsToBuff = bitsBuff => {
     const target = exports.bignumFromBitsBuffer(bitsBuff);
-    const resultBuff = target.toBuffer();
+    const resultBuff = bigIntToBuffer(target);
     const buff256 = Buffer.alloc(32);
     buff256.fill(0);
     resultBuff.copy(buff256, buff256.length - resultBuff.length);

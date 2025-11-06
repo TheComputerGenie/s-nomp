@@ -34,7 +34,6 @@
         "url": "https://github.com/ComputerGenieCo/s-nomp.git"
     },
     "dependencies": {
-        "bignum": "^0.13.0",
         "bitgo-utxo-lib": "git+https://github.com/Oink70/bitgo-utxo-lib.git",
         "body-parser": "^1.18.3",
         "compression": "^1.7.3",
@@ -42,7 +41,6 @@
         "express": "^4.16.4",
         "extend": "^3.0.2",
         "merkle-bitcoin": "^1.0.2",
-        "mysql": "^2.16.0",
         "node-json-minify": "^1.0.0",
         "node-watch": "^0.5.8",
         "nonce": "^1.0.4",

@@ -98,12 +98,6 @@
         }
     },
 
-    "profitSwitch": {
-        "enabled": false,
-        "updateInterval": 600,
-        "depth": 0.90
-    },
-
     "website": {
         "enabled": true,
         "host": "0.0.0.0",

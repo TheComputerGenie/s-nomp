@@ -64,11 +64,6 @@ const PaymentProcessor = require('./libs/paymentProcessor.js');
  */
 const Website = require('./libs/website.js');
 /**
- * ProfitSwitch: optional worker that can perform automatic coin switching to
- * maximize profitability. See `portalConfig.profitSwitch` settings.
- */
-const ProfitSwitch = require('./libs/profitSwitch.js');
-/**
  * CreateRedisClient: factory that returns a configured redis client used for
  * cross-process state like PPLNT tracking and other shared counters.
  */
@@ -210,9 +205,6 @@ try {
  * - 'website': Serves the web interface, API endpoints, and real-time
  *   statistics. Handles HTTP requests from miners and administrators.
  * 
- * - 'profitSwitch': Optional automated profit switching worker that can
- *   dynamically change mining targets based on profitability calculations.
- * 
  * Each worker type runs independently and communicates with the master
  * process and other workers through Redis and IPC messaging.
  * 
@@ -229,9 +221,6 @@ if (cluster.isWorker) {
             break;
         case 'website':
             new Website(logger);
-            break;
-        case 'profitSwitch':
-            new ProfitSwitch(logger);
             break;
     }
 
@@ -982,62 +971,6 @@ const startWebsite = function () {
     });
 };
 
-
-/**
- * Profit Switching Worker Management
- * 
- * Spawns an automated profit switching worker when enabled in the portal
- * configuration. The profit switcher provides intelligent mining target
- * optimization by:
- * 
- * - Monitoring cryptocurrency exchange rates and network difficulties
- * - Calculating real-time profitability for supported coins
- * - Automatically switching mining targets to maximize earnings
- * - Coordinating switches across all pool workers and miners
- * - Maintaining switch history and performance analytics
- * 
- * Profit switching is particularly valuable for:
- * - Multi-coin pools supporting multiple cryptocurrencies
- * - Maximizing miner earnings during market volatility
- * - Automated response to network difficulty changes
- * - Optimizing block reward vs. mining cost ratios
- * 
- * The worker operates independently and communicates switch decisions
- * to pool workers through the established IPC messaging system.
- * 
- * Configuration Requirements:
- * - portalConfig.profitSwitch.enabled must be true
- * - Valid switching profiles must be configured
- * - Exchange API credentials may be required for price data
- * 
- * @see {@link ProfitSwitch} For profit calculation algorithms and logic
- */
-const startProfitSwitch = function () {
-
-    if (!portalConfig.profitSwitch || !portalConfig.profitSwitch.enabled) {
-        return;
-    }
-
-    const worker = cluster.fork({
-        workerType: 'profitSwitch',
-        pools: JSON.stringify(poolConfigs),
-        portalConfig: JSON.stringify(portalConfig)
-    });
-
-    /**
-     * Profit switcher crash recovery: respawn the worker to maintain
-     * automated profit optimization capabilities.
-     */
-    worker.on('exit', (code, signal) => {
-        logger.error('Master', 'Profit', 'Profit switching process died, spawning replacement...');
-        setTimeout(() => {
-            startProfitSwitch();
-        }, 2000);
-    });
-};
-
-
-
 /**
  * Application Bootstrap and Initialization
  * 
@@ -1086,8 +1019,6 @@ const startProfitSwitch = function () {
     startPaymentProcessor();
 
     startWebsite();
-
-    startProfitSwitch();
 
     startCliListener();
 

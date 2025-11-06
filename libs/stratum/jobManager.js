@@ -21,7 +21,7 @@
 const events = require('events');
 const crypto = require('crypto');
 
-const bignum = require('bignum');
+// Use native BigInt instead of the old 'bignum' dependency
 
 const util = require('./util.js');
 const blockTemplate = require('./blockTemplate.js');
@@ -735,8 +735,18 @@ const JobManager = module.exports = function JobManager(options) {
         };
 
         // Convert hash to big number for difficulty calculations
-        // Use little-endian format as that's how blockchain difficulty is calculated
-        const headerBigNum = bignum.fromBuffer(headerHash, { endian: 'little', size: 32 });
+        // Convert hash to native BigInt (little-endian) for difficulty calculations
+        // This preserves behavior of previous bignum.fromBuffer(headerHash, { endian: 'little', size: 32 })
+        function bufferToBigIntLE(buf) {
+            // Read buffer as little-endian and convert to BigInt
+            let res = 0n;
+            for (let i = buf.length - 1; i >= 0; i--) {
+                res = (res << 8n) + BigInt(buf[i]);
+            }
+            return res;
+        }
+
+        const headerBigInt = bufferToBigIntLE(headerHash);
 
         let blockHashInvalid;
         let blockHash;
@@ -745,7 +755,22 @@ const JobManager = module.exports = function JobManager(options) {
         // Calculate share difficulty using the standard formula
         // diff1 is the base difficulty (defined globally in algoProperties.js)
         // Lower hash values = higher difficulty shares
-        const shareDiff = diff1 / headerBigNum.toNumber() * shareMultiplier;
+        // diff1 is a Number; headerBigInt is BigInt. To compute share difficulty as a Number,
+        // convert headerBigInt to a Number when safe. If headerBigInt exceeds Number.MAX_SAFE_INTEGER,
+        // use a floating-point division on approximated values by using hex string slices.
+        function bigIntToNumberSafe(big) {
+            const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
+            if (big <= maxSafe) return Number(big);
+            // Approximate by shifting down to fit in safe range while preserving ratio
+            const hexLen = big.toString(16).length;
+            const nibbleShift = Math.max(0, hexLen - 12); // number of hex nibbles to shift down
+            const shiftBits = BigInt(nibbleShift) * 4n;
+            const shifted = big >> shiftBits;
+            return Number(shifted) * Math.pow(2, Number(shiftBits));
+        }
+
+        const headerNumApprox = bigIntToNumberSafe(headerBigInt);
+        const shareDiff = diff1 / headerNumApprox * shareMultiplier;
         const blockDiffAdjusted = job.difficulty * shareMultiplier;
 
         // Validate the proof-of-work solution using algorithm-specific verification
@@ -763,14 +788,39 @@ const JobManager = module.exports = function JobManager(options) {
             target = job.merged_target;
         }
 
+        // Helper to coerce various target formats to BigInt (Buffer, hex string, number, bignum-like)
+        function anyToBigInt(v) {
+            if (v === undefined || v === null) return 0n;
+            if (typeof v === 'bigint') return v;
+            if (typeof v === 'number') return BigInt(v);
+            if (Buffer.isBuffer(v)) return bufferToBigIntLE(v);
+            if (typeof v === 'string') {
+                // assume hex string
+                const buf = Buffer.from(v, 'hex');
+                return bufferToBigIntLE(buf);
+            }
+            // Try to use object's toString representation (e.g., previous bignum objects)
+            try {
+                const s = v.toString();
+                if (/^[0-9]+$/.test(s)) return BigInt(s);
+                const buf = Buffer.from(s, 'hex');
+                return bufferToBigIntLE(buf);
+            } catch (e) {
+                return 0n;
+            }
+        }
+
         // Check if this share qualifies as a block candidate
-        if (headerBigNum.le(target)) {
+        const targetBigInt = anyToBigInt(target);
+        const jobTargetBigInt = anyToBigInt(job.target);
+
+        if (headerBigInt <= targetBigInt) {
             // Hash meets target difficulty - this is a potential block!
             blockHex = job.serializeBlock(headerBuffer, Buffer.from(soln, 'hex')).toString('hex');
             blockHash = util.reverseBuffer(headerHash).toString('hex');
 
             // Check if this only meets PBaaS target but not main chain target
-            if (!headerBigNum.le(job.target)) {
+            if (!(headerBigInt <= jobTargetBigInt)) {
                 isOnlyPBaaS = true;
             }
         } else {
