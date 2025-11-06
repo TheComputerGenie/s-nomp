@@ -30,7 +30,10 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const watch = require('node-watch');
+// Use native fs.watch instead of the external `node-watch` package.
+// We implement a tiny compatibility wrapper `watchPaths` that calls the
+// supplied callback with a single path argument (similar to older
+// node-watch behavior) so the rest of the file can remain unchanged.
 const redis = require('redis');
 
 const dot = require('dot');
@@ -247,20 +250,41 @@ module.exports = function (logger) {
      * Monitors HTML template files for changes and automatically reloads them.
      * This enables hot-reloading of templates during development without
      * requiring a server restart.
-     * 
-     * @requires node-watch 0.5.0 or newer for proper filename detection
+     *  @function watchPaths
+     * @param {string[]} pathsToWatch - Array of directory paths to monitor
+     * @param {Function} cb - Callback function to invoke on file changes
+     * @returns {void}
      */
-    watch(['./website', './website/pages'], (evt, filename) => {
-        let basename;
+    // Native watcher wrapper using fs.watch
+    const watchPaths = function (pathsToWatch, cb) {
+        pathsToWatch.forEach((watchPath) => {
+            try {
+                fs.watch(watchPath, { persistent: true }, (eventType, filename) => {
+                    // `filename` may be null on some platforms/edits; attempt to
+                    // construct a sensible path. We call the callback with a
+                    // single argument (full path if available) to match the
+                    // older node-watch behavior used below.
+                    let fullPath = null;
+                    if (filename) {
+                        fullPath = path.join(watchPath, filename);
+                    }
 
-        // Handle different node-watch API versions for backward compatibility
-        if (!filename && evt) {
-            // Older versions of node-watch pass filename as first parameter
-            basename = path.basename(evt);
-        } else {
-            // Newer versions pass filename as second parameter
-            basename = path.basename(filename);
-        }
+                    // If filename isn't provided, fall back to the watched path
+                    // this allows the downstream handler to at least inspect the
+                    // basename and decide what to do.
+                    cb(fullPath || watchPath);
+                });
+            } catch (e) {
+                logger.error(logSystem, 'Watch', `Failed to watch path ${watchPath} - ${e}`);
+            }
+        });
+    };
+
+    // Start watching template directories for changes. When a file changes
+    // call the same handler logic as before (we pass a single path-like
+    // argument so the existing basename extraction works).
+    watchPaths(['./website', './website/pages'], (evtPath) => {
+        const basename = path.basename(evtPath);
 
         // Only reload files that are defined in our pageFiles mapping
         if (basename in pageFiles) {
