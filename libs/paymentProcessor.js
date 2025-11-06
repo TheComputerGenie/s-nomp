@@ -444,7 +444,7 @@ class PaymentProcessor {
             rounds.forEach(r => {
                 if (r.category === 'generate') {
                     r.category = 'immature';
-                } 
+                }
             });
             return { workersWithRewards: workers, finalRounds: rounds };
         }
