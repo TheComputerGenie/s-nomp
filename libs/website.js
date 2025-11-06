@@ -10,235 +10,9 @@ const util = require('./stratum/util.js');
 const api = require('./api.js');
 const CreateRedisClient = require('./createRedisClient.js');
 const PoolLogger = require('./logUtil.js');
-const { safeParseEnvJSON } = require('./poolUtil.js');
+const { safeParseEnvJSON, watchPaths, serveStatic, createMiniApp } = require('./webUtil.js');
 
-function serveStatic(root) {
-    const rootAbs = path.resolve(root);
-    const extMime = {
-        '.html': 'text/html; charset=utf-8',
-        '.js': 'application/javascript; charset=utf-8',
-        '.css': 'text/css; charset=utf-8',
-        '.json': 'application/json; charset=utf-8',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.svg': 'image/svg+xml',
-        '.ico': 'image/x-icon'
-    };
 
-    return (req, res, next) => {
-        try {
-            const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
-            if (!pathname.startsWith('/static')) {
-                return next();
-            }
-            const rel = decodeURIComponent(pathname.replace(/^\/static\//, ''));
-            const fsPath = path.resolve(rootAbs, rel);
-            const relCheck = path.relative(rootAbs, fsPath);
-            if (relCheck.startsWith('..') || path.isAbsolute(relCheck)) {
-                return next();
-            }
-
-            fs.stat(fsPath, (err, stats) => {
-                if (err || !stats.isFile()) {
-                    return next();
-                }
-                const ext = path.extname(fsPath).toLowerCase();
-                const mt = extMime[ext] || 'application/octet-stream';
-                try {
-                    res.setHeader('Content-Type', mt);
-                } catch (e) { }
-                try {
-                    res.setHeader('Cache-Control', 'public, max-age=3600');
-                } catch (e) { }
-                try {
-                    res.setHeader('Content-Length', String(stats.size));
-                } catch (e) { }
-
-                const smallExts = ['.js', '.css', '.html', '.json'];
-                const SMALL_THRESHOLD = 256 * 1024;
-                if (stats.size <= SMALL_THRESHOLD && smallExts.indexOf(ext) !== -1) {
-                    fs.readFile(fsPath, (rfErr, data) => {
-                        if (rfErr) {
-                            return next();
-                        }
-                        try {
-                            res.setHeader('Content-Length', String(data.length));
-                        } catch (e) { }
-                        try {
-                            return res.end(data);
-                        } catch (e) {
-                            return next();
-                        }
-                    });
-                    return;
-                }
-
-                const stream = fs.createReadStream(fsPath);
-                const onClose = () => {
-                    try {
-                        stream.destroy();
-                    } catch (e) { }
-                };
-                res.on('close', onClose);
-                const onResError = (rErr) => {
-                    try {
-                        stream.destroy();
-                    } catch (e) { }
-                };
-                const onResFinish = () => {
-                    try {
-                        stream.destroy();
-                    } catch (e) { }
-                };
-                res.on('error', onResError);
-                res.on('finish', onResFinish);
-                stream.on('error', (sErr) => {
-                    try {
-                        if (!res.headersSent) {
-                            res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-                        }
-                    } catch (e) { }
-                    try {
-                        if (!res.writableEnded && !res.finished) {
-                            res.end('Internal Server Error');
-                        }
-                    } catch (e) { }
-                });
-
-                pipeline(stream, res, (err) => {
-                    try {
-                        res.removeListener('close', onClose);
-                    } catch (e) { }
-                    try {
-                        res.removeListener('error', onResError);
-                    } catch (e) { }
-                    try {
-                        res.removeListener('finish', onResFinish);
-                    } catch (e) { }
-                    if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
-                        try {
-                            if (!res.headersSent) {
-                                res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-                            }
-                        } catch (e) { }
-                        try {
-                            if (!res.writableEnded && !res.finished) {
-                                res.end('Internal Server Error');
-                            }
-                        } catch (e) { }
-                    }
-                });
-                return;
-            });
-        } catch (e) {
-            return next();
-        }
-    };
-}
-
-function createMiniApp() {
-    const middlewares = [];
-    const routes = [];
-
-    function registerRoute(method, pathPattern, handler) {
-        const parts = pathPattern.split('/').filter(Boolean);
-        const paramNames = [];
-        const regexParts = parts.map(p => {
-            if (p.startsWith(':')) {
-                paramNames.push(p.slice(1)); return '([^/]+)';
-            }
-            return p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        });
-        const regex = new RegExp(`^/${regexParts.join('/')}$`);
-        routes.push({ method, pathPattern, regex, paramNames, handler });
-    }
-
-    const handler = (req, res) => {
-        try {
-            req.query = Object.fromEntries(new URL(req.url, `http://${req.headers.host || 'localhost'}`).searchParams.entries()); 
-        } catch (e) {
-            req.query = {}; 
-        }
-        req.params = {};
-        req.get = (h) => req.headers[h.toLowerCase()];
-        res.header = (n, v) => res.setHeader(n, v);
-        res.flush = () => {
-            try {
-                if (typeof res.flushHeaders === 'function') {
-                    res.flushHeaders();
-                } 
-            } catch (e) { } 
-        };
-
-        const handlers = [];
-        middlewares.forEach(mw => handlers.push(mw));
-
-        const method = (req.method || 'GET').toUpperCase();
-        const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
-        for (const r of routes) {
-            if (r.method !== method) {
-                continue;
-            }
-            const match = pathname.match(r.regex);
-            if (match) {
-                r.paramNames.forEach((n, i) => req.params[n] = match[i + 1]);
-                handlers.push(r.handler);
-                break;
-            }
-        }
-
-        let idx = 0;
-        const next = (err) => {
-            if (err) {
-                const h = handlers[idx++];
-                if (!h) {
-                    if (!res.headersSent) {
-                        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-                    } return res.end('Something broke!');
-                }
-                if (h.length === 4) {
-                    return h(err, req, res, next);
-                }
-                return next(err);
-            }
-            const h = handlers[idx++];
-            if (!h) {
-                if (!res.headersSent) {
-                    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-                } return res.end('Not Found');
-            }
-            if (h.length === 4) {
-                return next();
-            }
-            try {
-                return h(req, res, next);
-            } catch (e) {
-                return next(e);
-            }
-        };
-        next();
-    };
-
-    handler.get = (p, h) => registerRoute('GET', p, h);
-    handler.post = (p, h) => registerRoute('POST', p, h);
-    handler.use = (a, b) => {
-        if (typeof a === 'string' && typeof b === 'function') {
-            middlewares.push((req, res, next) => {
-                try {
-                    const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname; if (pathname.startsWith(a)) {
-                        return b(req, res, next);
-                    }
-                } catch (e) { }
-                return next();
-            });
-        } else if (typeof a === 'function') {
-            middlewares.push(a);
-        }
-    };
-    handler.listen = (port, host, cb) => http.createServer(handler).listen(port, host, cb);
-    return handler;
-}
 
 const dot = (function () {
     const api = {};
@@ -284,7 +58,7 @@ const dot = (function () {
                         const idxName = bits[2] || (`_i${loopCounter}`);
                         const arrVar = `__arr${loopCounter}`;
                         loopCounter++;
-                        code += `var ${arrVar} = (${arrExpr}) || []; for (var ${idxName} = 0; ${idxName} < ${arrVar}.length; ${idxName}++) { var ${valName} = ${arrVar}[${idxName}];\n`;
+                        code += `const ${arrVar} = (${arrExpr}) || []; for (let ${idxName} = 0; ${idxName} < ${arrVar}.length; ${idxName}++) { const ${valName} = ${arrVar}[${idxName}];\n`;
                     }
                 } else {
                     code += `${s}\n`;
@@ -319,14 +93,21 @@ const dot = (function () {
 dot.templateSettings.strip = false;
 
 
+/**
+ * Initialize and start the website server for the portal.
+ * Reads templates, serves static assets, and wires API endpoints.
+ * This function is called from the main init script.
+ *
+ * No arguments; configuration is read from environment via safeParseEnvJSON('portalConfig').
+ */
 module.exports = function () {
-    const portalConfig = safeParseEnvJSON('portalConfig');
+    const portalConfig = safeParseEnvJSON('portalConfig') || {};
 
     const logger = new PoolLogger({ logLevel: portalConfig.logLevel, logColors: portalConfig.logColors });
-    const poolConfigs = safeParseEnvJSON('pools');
-    const websiteConfig = portalConfig.website;
+    const poolConfigs = safeParseEnvJSON('pools') || {};
+    const websiteConfig = (portalConfig && portalConfig.website) ? portalConfig.website : {};
     const portalApi = new api(logger, portalConfig, poolConfigs);
-    const portalStats = portalApi.stats;
+    const portalStats = portalApi.stats || {};
     const logSystem = 'Website';
 
 
@@ -352,7 +133,8 @@ module.exports = function () {
 
     const readPageFiles = function (files) {
         Promise.all(files.map(fileName => new Promise((resolve, reject) => {
-            const filePath = `website/${fileName === 'index.html' ? '' : 'pages/'}${fileName}`;
+            const relPath = `website/${fileName === 'index.html' ? '' : 'pages/'}${fileName}`;
+            const filePath = path.join(__dirname, '..', relPath);
             fs.readFile(filePath, 'utf8', (err, data) => {
                 if (err) {
                     logger.error(logSystem, 'Template', `Failed to read template file: ${filePath}`);
@@ -377,14 +159,14 @@ module.exports = function () {
 
 
     const processTemplates = function () {
-        for (const pageName in pageTemplates) {
+        Object.keys(pageTemplates).forEach((pageName) => {
             if (pageName === 'index') {
-                continue;
+                return;
             }
             const tpl = pageTemplates[pageName];
             if (typeof tpl !== 'function') {
                 logger.error(logSystem, 'Template', `Template for page ${pageName} is not a function`);
-                continue;
+                return;
             }
             try {
                 pageProcessed[pageName] = tpl({ poolsConfigs: poolConfigs, stats: portalStats.stats, portalConfig: portalConfig });
@@ -403,27 +185,13 @@ module.exports = function () {
                 logger.error(logSystem, 'Template', 'Index template missing; serving raw page content');
                 indexesProcessed[pageName] = pageProcessed[pageName];
             }
-        }
-    };
-
-
-    const watchPaths = function (pathsToWatch, cb) {
-        pathsToWatch.forEach((watchPath) => {
-            try {
-                fs.watch(watchPath, { persistent: true }, (eventType, filename) => {
-                    let fullPath = null;
-                    if (filename) {
-                        fullPath = path.join(watchPath, filename);
-                    }
-                    cb(fullPath || watchPath);
-                });
-            } catch (e) {
-                logger.error(logSystem, 'Watch', `Failed to watch path ${watchPath} - ${e}`);
-            }
         });
     };
 
-    watchPaths(['./website', './website/pages'], (evtPath) => {
+
+
+
+    watchPaths(['website', 'website/pages'], (evtPath) => {
         const basename = path.basename(evtPath);
         if (basename in pageFiles) {
             readPageFiles([basename]);
@@ -437,16 +205,24 @@ module.exports = function () {
     const buildKeyScriptPage = async function () {
         try {
             const { client, coinBytes } = await new Promise((resolve, reject) => {
-                const client = CreateRedisClient(portalConfig.redis);
-                if (portalConfig.redis.password) {
-                    client.auth(portalConfig.redis.password);
-                }
-                client.hgetall('coinVersionBytes', (err, coinBytes) => {
-                    if (err) {
-                        client.quit(); reject(`Failed grabbing coin version bytes from redis ${JSON.stringify(err)}`); return;
+                try {
+                    const redisConf = portalConfig.redis || {};
+                    const client = CreateRedisClient(redisConf);
+                    if (redisConf && redisConf.password && typeof client.auth === 'function') {
+                        client.auth(redisConf.password);
                     }
-                    resolve({ client, coinBytes: coinBytes || {} });
-                });
+                    client.hgetall('coinVersionBytes', (err, coinBytes) => {
+                        if (err) {
+                            try {
+                                client.quit();
+                            } catch (e) { }
+                            reject(`Failed grabbing coin version bytes from redis ${JSON.stringify(err)}`); return;
+                        }
+                        resolve({ client, coinBytes: coinBytes || {} });
+                    });
+                } catch (e) {
+                    reject(e);
+                }
             });
 
             const enabledCoins = Object.keys(poolConfigs).map((c) => c.toLowerCase());
@@ -460,12 +236,16 @@ module.exports = function () {
             const coinsForRedis = {};
             await Promise.all(missingCoins.map(c => new Promise((resolve) => {
                 const coinInfo = (function () {
-                    for (const pName in poolConfigs) {
+                    return Object.keys(poolConfigs).reduce((acc, pName) => {
                         if (pName.toLowerCase() === c) {
-                            return { daemon: poolConfigs[pName].paymentProcessing.daemon, address: poolConfigs[pName].address };
+                            return { daemon: poolConfigs[pName].paymentProcessing && poolConfigs[pName].paymentProcessing.daemon, address: poolConfigs[pName].address };
                         }
-                    }
+                        return acc;
+                    }, null);
                 })();
+                if (!coinInfo || !coinInfo.daemon || !coinInfo.address) {
+                    resolve(); return;
+                }
                 const daemon = new Stratum.daemon.interface([coinInfo.daemon], ((severity, message) => {
                     logger[severity](logSystem, c, message);
                 }));
@@ -492,7 +272,8 @@ module.exports = function () {
             }
             client.quit();
             try {
-                keyScriptTemplate = dot.template(fs.readFileSync('website/key.html', { encoding: 'utf8' }));
+                const keyPath = path.join(__dirname, '..', 'website', 'key.html');
+                keyScriptTemplate = dot.template(fs.readFileSync(keyPath, { encoding: 'utf8' }));
                 keyScriptProcessed = keyScriptTemplate({ coins: coinBytes });
             } catch (e) {
                 logger.error(logSystem, 'Init', 'Failed to read key.html file');
@@ -504,20 +285,31 @@ module.exports = function () {
     buildKeyScriptPage();
 
     const buildUpdatedWebsite = function () {
-        portalStats.getGlobalStats(() => {
-            processTemplates();
-            const statData = `data: ${JSON.stringify(portalStats.stats)}\n\n`;
-            for (const uid in portalApi.liveStatConnections) {
-                const res = portalApi.liveStatConnections[uid];
-                try {
-                    if (res && !res.writableEnded && !res.finished) {
-                        res.write(statData);
-                    }
-                } catch (e) { }
-            }
-        });
+        try {
+            portalStats.getGlobalStats(() => {
+                processTemplates();
+                const statData = `data: ${JSON.stringify(portalStats.stats || {})}\n\n`;
+                for (const uid in (portalApi.liveStatConnections || {})) {
+                    const res = portalApi.liveStatConnections[uid];
+                    try {
+                        if (res && !res.writableEnded && !res.finished) {
+                            res.write(statData);
+                        }
+                    } catch (e) { }
+                }
+            });
+        } catch (e) {
+            logger.error(logSystem, 'Server', `Error updating website stats: ${e}`);
+        }
     };
-    setInterval(buildUpdatedWebsite, websiteConfig.stats.updateInterval * 1000);
+    // normalize interval and provide a safe default
+    const statsIntervalSec = (websiteConfig && websiteConfig.stats && Number(websiteConfig.stats.updateInterval)) ? Number(websiteConfig.stats.updateInterval) : 10;
+    const _statsInterval = setInterval(buildUpdatedWebsite, Math.max(1, statsIntervalSec) * 1000);
+    if (typeof _statsInterval.unref === 'function') {
+        try {
+            _statsInterval.unref();
+        } catch (e) { }
+    }
 
     const getPage = function (pageId) {
         if (pageId in pageProcessed) {
@@ -610,7 +402,7 @@ module.exports = function () {
     });
 
     app.post('/api/admin/:method', (req, res, next) => {
-        if (portalConfig.website && portalConfig.website.adminCenter && portalConfig.website.adminCenter.enabled) {
+        if (websiteConfig && websiteConfig.adminCenter && websiteConfig.adminCenter.enabled) {
             let bodyRaw = '';
             req.setEncoding('utf8');
             req.on('data', (c) => {
@@ -623,7 +415,7 @@ module.exports = function () {
                 } catch (e) {
                     parsed = {};
                 }
-                if (portalConfig.website.adminCenter.password === parsed.password) {
+                if (websiteConfig.adminCenter.password === parsed.password) {
                     portalApi.handleAdminApiRequest(req, res, next);
                 } else {
                     try {
@@ -651,18 +443,20 @@ module.exports = function () {
     });
 
     try {
-        if (portalConfig.website.tlsOptions && portalConfig.website.tlsOptions.enabled === true) {
-            const TLSoptions = { key: fs.readFileSync(portalConfig.website.tlsOptions.key), cert: fs.readFileSync(portalConfig.website.tlsOptions.cert) };
-            https.createServer(TLSoptions, app).listen(portalConfig.website.port, portalConfig.website.host, () => {
-                logger.debug(logSystem, 'Server', `TLS Website started on ${portalConfig.website.host}:${portalConfig.website.port}`);
+        const host = (websiteConfig && websiteConfig.host) ? websiteConfig.host : '0.0.0.0';
+        const port = (websiteConfig && websiteConfig.port) ? websiteConfig.port : 80;
+        if (websiteConfig.tlsOptions && websiteConfig.tlsOptions.enabled === true) {
+            const TLSoptions = { key: fs.readFileSync(websiteConfig.tlsOptions.key), cert: fs.readFileSync(websiteConfig.tlsOptions.cert) };
+            https.createServer(TLSoptions, app).listen(port, host, () => {
+                logger.debug(logSystem, 'Server', `TLS Website started on ${host}:${port}`);
             });
         } else {
-            app.listen(portalConfig.website.port, portalConfig.website.host, () => {
-                logger.debug(logSystem, 'Server', `Website started on ${portalConfig.website.host}:${portalConfig.website.port}`);
+            app.listen(port, host, () => {
+                logger.debug(logSystem, 'Server', `Website started on ${host}:${port}`);
             });
         }
     } catch (e) {
-        logger.error(logSystem, 'Server', `Could not start website on ${portalConfig.website.host}:${portalConfig.website.port} - ${e && e.message}`);
+        logger.error(logSystem, 'Server', `Could not start website on ${host}:${port} - ${e && e.message}`);
     }
 
 };
