@@ -44,6 +44,6 @@
     "scripts": {
         "build-verushash": "cd libs/verushash && node-gyp rebuild",
         "postinstall": "cd libs/verushash && node-gyp rebuild",
-        "start": "NODE_PATH=$NODE_PATH:$PWD/libs/verushash/build/Release/ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/node_modules/equihashverify/build/Release/:$PWD/libs/verushash/build/Release/ node init.js"
+        "start": "NODE_PATH=$NODE_PATH:$PWD/libs/verushash/build/Release/ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/libs/verushash/build/Release/ node init.js"
     }
 }
