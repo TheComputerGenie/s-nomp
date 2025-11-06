@@ -86,7 +86,97 @@ const COIN_CONSTANTS = require('./libs/coinConstants.js');
  * JSON minify utility for removing comments and whitespace from JSON strings.
  * This allows configuration files to contain comments while still being parseable.
  */
-JSON.minify = JSON.minify || require('node-json-minify');
+// Provide a native JSON.minify implementation to remove the dependency on
+// the external `node-json-minify` package. This implementation strips
+// single-line (//...) and multi-line (/* ... */) comments and removes
+// trailing commas in objects and arrays while preserving string literals.
+// It aims to be a drop-in replacement for typical configuration files
+// that may include comments and trailing commas.
+JSON.minify = JSON.minify || function (text) {
+    if (typeof text !== 'string') {
+        return text;
+    }
+
+    let insideString = false;
+    let insideSingleLineComment = false;
+    let insideMultiLineComment = false;
+    let offset = 0;
+    let result = '';
+
+    while (offset < text.length) {
+        const char = text[offset];
+        const nextChar = text[offset + 1];
+
+        if (insideSingleLineComment) {
+            if (char === '\n') {
+                insideSingleLineComment = false;
+                result += char;
+            }
+            offset++;
+            continue;
+        }
+
+        if (insideMultiLineComment) {
+            if (char === '*' && nextChar === '/') {
+                insideMultiLineComment = false;
+                offset += 2;
+                continue;
+            }
+            offset++;
+            continue;
+        }
+
+        if (insideString) {
+            if (char === '\\') {
+                // escape sequence, include next char as well
+                result += char;
+                offset++;
+                if (offset < text.length) {
+                    result += text[offset];
+                }
+            } else if (char === '"') {
+                insideString = false;
+                result += char;
+            } else {
+                result += char;
+            }
+            offset++;
+            continue;
+        }
+
+        // Not inside string or comment
+        if (char === '"') {
+            insideString = true;
+            result += char;
+            offset++;
+            continue;
+        }
+
+        // single-line comment
+        if (char === '/' && nextChar === '/') {
+            insideSingleLineComment = true;
+            offset += 2;
+            continue;
+        }
+
+        // multi-line comment
+        if (char === '/' && nextChar === '*') {
+            insideMultiLineComment = true;
+            offset += 2;
+            continue;
+        }
+
+        result += char;
+        offset++;
+    }
+
+    // Remove trailing commas before } or ]
+    // This regex finds a comma followed by optional whitespace and then a closing }
+    // or ] and removes the comma.
+    result = result.replace(/,\s*(\}|\])/g, '$1');
+
+    return result;
+};
 
 /**
  * Validate that the main configuration file exists before attempting to load it.
