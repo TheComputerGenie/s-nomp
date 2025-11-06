@@ -371,9 +371,9 @@ module.exports = function (logger) {
 
                     }).listen(parseInt(port), () => {
                         logger.debug(logSystem, logComponent, logSubCat, `Switching "${switchName
-                            }" listening for ${algorithm
-                            } on port ${port
-                            } into ${proxySwitch[switchName].currentPool}`);
+                        }" listening for ${algorithm
+                        } on port ${port
+                        } into ${proxySwitch[switchName].currentPool}`);
                     });
                     proxySwitch[switchName].servers.push(f);
                 });

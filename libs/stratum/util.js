@@ -31,9 +31,13 @@ function bufferToBigInt(buff) {
 
 // Convert a non-negative BigInt to a minimal big-endian Buffer (no leading zeros)
 function bigIntToBuffer(n) {
-    if (n === 0n) return Buffer.from([0]);
+    if (n === 0n) {
+        return Buffer.from([0]);
+    }
     let hex = n.toString(16);
-    if (hex.length % 2) hex = '0' + hex;
+    if (hex.length % 2) {
+        hex = `0${  hex}`;
+    }
     return Buffer.from(hex, 'hex');
 }
 
@@ -138,14 +142,21 @@ exports.base58Decode = string => {
     }
     const BASE = ALPHABET.length;
 
-    if (string.length === 0) return [];
+    if (string.length === 0) {
+        return [];
+    }
 
-    let i, j, bytes = [0];
+    let i, j;
+    const bytes = [0];
     for (i = 0; i < string.length; ++i) {
         const c = string[i];
-        if (!(c in ALPHABET_MAP)) throw new Error('Non-base58 character');
+        if (!(c in ALPHABET_MAP)) {
+            throw new Error('Non-base58 character');
+        }
 
-        for (j = 0; j < bytes.length; ++j) bytes[j] *= BASE;
+        for (j = 0; j < bytes.length; ++j) {
+            bytes[j] *= BASE;
+        }
         bytes[0] += ALPHABET_MAP[c];
 
         let carry = 0;

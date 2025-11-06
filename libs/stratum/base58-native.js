@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 /*
 Copyright (c) 2018-2025 ComputerGenieCo
 Copyright 2013 BitPay, Inc.
@@ -18,155 +18,173 @@ const ALPHABET_ZERO = ALPHABET[0];
 const ALPHABET_BUF = Buffer.from(ALPHABET, 'ascii');
 const ALPHABET_INV = {};
 for (let i = 0; i < ALPHABET.length; i++) {
-  ALPHABET_INV[ALPHABET[i]] = i;
+    ALPHABET_INV[ALPHABET[i]] = i;
 }
 
 // Helper: convert Buffer (big-endian) to native BigInt
 function bufferToBigInt(buf) {
-  let result = 0n;
-  for (let i = 0; i < buf.length; i++) {
-    result = (result << 8n) + BigInt(buf[i]);
-  }
-  return result;
+    let result = 0n;
+    for (let i = 0; i < buf.length; i++) {
+        result = (result << 8n) + BigInt(buf[i]);
+    }
+    return result;
 }
 
 // Helper: convert BigInt to minimal Buffer (big-endian). Returns empty Buffer for 0n.
 function bigIntToBuffer(num) {
-  if (num === 0n) return Buffer.alloc(0);
-  const parts = [];
-  let n = num;
-  while (n > 0n) {
-    parts.push(Number(n & 0xffn));
-    n = n >> 8n;
-  }
-  // parts are little-endian, convert to big-endian
-  const buf = Buffer.alloc(parts.length);
-  for (let j = 0; j < parts.length; j++) {
-    buf[j] = parts[parts.length - 1 - j];
-  }
-  return buf;
+    if (num === 0n) {
+        return Buffer.alloc(0);
+    }
+    const parts = [];
+    let n = num;
+    while (n > 0n) {
+        parts.push(Number(n & 0xffn));
+        n = n >> 8n;
+    }
+    // parts are little-endian, convert to big-endian
+    const buf = Buffer.alloc(parts.length);
+    for (let j = 0; j < parts.length; j++) {
+        buf[j] = parts[parts.length - 1 - j];
+    }
+    return buf;
 }
 
 // Vanilla Base58 Encoding
-var base58 = {
-  encode: function (buf) {
+const base58 = {
+    encode: function (buf) {
     // accept strings (utf8/hex) or Buffer - coerce to Buffer
-    if (typeof buf === 'string') buf = Buffer.from(buf, 'utf8');
-    if (!Buffer.isBuffer(buf)) throw new TypeError('encode expects a Buffer or string');
+        if (typeof buf === 'string') {
+            buf = Buffer.from(buf, 'utf8');
+        }
+        if (!Buffer.isBuffer(buf)) {
+            throw new TypeError('encode expects a Buffer or string');
+        }
 
-    let str;
-    let x = bufferToBigInt(buf);
-    let r;
+        let str;
+        let x = bufferToBigInt(buf);
+        let r;
 
-    if (buf.length < 512) {
-      str = globalBuffer;
-    } else {
-      str = Buffer.alloc(buf.length << 1);
-    }
-    let i = str.length - 1;
-    while (x > 0n) {
-      // use BigInt division/mod
-      const mod = x % 58n;
-      r = Number(mod);
-      x = x / 58n;
-      str[i] = ALPHABET_BUF[r];
-      i--;
-    }
+        if (buf.length < 512) {
+            str = globalBuffer;
+        } else {
+            str = Buffer.alloc(buf.length << 1);
+        }
+        let i = str.length - 1;
+        while (x > 0n) {
+            // use BigInt division/mod
+            const mod = x % 58n;
+            r = Number(mod);
+            x = x / 58n;
+            str[i] = ALPHABET_BUF[r];
+            i--;
+        }
 
-    // deal with leading zeros
-    let j = 0;
-    while (buf[j] === 0) {
-      str[i] = ALPHABET_BUF[0];
-      j++; i--;
-    }
+        // deal with leading zeros
+        let j = 0;
+        while (buf[j] === 0) {
+            str[i] = ALPHABET_BUF[0];
+            j++; i--;
+        }
 
-    return str.subarray(i + 1, str.length).toString('ascii');
-  },
+        return str.subarray(i + 1, str.length).toString('ascii');
+    },
 
-  decode: function (str) {
-    if (typeof str !== 'string') throw new TypeError('decode expects a base58 string');
-    if (str.length === 0) return zerobuf;
+    decode: function (str) {
+        if (typeof str !== 'string') {
+            throw new TypeError('decode expects a base58 string');
+        }
+        if (str.length === 0) {
+            return zerobuf;
+        }
 
-    // validate characters
-    for (let k = 0; k < str.length; k++) {
-      if (ALPHABET_INV[str[k]] === undefined) throw new Error('invalid base58 character');
-    }
+        // validate characters
+        for (let k = 0; k < str.length; k++) {
+            if (ALPHABET_INV[str[k]] === undefined) {
+                throw new Error('invalid base58 character');
+            }
+        }
 
-    let answer = 0n;
-    for (let i = 0; i < str.length; i++) {
-      answer = answer * 58n + BigInt(ALPHABET_INV[str[i]]);
-    }
-    let i = 0;
-    while (i < str.length && str[i] === ALPHABET_ZERO) {
-      i++;
-    }
-    if (i > 0) {
-      const zb = Buffer.alloc(i);
-      zb.fill(0);
-      if (i === str.length) return zb;
-      const answerBuf = bigIntToBuffer(answer);
-      return Buffer.concat([zb, answerBuf], i + answerBuf.length);
-    } else {
-      return bigIntToBuffer(answer);
-    }
-  },
+        let answer = 0n;
+        for (let i = 0; i < str.length; i++) {
+            answer = answer * 58n + BigInt(ALPHABET_INV[str[i]]);
+        }
+        let i = 0;
+        while (i < str.length && str[i] === ALPHABET_ZERO) {
+            i++;
+        }
+        if (i > 0) {
+            const zb = Buffer.alloc(i);
+            zb.fill(0);
+            if (i === str.length) {
+                return zb;
+            }
+            const answerBuf = bigIntToBuffer(answer);
+            return Buffer.concat([zb, answerBuf], i + answerBuf.length);
+        } else {
+            return bigIntToBuffer(answer);
+        }
+    },
 };
 
 // Base58Check Encoding
 function sha256(data) {
-  return crypto.createHash('sha256').update(data).digest();
+    return crypto.createHash('sha256').update(data).digest();
 };
 
 function doubleSHA256(data) {
-  return sha256(sha256(data));
+    return sha256(sha256(data));
 };
 
 const base58Check = {
-  encode: function (buf) {
-    if (!Buffer.isBuffer(buf)) throw new TypeError('base58Check.encode expects a Buffer');
-    const checkedBuf = Buffer.alloc(buf.length + 4);
-    const hash = doubleSHA256(buf);
-    buf.copy(checkedBuf, 0);
-    hash.copy(checkedBuf, buf.length);
-    return base58.encode(checkedBuf);
-  },
+    encode: function (buf) {
+        if (!Buffer.isBuffer(buf)) {
+            throw new TypeError('base58Check.encode expects a Buffer');
+        }
+        const checkedBuf = Buffer.alloc(buf.length + 4);
+        const hash = doubleSHA256(buf);
+        buf.copy(checkedBuf, 0);
+        hash.copy(checkedBuf, buf.length);
+        return base58.encode(checkedBuf);
+    },
 
-  decode: function (s) {
-    const buf = base58.decode(s);
-    if (buf.length < 4) {
-      throw new Error("invalid input: too short");
-    }
+    decode: function (s) {
+        const buf = base58.decode(s);
+        if (buf.length < 4) {
+            throw new Error('invalid input: too short');
+        }
 
-    const data = buf.subarray(0, -4);
-    const csum = buf.subarray(-4);
+        const data = buf.subarray(0, -4);
+        const csum = buf.subarray(-4);
 
-    const hash = doubleSHA256(data);
-    const hash4 = hash.subarray(0, 4);
+        const hash = doubleSHA256(data);
+        const hash4 = hash.subarray(0, 4);
 
-    // Use timingSafeEqual for constant-time comparison when lengths match
-    let match = false;
-    if (csum.length === hash4.length) {
-      try {
-        match = crypto.timingSafeEqual(csum, hash4);
-      } catch (e) {
-        match = false;
-      }
-    }
-    if (!match) {
-      throw new Error("checksum mismatch");
-    }
+        // Use timingSafeEqual for constant-time comparison when lengths match
+        let match = false;
+        if (csum.length === hash4.length) {
+            try {
+                match = crypto.timingSafeEqual(csum, hash4);
+            } catch (e) {
+                match = false;
+            }
+        }
+        if (!match) {
+            throw new Error('checksum mismatch');
+        }
 
-    // Return a copy to avoid returning a slice that might reference a larger buffer
-    return Buffer.from(data);
-  },
+        // Return a copy to avoid returning a slice that might reference a larger buffer
+        return Buffer.from(data);
+    },
 };
 
 // if you frequently do base58 encodings with data larger
 // than 512 bytes, you can use this method to expand the
 // size of the reusable buffer
 exports.setBuffer = function (buf) {
-  if (!Buffer.isBuffer(buf)) throw new TypeError('setBuffer expects a Buffer');
-  globalBuffer = buf;
+    if (!Buffer.isBuffer(buf)) {
+        throw new TypeError('setBuffer expects a Buffer');
+    }
+    globalBuffer = buf;
 };
 
 exports.base58 = base58;

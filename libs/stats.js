@@ -44,7 +44,9 @@ function runMulti(client, commands) {
     return new Promise((resolve, reject) => {
         try {
             client.multi(commands).exec((err, replies) => {
-                if (err) return reject(err);
+                if (err) {
+                    return reject(err);
+                }
                 resolve(replies);
             });
         } catch (e) {
@@ -57,34 +59,46 @@ function runMulti(client, commands) {
 // Provides `each(collection, iterator, done)` semantics similar to async.each.
 function each(collection, iterator, done) {
     if (!collection) {
-        if (done) done();
+        if (done) {
+            done();
+        }
         return;
     }
     const keys = Array.isArray(collection) ? collection.map((_, i) => i) : Object.keys(collection);
     let remaining = keys.length;
     if (remaining === 0) {
-        if (done) done();
+        if (done) {
+            done();
+        }
         return;
     }
     let finished = false;
     keys.forEach((k) => {
         try {
             iterator(collection[k], (err) => {
-                if (finished) return;
+                if (finished) {
+                    return;
+                }
                 if (err) {
                     finished = true;
-                    if (done) done(err);
+                    if (done) {
+                        done(err);
+                    }
                     return;
                 }
                 remaining -= 1;
                 if (remaining === 0) {
-                    if (done) done();
+                    if (done) {
+                        done();
+                    }
                 }
             });
         } catch (e) {
             if (!finished) {
                 finished = true;
-                if (done) done(e);
+                if (done) {
+                    done(e);
+                }
             }
         }
     });
@@ -1360,10 +1374,14 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                 }
 
                 // invoke caller callback
-                if (typeof callback === 'function') callback();
+                if (typeof callback === 'function') {
+                    callback();
+                }
             } catch (err) {
                 logger.error(logSystem, 'Global', `error getting all stats${JSON.stringify(err)}`);
-                if (typeof callback === 'function') callback();
+                if (typeof callback === 'function') {
+                    callback();
+                }
             }
         })();
 

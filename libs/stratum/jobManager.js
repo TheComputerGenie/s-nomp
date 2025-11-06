@@ -760,7 +760,9 @@ const JobManager = module.exports = function JobManager(options) {
         // use a floating-point division on approximated values by using hex string slices.
         function bigIntToNumberSafe(big) {
             const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
-            if (big <= maxSafe) return Number(big);
+            if (big <= maxSafe) {
+                return Number(big);
+            }
             // Approximate by shifting down to fit in safe range while preserving ratio
             const hexLen = big.toString(16).length;
             const nibbleShift = Math.max(0, hexLen - 12); // number of hex nibbles to shift down
@@ -790,10 +792,18 @@ const JobManager = module.exports = function JobManager(options) {
 
         // Helper to coerce various target formats to BigInt (Buffer, hex string, number, bignum-like)
         function anyToBigInt(v) {
-            if (v === undefined || v === null) return 0n;
-            if (typeof v === 'bigint') return v;
-            if (typeof v === 'number') return BigInt(v);
-            if (Buffer.isBuffer(v)) return bufferToBigIntLE(v);
+            if (v === undefined || v === null) {
+                return 0n;
+            }
+            if (typeof v === 'bigint') {
+                return v;
+            }
+            if (typeof v === 'number') {
+                return BigInt(v);
+            }
+            if (Buffer.isBuffer(v)) {
+                return bufferToBigIntLE(v);
+            }
             if (typeof v === 'string') {
                 // assume hex string
                 const buf = Buffer.from(v, 'hex');
@@ -802,7 +812,9 @@ const JobManager = module.exports = function JobManager(options) {
             // Try to use object's toString representation (e.g., previous bignum objects)
             try {
                 const s = v.toString();
-                if (/^[0-9]+$/.test(s)) return BigInt(s);
+                if (/^[0-9]+$/.test(s)) {
+                    return BigInt(s);
+                }
                 const buf = Buffer.from(s, 'hex');
                 return bufferToBigIntLE(buf);
             } catch (e) {
