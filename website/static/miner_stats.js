@@ -252,8 +252,14 @@ function updateChartData() {
         const worker = getWorkerNameFromAddress(w);
 
         // Get reference to the latest worker history entry
-        // Note: This loop gets the last key from the history object
-        for (const wh in statData.history[w]) { }
+        // Safely obtain the last key from the history object (handles non-array keyed objects)
+        let wh;
+        if (statData.history[w]) {
+            const keys = Object.keys(statData.history[w]);
+            if (keys.length > 0) {
+                wh = keys[keys.length - 1];
+            }
+        }
 
         let foundWorker = false;
 
@@ -276,7 +282,9 @@ function updateChartData() {
         // Handle new worker that wasn't in the original dataset
         if (!foundWorker) {
             const hashrate = [];
-            hashrate.push([statData.history[w][wh].time * 1000, statData.history[w][wh].hashrate]);
+            if (wh && statData.history[w] && statData.history[w][wh]) {
+                hashrate.push([statData.history[w][wh].time * 1000, statData.history[w][wh].hashrate]);
+            }
 
             // Add new worker to chart data
             workerHashrateData.push({
