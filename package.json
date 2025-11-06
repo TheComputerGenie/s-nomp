@@ -39,7 +39,6 @@
         "compression": "^1.7.3",
         "dot": "^1.1.2",
         "express": "^4.16.4",
-        "extend": "^3.0.2",
         "merkle-bitcoin": "^1.0.2",
         "node-json-minify": "^1.0.0",
         "node-watch": "^0.5.8",

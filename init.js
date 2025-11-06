@@ -34,7 +34,8 @@ const path = require('path');
 const os = require('os');
 const cluster = require('cluster');
 
-const extend = require('extend');
+// Use native structuredClone for deep cloning (Node.js v21+)
+// `extend` package removed to eliminate external dependency.
 
 const redis = require('redis');
 
@@ -354,11 +355,17 @@ const buildPoolConfigs = function () {
         for (const option in portalConfig.defaultPoolConfigs) {
             if (!(option in poolOptions)) {
                 const toCloneOption = portalConfig.defaultPoolConfigs[option];
-                let clonedOption = {};
-                if (toCloneOption.constructor === Object) {
-                    extend(true, clonedOption, toCloneOption);
-                } else {
-                    clonedOption = toCloneOption;
+                // Use structuredClone when available for deep cloning plain objects
+                // For non-plain values (primitives, arrays, etc.) structuredClone
+                // will correctly clone or return the value.
+                let clonedOption;
+                try {
+                    clonedOption = structuredClone(toCloneOption);
+                } catch (e) {
+                    // Fallback: for environments lacking structuredClone (shouldn't
+                    // happen on Node.js v21+), do a JSON-based deep clone for
+                    // plain data structures. This preserves current behavior.
+                    clonedOption = JSON.parse(JSON.stringify(toCloneOption));
                 }
                 poolOptions[option] = clonedOption;
             }
