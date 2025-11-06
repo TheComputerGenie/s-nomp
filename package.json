@@ -35,7 +35,6 @@
     },
     "dependencies": {
         "bitgo-utxo-lib": "git+https://github.com/Oink70/bitgo-utxo-lib.git",
-        "dot": "^1.1.2",
         "redis": "^3.0.0"
     },
     "engines": {

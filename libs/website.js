@@ -36,7 +36,113 @@ const path = require('path');
 // node-watch behavior) so the rest of the file can remain unchanged.
 const redis = require('redis');
 
-const dot = require('dot');
+// Minimal in-file doT-compatible template compiler to avoid pulling the
+// external `dot` dependency while preserving the same API used below.
+// This supports the common doT patterns used by the project's templates:
+//  - Interpolation: {{= expression }}
+//  - Raw output:   {{! expression }}
+//  - Code blocks:  {{ code... }}
+// The compiled function receives a single argument (commonly called `it`).
+// It uses `with(it||{})` so templates can reference properties either as
+// `it.foo` or directly as `foo` (to maximize compatibility with existing
+// templates).
+const dot = (function () {
+    const api = {};
+    api.templateSettings = { strip: false };
+
+    // Compile a template string into a rendering function(fn(it)).
+    function compile(template) {
+        // Split on doT-style delimiters {{ ... }} and keep capture groups
+        const parts = template.split(/{{([\s\S]*?)}}/g);
+        let code = 'let out = "";\n';
+        let loopCounter = 0;
+
+        for (let i = 0; i < parts.length; i++) {
+            if (i % 2 === 0) {
+                // Plain text
+                if (parts[i].length > 0) {
+                    code += 'out += ' + JSON.stringify(parts[i]) + ';\n';
+                }
+            } else {
+                // Expression or code inside {{ ... }}
+                const inner = parts[i];
+                const s = inner.trim();
+                if (s.length === 0) continue;
+
+                // Interpolation: {{= expr }} -> out += (expr)
+                if (s[0] === '=') {
+                    code += 'out += (' + s.slice(1) + ');\n';
+                }
+                // Raw output (treat same as interpolation): {{! expr }}
+                else if (s[0] === '!') {
+                    code += 'out += (' + s.slice(1) + ');\n';
+                }
+                // Handle doT-style control sequences
+                // Conditional: {{? condition}} ... {{?}} -> if (condition) { ... }
+                else if (s[0] === '?') {
+                    if (s === '??') {
+                        // Else branch
+                        code += '} else {\n';
+                    } else if (s === '?') {
+                        // Closing conditional
+                        code += '}\n';
+                    } else {
+                        // Opening conditional
+                        code += 'if (' + s.slice(1) + ') {\n';
+                    }
+                }
+                // Loop/iteration: {{~ arr:val:index }} ... {{~}} -> for loop
+                else if (s[0] === '~') {
+                    if (s === '~') {
+                        // Closing loop
+                        code += '}\n';
+                    } else {
+                        // Opening loop - parse `arr:val:index` (val/index optional)
+                        const loopSpec = s.slice(1).trim();
+                        const bits = loopSpec.split(':').map(b => b.trim()).filter(Boolean);
+                        const arrExpr = bits[0] || '[]';
+                        const valName = bits[1] || ('_v' + loopCounter);
+                        const idxName = bits[2] || ('_i' + loopCounter);
+                        const arrVar = '__arr' + loopCounter;
+                        loopCounter++;
+                        code += 'var ' + arrVar + ' = (' + arrExpr + ') || []; for (var ' + idxName + ' = 0; ' + idxName + ' < ' + arrVar + '.length; ' + idxName + '++) { var ' + valName + ' = ' + arrVar + '[' + idxName + '];\n';
+                    }
+                }
+                // Code block: include as-is (allows arbitrary JS)
+                else {
+                    code += s + '\n';
+                }
+            }
+        }
+
+        code += 'return out;';
+
+        try {
+            // Create a function that takes the `it` object and executes
+            // generated code inside a `with` scope for compatibility.
+            return new Function('it', 'with (it || {}) {\n' + code + '\n}');
+        } catch (e) {
+            // If compilation fails, fall back to a harmless renderer that
+            // returns the raw template string so the site doesn't crash.
+            try {
+                // Log a larger portion of the generated code and the original
+                // template to aid debugging of why new Function() fails.
+                const codeSnippet = ('' + code).slice(0, 16000);
+                const tplSnippet = ('' + template).slice(0, 16000);
+                console.error('template compile failed', e);
+                console.error('generated template code (first 16k chars):\n' + codeSnippet);
+                console.error('original template (first 16k chars):\n' + tplSnippet);
+            } catch (logErr) {
+                console.error('template compile failed and logging also failed', logErr);
+            }
+            return function () { return template; };
+        }
+    }
+
+    api.template = compile;
+    return api;
+})();
+
 const http = require('http');
 const { URL } = require('url');
 
