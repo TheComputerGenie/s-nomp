@@ -69,6 +69,34 @@ function SubscriptionCounter(poolId) {
  */
 class StratumClient extends EventEmitter {
 
+    constructor(options) {
+        super();
+        this.subscriptionId = options.subscriptionId;
+        this.authorizeFn = options.authorizeFn;
+        this.socket = options.socket;
+        this.banning = options.banning;
+        this.connectionTimeout = options.connectionTimeout;
+        this.tcpProxyProtocol = options.tcpProxyProtocol;
+        this.algos = options.algos;
+        this.algorithm = options.algorithm;
+
+        // Initialize other properties
+        this.remoteAddress = this.socket.remoteAddress;
+        this.workerName = null;
+        this.workerPass = null;
+        this.authorized = false;
+        this.lastActivity = Date.now();
+        this.shares = { valid: 0, invalid: 0 };
+        this.difficulty = 1;
+        this.previousDifficulty = null;
+        this._pendingDifficulty = null;
+        this.extraNonce1 = null;
+        this.extraNonce2Size = 8;
+        this.supportsExtraNonceSubscription = false;
+
+        this._setupSocket();
+    }
+
     /**
      * Sets up the socket event handlers for data reception, connection management,
      * and error handling. Configures buffering for incoming messages and handles
