@@ -1,4 +1,3 @@
-const async = require('async');
 const net = require('net');
 const bignum = require('bignum');
 const algos = require('./stratum/algoProperties.js');
@@ -66,58 +65,55 @@ module.exports = function (logger) {
     // Exchange-specific collectors removed
 
 
-    this.getCoindDaemonInfo = function (callback) {
+    this.getCoindDaemonInfo = async function () {
         const daemonTasks = [];
         Object.keys(profitStatus).forEach((algo) => {
             Object.keys(profitStatus[algo]).forEach((symbol) => {
                 const coinName = profitStatus[algo][symbol].name;
                 const poolConfig = poolConfigs[coinName];
                 const daemonConfig = poolConfig.paymentProcessing.daemon;
-                daemonTasks.push((callback) => {
-                    _this.getDaemonInfoForCoin(symbol, daemonConfig, callback);
+                daemonTasks.push(async () => {
+                    await _this.getDaemonInfoForCoin(symbol, daemonConfig);
                 });
             });
         });
 
         if (daemonTasks.length == 0) {
-            callback();
             return;
         }
-        async.series(daemonTasks, (err) => {
-            if (err) {
-                callback(err);
-                return;
-            }
-            callback(null);
+        for (const task of daemonTasks) {
+            await task();
+        }
+    };
+    this.getDaemonInfoForCoin = async function (symbol, cfg) {
+        return new Promise((resolve) => {
+            const daemon = new Stratum.daemon.interface([cfg], ((severity, message) => {
+                logger[severity](logSystem, symbol, message);
+                resolve(); // fail gracefully for each coin
+            }));
+
+            daemon.cmd('getblocktemplate', [{ 'capabilities': ['coinbasetxn', 'workid', 'coinbase/append'] }], (result) => {
+                if (result[0].error != null) {
+                    logger.error(logSystem, symbol, `Error while reading daemon info: ${JSON.stringify(result[0])}`);
+                    resolve(); // fail gracefully for each coin
+                    return;
+                }
+                const coinStatus = profitStatus[symbolToAlgorithmMap[symbol]][symbol];
+                const response = result[0].response;
+
+                // some shitcoins dont provide target, only bits, so we need to deal with both
+                const target = response.target ? bignum(response.target, 16) : util.bignumFromBitsHex(response.bits);
+                coinStatus.difficulty = parseFloat((diff1 / target.toNumber()).toFixed(9));
+                logger.debug(logSystem, symbol, `difficulty is ${coinStatus.difficulty}`);
+
+                coinStatus.reward = response.coinbasevalue / 100000000;
+                resolve();
+            });
         });
     };
-    this.getDaemonInfoForCoin = function (symbol, cfg, callback) {
-        const daemon = new Stratum.daemon.interface([cfg], ((severity, message) => {
-            logger[severity](logSystem, symbol, message);
-            callback(null); // fail gracefully for each coin
-        }));
-
-        daemon.cmd('getblocktemplate', [{ 'capabilities': ['coinbasetxn', 'workid', 'coinbase/append'] }], (result) => {
-            if (result[0].error != null) {
-                logger.error(logSystem, symbol, `Error while reading daemon info: ${JSON.stringify(result[0])}`);
-                callback(null); // fail gracefully for each coin
-                return;
-            }
-            const coinStatus = profitStatus[symbolToAlgorithmMap[symbol]][symbol];
-            const response = result[0].response;
-
-            // some shitcoins dont provide target, only bits, so we need to deal with both
-            const target = response.target ? bignum(response.target, 16) : util.bignumFromBitsHex(response.bits);
-            coinStatus.difficulty = parseFloat((diff1 / target.toNumber()).toFixed(9));
-            logger.debug(logSystem, symbol, `difficulty is ${coinStatus.difficulty}`);
-
-            coinStatus.reward = response.coinbasevalue / 100000000;
-            callback(null);
-        });
-    };
 
 
-    this.getMiningRate = function (callback) {
+    this.getMiningRate = async function () {
         const daemonTasks = [];
         Object.keys(profitStatus).forEach((algo) => {
             Object.keys(profitStatus[algo]).forEach((symbol) => {
@@ -126,7 +122,6 @@ module.exports = function (logger) {
                 coinStatus.coinsPerMhPerHour = coinStatus.reward * coinStatus.blocksPerMhPerHour;
             });
         });
-        callback(null);
     };
 
 
@@ -186,25 +181,16 @@ module.exports = function (logger) {
     };
 
 
-    const checkProfitability = function () {
+    const checkProfitability = async function () {
         logger.debug(logSystem, 'Check', 'Collecting profitability data.');
 
-        const profitabilityTasks = [];
-        // Exchange collectors removed; only use on-chain daemon info and mining rate
-        profitabilityTasks.push(_this.getCoindDaemonInfo);
-        profitabilityTasks.push(_this.getMiningRate);
-
-        // has to be series 
-        async.series(profitabilityTasks, (err) => {
-            if (err) {
-                logger.error(logSystem, 'Check', `Error while checking profitability: ${err}`);
-                return;
-            }
-            //
-            // TODO offer support for a userConfigurable function for deciding on coin to override the default
-            // 
+        try {
+            await _this.getCoindDaemonInfo();
+            await _this.getMiningRate();
             _this.switchToMostProfitableCoins();
-        });
+        } catch (err) {
+            logger.error(logSystem, 'Check', `Error while checking profitability: ${err}`);
+        }
     };
     setInterval(checkProfitability, portalConfig.profitSwitch.updateInterval * 1000);
 

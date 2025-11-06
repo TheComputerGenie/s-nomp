@@ -1,5 +1,4 @@
 const events = require('events');
-const async = require('async');
 
 const PoolLogger = require('../logUtil.js');
 
@@ -217,7 +216,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
     function OutputPoolInfo() {
         // Create formatted startup message with coin identification
         const startMessage = `\r\n\t\t\t\t\t\tStratum Pool Server Started for ${options.coin.name
-        } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
+            } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
 
         // In multi-process setups, only show detailed info from main process (forkId 0)
         // Other processes just log a simple debug message to avoid cluttered logs
@@ -1298,31 +1297,33 @@ const pool = module.exports = function pool(options, authorizeFn) {
             });
         });
 
-        // Use async.filter to determine which clients match the filter criteria
-        async.filter(
-            stratumClients,
-            filterFn,  // User-provided function to test each client
-            (clientsToRelinquish) => {
-                // Process each client that should be transferred
-                clientsToRelinquish.forEach((cObj) => {
-                    // Clean up event listeners to prevent memory leaks
-                    cObj.client.removeAllListeners();
+        // Use Promise.all to determine which clients match the filter criteria
+        Promise.all(stratumClients.map(cObj => new Promise((resolve) => {
+            filterFn(cObj.client, (shouldInclude) => {
+                resolve(shouldInclude ? cObj : null);
+            });
+        }))).then((results) => {
+            const clientsToRelinquish = results.filter(item => item !== null);
 
-                    // Remove client from this pool's stratum server
-                    _this.stratumServer.removeStratumClientBySubId(cObj.subId);
-                });
+            // Process each client that should be transferred
+            clientsToRelinquish.forEach((cObj) => {
+                // Clean up event listeners to prevent memory leaks
+                cObj.client.removeAllListeners();
 
-                // Use nextTick to ensure cleanup completes before callback
-                process.nextTick(() => {
-                    // Return array of client objects for attachment to another pool
-                    resultCback(
-                        clientsToRelinquish.map((item) => {
-                            return item.client;
-                        })
-                    );
-                });
-            }
-        );
+                // Remove client from this pool's stratum server
+                _this.stratumServer.removeStratumClientBySubId(cObj.subId);
+            });
+
+            // Use nextTick to ensure cleanup completes before callback
+            process.nextTick(() => {
+                // Return array of client objects for attachment to another pool
+                resultCback(
+                    clientsToRelinquish.map((item) => {
+                        return item.client;
+                    })
+                );
+            });
+        });
     };
 
     /**

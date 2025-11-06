@@ -14,7 +14,6 @@
  * @requires https
  * @requires fs
  * @requires path
- * @requires async
  * @requires node-watch
  * @requires redis
  * @requires dot
@@ -31,7 +30,6 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const async = require('async');
 const watch = require('node-watch');
 const redis = require('redis');
 
@@ -219,28 +217,27 @@ module.exports = function (logger) {
      * 5. Processes all templates once all files are loaded
      */
     const readPageFiles = function (files) {
-        async.each(files, (fileName, callback) => {
+        Promise.all(files.map(fileName => new Promise((resolve, reject) => {
             // Determine file path: index.html is in root, others are in pages/ subdirectory
             const filePath = `website/${fileName === 'index.html' ? '' : 'pages/'}${fileName}`;
 
             fs.readFile(filePath, 'utf8', (err, data) => {
                 if (err) {
                     logger.error(logSystem, 'Template', `Failed to read template file: ${filePath}`);
-                    return callback(err);
+                    reject(err);
+                    return;
                 }
 
                 // Compile the HTML template into a doT template function
                 const pTemp = dot.template(data);
                 pageTemplates[pageFiles[fileName]] = pTemp;
-                callback();
+                resolve();
             });
-        }, (err) => {
-            if (err) {
-                console.log(`error reading files for creating dot templates: ${JSON.stringify(err)}`);
-                return;
-            }
+        }))).then(() => {
             // Once all templates are loaded, process them with current data
             processTemplates();
+        }).catch((err) => {
+            console.log(`error reading files for creating dot templates: ${JSON.stringify(err)}`);
         });
     };
 
@@ -329,14 +326,10 @@ module.exports = function (logger) {
      * The waterfall pattern ensures operations execute in the correct sequence
      * with proper error handling and resource cleanup.
      */
-    const buildKeyScriptPage = function () {
-        async.waterfall([
-            /**
-             * Step 1: Connect to Redis and retrieve existing coin version bytes
-             * 
-             * @param {Function} callback - Waterfall callback function
-             */
-            function (callback) {
+    const buildKeyScriptPage = async function () {
+        try {
+            // Step 1: Connect to Redis and retrieve existing coin version bytes
+            const { client, coinBytes } = await new Promise((resolve, reject) => {
                 const client = CreateRedisClient(portalConfig.redis);
 
                 // Authenticate with Redis if password is configured
@@ -348,113 +341,80 @@ module.exports = function (logger) {
                 client.hgetall('coinVersionBytes', (err, coinBytes) => {
                     if (err) {
                         client.quit();
-                        return callback(`Failed grabbing coin version bytes from redis ${JSON.stringify(err)}`);
+                        reject(`Failed grabbing coin version bytes from redis ${JSON.stringify(err)}`);
+                        return;
                     }
-                    callback(null, client, coinBytes || {});
+                    resolve({ client, coinBytes: coinBytes || {} });
                 });
-            },
-            /**
-             * Step 2: Identify coins that are missing version byte information
-             * 
-             * @param {Object} client - Redis client instance
-             * @param {Object} coinBytes - Existing coin version bytes from Redis
-             * @param {Function} callback - Waterfall callback function
-             */
-            function (client, coinBytes, callback) {
-                // Get list of all enabled coins from pool configurations
-                const enabledCoins = Object.keys(poolConfigs).map((c) => {
-                    return c.toLowerCase();
-                });
+            });
 
-                // Find coins that don't have version bytes cached in Redis
-                const missingCoins = [];
-                enabledCoins.forEach((c) => {
-                    if (!(c in coinBytes)) {
-                        missingCoins.push(c);
+            // Step 2: Identify coins that are missing version byte information
+            const enabledCoins = Object.keys(poolConfigs).map((c) => {
+                return c.toLowerCase();
+            });
+
+            // Find coins that don't have version bytes cached in Redis
+            const missingCoins = [];
+            enabledCoins.forEach((c) => {
+                if (!(c in coinBytes)) {
+                    missingCoins.push(c);
+                }
+            });
+
+            // Step 3: Extract version bytes from cryptocurrency daemons for missing coins
+            const coinsForRedis = {}; // New version bytes to cache in Redis
+
+            await Promise.all(missingCoins.map(c => new Promise((resolve, reject) => {
+                // Find the pool configuration for this coin
+                const coinInfo = (function () {
+                    for (const pName in poolConfigs) {
+                        if (pName.toLowerCase() === c) {
+                            return {
+                                daemon: poolConfigs[pName].paymentProcessing.daemon,
+                                address: poolConfigs[pName].address
+                            };
+                        }
                     }
+                })();
+
+                // Create daemon interface for this coin
+                const daemon = new Stratum.daemon.interface([coinInfo.daemon], ((severity, message) => {
+                    logger[severity](logSystem, c, message);
+                }));
+
+                // Extract private key to determine version bytes
+                daemon.cmd('dumpprivkey', [coinInfo.address], (result) => {
+                    if (result[0].error) {
+                        logger.error(logSystem, c, `Could not dumpprivkey for ${c} ${JSON.stringify(result[0].error)}`);
+                        resolve();
+                        return;
+                    }
+
+                    // Extract version bytes from public and private key formats
+                    const vBytePub = util.getVersionByte(coinInfo.address)[0];
+                    const vBytePriv = util.getVersionByte(result[0].response)[0];
+
+                    // Store version bytes in format "public,private"
+                    coinBytes[c] = `${vBytePub.toString()},${vBytePriv.toString()}`;
+                    coinsForRedis[c] = coinBytes[c];
+                    resolve();
                 });
+            })));
 
-                callback(null, client, coinBytes, missingCoins);
-            },
-            /**
-             * Step 3: Extract version bytes from cryptocurrency daemons for missing coins
-             * 
-             * @param {Object} client - Redis client instance
-             * @param {Object} coinBytes - Existing coin version bytes
-             * @param {string[]} missingCoins - Array of coin symbols missing version bytes
-             * @param {Function} callback - Waterfall callback function
-             */
-            function (client, coinBytes, missingCoins, callback) {
-                const coinsForRedis = {}; // New version bytes to cache in Redis
-
-                // Process each missing coin asynchronously
-                async.each(missingCoins, (c, cback) => {
-                    // Find the pool configuration for this coin
-                    const coinInfo = (function () {
-                        for (const pName in poolConfigs) {
-                            if (pName.toLowerCase() === c) {
-                                return {
-                                    daemon: poolConfigs[pName].paymentProcessing.daemon,
-                                    address: poolConfigs[pName].address
-                                };
-                            }
-                        }
-                    })();
-
-                    // Create daemon interface for this coin
-                    const daemon = new Stratum.daemon.interface([coinInfo.daemon], ((severity, message) => {
-                        logger[severity](logSystem, c, message);
-                    }));
-
-                    // Extract private key to determine version bytes
-                    daemon.cmd('dumpprivkey', [coinInfo.address], (result) => {
-                        if (result[0].error) {
-                            logger.error(logSystem, c, `Could not dumpprivkey for ${c} ${JSON.stringify(result[0].error)}`);
-                            cback();
-                            return;
-                        }
-
-                        // Extract version bytes from public and private key formats
-                        const vBytePub = util.getVersionByte(coinInfo.address)[0];
-                        const vBytePriv = util.getVersionByte(result[0].response)[0];
-
-                        // Store version bytes in format "public,private"
-                        coinBytes[c] = `${vBytePub.toString()},${vBytePriv.toString()}`;
-                        coinsForRedis[c] = coinBytes[c];
-                        cback();
-                    });
-                }, (err) => {
-                    callback(null, client, coinBytes, coinsForRedis);
-                });
-            },
-            /**
-             * Step 4: Cache new version bytes in Redis and cleanup connections
-             * 
-             * @param {Object} client - Redis client instance
-             * @param {Object} coinBytes - Complete coin version bytes object
-             * @param {Object} coinsForRedis - New version bytes to cache
-             * @param {Function} callback - Waterfall callback function
-             */
-            function (client, coinBytes, coinsForRedis, callback) {
-                // Cache new version bytes in Redis if any were found
-                if (Object.keys(coinsForRedis).length > 0) {
+            // Step 4: Cache new version bytes in Redis and cleanup connections
+            if (Object.keys(coinsForRedis).length > 0) {
+                await new Promise((resolve, reject) => {
                     client.hmset('coinVersionBytes', coinsForRedis, (err) => {
                         if (err) {
                             logger.error(logSystem, 'Init', `Failed inserting coin byte version into redis ${JSON.stringify(err)}`);
+                            reject(err);
+                            return;
                         }
-                        client.quit();
+                        resolve();
                     });
-                } else {
-                    // No new data to cache, just close the connection
-                    client.quit();
-                }
-                callback(null, coinBytes);
+                });
             }
-        ], (err, coinBytes) => {
-            if (err) {
-                logger.error(logSystem, 'Init', err);
-                return;
-            }
+            client.quit();
 
             // Generate the key script page with all coin version bytes
             try {
@@ -463,8 +423,9 @@ module.exports = function (logger) {
             } catch (e) {
                 logger.error(logSystem, 'Init', 'Failed to read key.html file');
             }
-        });
-
+        } catch (err) {
+            logger.error(logSystem, 'Init', err);
+        }
     };
 
     // Initialize the key script page on startup
@@ -751,7 +712,7 @@ module.exports = function (logger) {
     } catch (e) {
         console.log(e);
         logger.error(logSystem, 'Server', `Could not start website on ${portalConfig.website.host}:${portalConfig.website.port
-        } - its either in use or you do not have permission`);
+            } - its either in use or you do not have permission`);
     }
 
 };

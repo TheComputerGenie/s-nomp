@@ -1,5 +1,4 @@
 const redis = require('redis');
-const async = require('async');
 
 const stats = require('./stats.js');
 

@@ -34,7 +34,6 @@ const path = require('path');
 const os = require('os');
 const cluster = require('cluster');
 
-const async = require('async');
 const extend = require('extend');
 
 const redis = require('redis');
@@ -855,7 +854,7 @@ const processCoinSwitchCommand = function (params, options, reply) {
     switchNames.forEach((name) => {
         if (poolConfigs[newCoin].coin.algorithm !== portalConfig.switching[name].algorithm) {
             replyError(`Cannot switch a ${portalConfig.switching[name].algorithm
-            } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
+                } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
             return;
         }
 

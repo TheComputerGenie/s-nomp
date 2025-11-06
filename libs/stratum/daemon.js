@@ -2,8 +2,6 @@ const http = require('http');
 const cp = require('child_process');
 const events = require('events');
 
-const async = require('async');
-
 /**
  * @fileoverview Daemon Interface for cryptocurrency RPC communication
  * 
@@ -239,8 +237,8 @@ function DaemonInterface(daemons, logger) {
                 }
                 // Log detailed error information for debugging
                 logger('error', `Could not parse rpc data from daemon instance  ${instance.index
-                }\nRequest Data: ${jsonData
-                }\nReponse Data: ${data}`);
+                    }\nRequest Data: ${jsonData
+                    }\nReponse Data: ${data}`);
 
             }
 
@@ -404,7 +402,7 @@ function DaemonInterface(daemons, logger) {
         const results = [];
 
         // Execute command on each daemon instance asynchronously
-        async.each(instances, (instance, eachCallback) => {
+        Promise.all(instances.map(instance => new Promise((eachCallback) => {
 
             /**
              * @function itemFinished
@@ -438,7 +436,7 @@ function DaemonInterface(daemons, logger) {
                     results.push(returnObj);
                 }
 
-                // Signal completion to async.each
+                // Signal completion to Promise.all
                 eachCallback();
 
                 // Prevent multiple callbacks by replacing function with no-op
@@ -462,7 +460,7 @@ function DaemonInterface(daemons, logger) {
                 itemFinished(error, result, data);
             });
 
-        }, () => {
+        }))).then(() => {
             // Called when all daemon requests are complete
             if (!streamResults) {
                 // Batch mode: call callback once with all results

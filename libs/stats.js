@@ -33,11 +33,62 @@
 const zlib = require('zlib');
 
 const redis = require('redis');
-const async = require('async');
 
 const os = require('os');
 
 const algos = require('./stratum/algoProperties.js');
+const { promisify } = require('util');
+
+// Helper to execute a Redis MULTI pipeline and return a Promise
+function runMulti(client, commands) {
+    return new Promise((resolve, reject) => {
+        try {
+            client.multi(commands).exec((err, replies) => {
+                if (err) return reject(err);
+                resolve(replies);
+            });
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+// Small native replacement for the limited `async` usage in this file.
+// Provides `each(collection, iterator, done)` semantics similar to async.each.
+function each(collection, iterator, done) {
+    if (!collection) {
+        if (done) done();
+        return;
+    }
+    const keys = Array.isArray(collection) ? collection.map((_, i) => i) : Object.keys(collection);
+    let remaining = keys.length;
+    if (remaining === 0) {
+        if (done) done();
+        return;
+    }
+    let finished = false;
+    keys.forEach((k) => {
+        try {
+            iterator(collection[k], (err) => {
+                if (finished) return;
+                if (err) {
+                    finished = true;
+                    if (done) done(err);
+                    return;
+                }
+                remaining -= 1;
+                if (remaining === 0) {
+                    if (done) done();
+                }
+            });
+        } catch (e) {
+            if (!finished) {
+                finished = true;
+                if (done) done(e);
+            }
+        }
+    });
+}
 
 /**
  * Creates a Redis client with authentication support
@@ -272,7 +323,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
      */
     this.getBlocks = function (cback) {
         const allBlocks = {};
-        async.each(_this.stats.pools, (pool, pcb) => {
+        each(_this.stats.pools, (pool, pcb) => {
 
             // Process pending blocks
             if (_this.stats.pools[pool.name].pending && _this.stats.pools[pool.name].pending.blocks) {
@@ -307,34 +358,36 @@ module.exports = function (logger, portalConfig, poolConfigs) {
      * @private
      */
     function gatherStatHistory() {
-        // Calculate cutoff time based on retention policy
-        const retentionTime = (((Date.now() / 1000) - portalConfig.website.stats.historicalRetention) | 0).toString();
+        (async () => {
+            try {
+                // Calculate cutoff time based on retention policy
+                const retentionTime = (((Date.now() / 1000) - portalConfig.website.stats.historicalRetention) | 0).toString();
 
-        redisStats.zrangebyscore(['statHistory', retentionTime, '+inf'], (err, replies) => {
-            if (err) {
-                logger.error(logSystem, 'Historics', `Error when trying to grab historical stats ${JSON.stringify(err)}`);
-                return;
-            }
+                const zrangebyscoreAsync = promisify(redisStats.zrangebyscore).bind(redisStats);
+                const replies = await zrangebyscoreAsync('statHistory', retentionTime, '+inf');
 
-            // Parse and filter historical data
-            for (let i = 0; i < replies.length; i++) {
-                const stats = JSON.parse(replies[i]);
-                // Only include stats with active workers to avoid empty data points
-                if (stats.global && stats.global.workers > 0) {
-                    _this.statHistory.push(stats);
+                // Parse and filter historical data
+                for (let i = 0; i < replies.length; i++) {
+                    const stats = JSON.parse(replies[i]);
+                    // Only include stats with active workers to avoid empty data points
+                    if (stats.global && stats.global.workers > 0) {
+                        _this.statHistory.push(stats);
+                    }
                 }
+
+                // Sort chronologically for proper trending analysis
+                _this.statHistory = _this.statHistory.sort((a, b) => {
+                    return a.time - b.time;
+                });
+
+                // Build pool-specific historical data from main history
+                _this.statHistory.forEach((stats) => {
+                    addStatPoolHistory(stats);
+                });
+            } catch (err) {
+                logger.error(logSystem, 'Historics', `Error when trying to grab historical stats ${JSON.stringify(err)}`);
             }
-
-            // Sort chronologically for proper trending analysis
-            _this.statHistory = _this.statHistory.sort((a, b) => {
-                return a.time - b.time;
-            });
-
-            // Build pool-specific historical data from main history
-            _this.statHistory.forEach((stats) => {
-                addStatPoolHistory(stats);
-            });
-        });
+        })();
     }
 
     function getWorkerStats(address) {
@@ -502,13 +555,9 @@ module.exports = function (logger, portalConfig, poolConfigs) {
     };
 
     this.getPayout = function (address, cback) {
-        async.waterfall([
-            function (callback) {
-                _this.getBalanceByAddress(address, () => {
-                    callback(null, 'test');
-                });
-            }
-        ], (err, total) => {
+        // The original waterfall performed a single async step; call directly.
+        _this.getBalanceByAddress(address, (result) => {
+            const total = (result && result.totalHeld) ? result.totalHeld : 0;
             cback(coinsRound(total).toFixed(8));
         });
     };
@@ -542,44 +591,40 @@ module.exports = function (logger, portalConfig, poolConfigs) {
         let pindex = parseInt(0);
         let totalShares = parseFloat(0);
 
-        async.each(_this.stats.pools, (pool, pcb) => {
-            pindex++;
-            const coin = String(_this.stats.pools[pool.name].name);
+        (async () => {
+            try {
+                const hscanAsync = promisify(client.hscan).bind(client);
+                const pools = Object.keys(_this.stats.pools);
+                for (let idx = 0; idx < pools.length; idx++) {
+                    pindex++;
+                    const poolName = pools[idx];
+                    const coin = String(_this.stats.pools[poolName].name);
 
-            // Use HSCAN with pattern matching to find all workers for this address
-            client.hscan(`${coin}:shares:roundCurrent`, 0, 'match', `${a}*`, 'count', 50000, (error, result) => {
-                if (error) {
-                    pcb(error);
-                    return;
-                }
-
-                let workerName = '';
-                let shares = 0;
-
-                // Parse HSCAN results (alternating keys and values)
-                for (const i in result[1]) {
-                    if (Math.abs(i % 2) != 1) {
-                        workerName = String(result[1][i]);
-                    } else {
-                        shares += parseFloat(result[1][i]);
+                    // HSCAN returns [cursor, [k, v, k, v...]]
+                    const result = await hscanAsync(`${coin}:shares:roundCurrent`, 0, 'match', `${a}*`, 'count', 50000);
+                    let workerName = '';
+                    let shares = 0;
+                    for (const i in result[1]) {
+                        if (Math.abs(i % 2) != 1) {
+                            workerName = String(result[1][i]);
+                        } else {
+                            shares += parseFloat(result[1][i]);
+                        }
+                    }
+                    if (shares > 0) {
+                        totalShares = shares;
                     }
                 }
 
-                if (shares > 0) {
-                    totalShares = shares;
+                if (totalShares > 0 || (pindex >= Object.keys(_this.stats.pools).length)) {
+                    cback(totalShares);
+                    return;
                 }
-                pcb();
-            });
-        }, (err) => {
-            if (err) {
                 cback(0);
-                return;
+            } catch (err) {
+                cback(0);
             }
-            if (totalShares > 0 || (pindex >= Object.keys(_this.stats.pools).length)) {
-                cback(totalShares);
-                return;
-            }
-        });
+        })();
     };
 
     /**
@@ -625,91 +670,87 @@ module.exports = function (logger, portalConfig, poolConfigs) {
         let totalPaid = parseFloat(0);
         let totalImmature = parseFloat(0);
 
-        async.each(_this.stats.pools, (pool, pcb) => {
-            const coin = String(_this.stats.pools[pool.name].name);
+        (async () => {
+            try {
+                const hscanAsync = promisify(client.hscan).bind(client);
+                const pools = Object.keys(_this.stats.pools);
+                for (let idx = 0; idx < pools.length; idx++) {
+                    const poolName = pools[idx];
+                    const coin = String(_this.stats.pools[poolName].name);
 
-            // Retrieve immature balances (pending from recent blocks)
-            client.hscan(`${coin}:immature`, 0, 'match', `${a}*`, 'count', 50000, (error, pends) => {
-                // Retrieve confirmed balances (ready for payout)
-                client.hscan(`${coin}:balances`, 0, 'match', `${a}*`, 'count', 50000, (error, bals) => {
-                    // Retrieve payout history
-                    client.hscan(`${coin}:payouts`, 0, 'match', `${a}*`, 'count', 50000, (error, pays) => {
+                    const pends = await hscanAsync(`${coin}:immature`, 0, 'match', `${a}*`, 'count', 50000);
+                    const bals = await hscanAsync(`${coin}:balances`, 0, 'match', `${a}*`, 'count', 50000);
+                    const pays = await hscanAsync(`${coin}:payouts`, 0, 'match', `${a}*`, 'count', 50000);
 
-                        let workerName = '';
-                        let balAmount = 0;
-                        let paidAmount = 0;
-                        let pendingAmount = 0;
+                    let workerName = '';
+                    let balAmount = 0;
+                    let paidAmount = 0;
+                    let pendingAmount = 0;
 
-                        const workers = {};
+                    const workers = {};
 
-                        // Process payout history (HSCAN returns alternating keys/values)
-                        for (const i in pays[1]) {
-                            if (Math.abs(i % 2) != 1) {
-                                workerName = String(pays[1][i]);
-                                workers[workerName] = (workers[workerName] || {});
-                            } else {
-                                paidAmount = parseFloat(pays[1][i]);
-                                workers[workerName].paid = coinsRound(paidAmount);
-                                totalPaid += paidAmount;
-                            }
+                    // Process payout history (HSCAN returns alternating keys/values)
+                    for (const i in pays[1]) {
+                        if (Math.abs(i % 2) != 1) {
+                            workerName = String(pays[1][i]);
+                            workers[workerName] = (workers[workerName] || {});
+                        } else {
+                            paidAmount = parseFloat(pays[1][i]);
+                            workers[workerName].paid = coinsRound(paidAmount);
+                            totalPaid += paidAmount;
                         }
+                    }
 
-                        // Process confirmed balances
-                        for (const b in bals[1]) {
-                            if (Math.abs(b % 2) != 1) {
-                                workerName = String(bals[1][b]);
-                                workers[workerName] = (workers[workerName] || {});
-                            } else {
-                                balAmount = parseFloat(bals[1][b]);
-                                workers[workerName].balance = coinsRound(balAmount);
-                                totalHeld += balAmount;
-                            }
+                    // Process confirmed balances
+                    for (const b in bals[1]) {
+                        if (Math.abs(b % 2) != 1) {
+                            workerName = String(bals[1][b]);
+                            workers[workerName] = (workers[workerName] || {});
+                        } else {
+                            balAmount = parseFloat(bals[1][b]);
+                            workers[workerName].balance = coinsRound(balAmount);
+                            totalHeld += balAmount;
                         }
+                    }
 
-                        // Process immature balances (stored in satoshis)
-                        for (const b in pends[1]) {
-                            if (Math.abs(b % 2) != 1) {
-                                workerName = String(pends[1][b]);
-                                workers[workerName] = (workers[workerName] || {});
-                            } else {
-                                pendingAmount = parseFloat(pends[1][b]);
-                                workers[workerName].immature = coinsRound(satoshisToCoins(pendingAmount));
-                                totalImmature += pendingAmount;
-                            }
+                    // Process immature balances (stored in satoshis)
+                    for (const b in pends[1]) {
+                        if (Math.abs(b % 2) != 1) {
+                            workerName = String(pends[1][b]);
+                            workers[workerName] = (workers[workerName] || {});
+                        } else {
+                            pendingAmount = parseFloat(pends[1][b]);
+                            workers[workerName].immature = coinsRound(satoshisToCoins(pendingAmount));
+                            totalImmature += pendingAmount;
                         }
+                    }
 
-                        // Build worker balance array
-                        for (const w in workers) {
-                            balances.push({
-                                worker: String(w),
-                                balance: workers[w].balance,
-                                paid: workers[w].paid,
-                                immature: workers[w].immature
-                            });
-                        }
+                    // Build worker balance array
+                    for (const w in workers) {
+                        balances.push({
+                            worker: String(w),
+                            balance: workers[w].balance,
+                            paid: workers[w].paid,
+                            immature: workers[w].immature
+                        });
+                    }
+                }
 
-                        pcb();
-                    });
+                // Store results in stats object for potential reuse
+                _this.stats.balances = balances;
+                _this.stats.address = address;
+
+                // Return comprehensive balance information
+                cback({
+                    totalHeld: coinsRound(totalHeld),
+                    totalPaid: coinsRound(totalPaid),
+                    totalImmature: satoshisToCoins(totalImmature),
+                    balances
                 });
-            });
-        }, (err) => {
-            if (err) {
-                callback('There was an error getting balances');
-                return;
+            } catch (err) {
+                cback('There was an error getting balances');
             }
-
-            // Store results in stats object for potential reuse
-            _this.stats.balances = balances;
-            _this.stats.address = address;
-
-            // Return comprehensive balance information
-            cback({
-                totalHeld: coinsRound(totalHeld),
-                totalPaid: coinsRound(totalPaid),
-                totalImmature: satoshisToCoins(totalImmature),
-                balances
-            });
-        });
+        })();
     };
 
     this.getPoolBalancesByAddress = function (address, callback) {
@@ -719,69 +760,64 @@ module.exports = function (logger, portalConfig, poolConfigs) {
             coins = redisClients[0].coins,
             poolBalances = [];
 
-        async.each(_this.stats.pools, (pool, pcb) => {
-            const poolName = pool.name;
-            const coin = String(poolName);
+        (async () => {
+            try {
+                const hscanAsync = promisify(client.hscan).bind(client);
+                const pools = Object.keys(_this.stats.pools);
+                for (let idx = 0; idx < pools.length; idx++) {
+                    const poolName = pools[idx];
+                    const coin = String(poolName);
 
-            // get all immature balances from address
-            client.hscan(`${coin}:immature`, 0, 'match', `${a}*`, 'count', 50000, (error, pends) => {
-                // get all balances from address
-                client.hscan(`${coin}:balances`, 0, 'match', `${a}*`, 'count', 50000, (error, bals) => {
-                    // get all payouts from address
-                    client.hscan(`${coin}:payouts`, 0, 'match', `${a}*`, 'count', 50000, (error, pays) => {
+                    const pends = await hscanAsync(`${coin}:immature`, 0, 'match', `${a}*`, 'count', 50000);
+                    const bals = await hscanAsync(`${coin}:balances`, 0, 'match', `${a}*`, 'count', 50000);
+                    const pays = await hscanAsync(`${coin}:payouts`, 0, 'match', `${a}*`, 'count', 50000);
 
-                        const workers = {};
+                    const workers = {};
 
-                        // Process payouts
-                        for (let i = 0; i < pays[1].length; i += 2) {
-                            const workerName = String(pays[1][i]);
-                            const paidAmount = parseFloat(pays[1][i + 1]);
+                    // Process payouts
+                    for (let i = 0; i < pays[1].length; i += 2) {
+                        const workerName = String(pays[1][i]);
+                        const paidAmount = parseFloat(pays[1][i + 1]);
 
-                            workers[workerName] = workers[workerName] || {};
-                            workers[workerName].paid = coinsRound(paidAmount);
-                        }
+                        workers[workerName] = workers[workerName] || {};
+                        workers[workerName].paid = coinsRound(paidAmount);
+                    }
 
-                        // Process balances
-                        for (let j = 0; j < bals[1].length; j += 2) {
-                            const workerName = String(bals[1][j]);
-                            const balAmount = parseFloat(bals[1][j + 1]);
+                    // Process balances
+                    for (let j = 0; j < bals[1].length; j += 2) {
+                        const workerName = String(bals[1][j]);
+                        const balAmount = parseFloat(bals[1][j + 1]);
 
-                            workers[workerName] = workers[workerName] || {};
-                            workers[workerName].balance = coinsRound(balAmount);
-                        }
+                        workers[workerName] = workers[workerName] || {};
+                        workers[workerName].balance = coinsRound(balAmount);
+                    }
 
-                        // Process immature balances
-                        for (let k = 0; k < pends[1].length; k += 2) {
-                            const workerName = String(pends[1][k]);
-                            const pendingAmount = parseFloat(pends[1][k + 1]);
+                    // Process immature balances
+                    for (let k = 0; k < pends[1].length; k += 2) {
+                        const workerName = String(pends[1][k]);
+                        const pendingAmount = parseFloat(pends[1][k + 1]);
 
-                            workers[workerName] = workers[workerName] || {};
-                            workers[workerName].immature = coinsRound(pendingAmount);
-                        }
+                        workers[workerName] = workers[workerName] || {};
+                        workers[workerName].immature = coinsRound(pendingAmount);
+                    }
 
-                        // Push balances for each worker to the poolBalances array
-                        for (const worker in workers) {
-                            poolBalances.push({
-                                pool: poolName,
-                                worker: worker,
-                                balance: workers[worker].balance || 0,
-                                paid: workers[worker].paid || 0,
-                                immature: workers[worker].immature || 0
-                            });
-                        }
+                    // Push balances for each worker to the poolBalances array
+                    for (const worker in workers) {
+                        poolBalances.push({
+                            pool: poolName,
+                            worker: worker,
+                            balance: workers[worker].balance || 0,
+                            paid: workers[worker].paid || 0,
+                            immature: workers[worker].immature || 0
+                        });
+                    }
+                }
 
-                        pcb();
-                    });
-                });
-            });
-        }, (err) => {
-            if (err) {
+                callback(poolBalances);
+            } catch (err) {
                 callback('There was an error getting balances');
-                return;
             }
-
-            callback(poolBalances);
-        });
+        })();
     };
 
     /**
@@ -813,55 +849,61 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
         let allCoinStats = {};
 
-        async.each(redisClients, (client, callback) => {
-            // Calculate time window for hashrate calculations
-            const windowTime = (((Date.now() / 1000) - portalConfig.website.stats.hashrateWindow) | 0).toString();
-            const redisCommands = [];
+        (async () => {
+            try {
+                for (let rcIndex = 0; rcIndex < redisClients.length; rcIndex++) {
+                    const client = redisClients[rcIndex];
+                    // Calculate time window for hashrate calculations
+                    const windowTime = (((Date.now() / 1000) - portalConfig.website.stats.hashrateWindow) | 0).toString();
+                    const redisCommands = [];
 
-            /**
-             * Redis command templates for statistics collection
-             * 
-             * These commands are executed for each coin in a Redis pipeline:
-             * 1. Clean old hashrate data outside the window
-             * 2. Get current hashrate data within window
-             * 3. Get pool statistics (blocks, shares, network info)
-             * 4. Get block counts by status
-             * 5. Get actual block data
-             * 6. Get current round share and time data
-             * 7. Get recent payment history
-             */
-            const redisCommandTemplates = [
-                ['zremrangebyscore', ':hashrate', '-inf', `(${windowTime}`],  // Clean old hashrate data
-                ['zrangebyscore', ':hashrate', windowTime, '+inf'],           // Get current hashrate data
-                ['hgetall', ':stats'],                                        // Pool statistics
-                ['scard', ':blocksPending'],                                  // Pending block count
-                ['scard', ':blocksConfirmed'],                               // Confirmed block count
-                ['scard', ':blocksKicked'],                                  // Orphaned block count
-                ['smembers', ':blocksPending'],                              // Pending block details
-                ['smembers', ':blocksConfirmed'],                            // Confirmed block details
-                ['hgetall', ':shares:roundCurrent'],                         // Current round shares
-                ['hgetall', ':blocksPendingConfirms'],                       // Block confirmation status
-                ['zrange', ':payments', -100, -1],                          // Recent payment history (last 100)
-                ['hgetall', ':shares:timesCurrent']                         // Current round timing data
-            ];
+                    /**
+                     * Redis command templates for statistics collection
+                     * 
+                     * These commands are executed for each coin in a Redis pipeline:
+                     * 1. Clean old hashrate data outside the window
+                     * 2. Get current hashrate data within window
+                     * 3. Get pool statistics (blocks, shares, network info)
+                     * 4. Get block counts by status
+                     * 5. Get actual block data
+                     * 6. Get current round share and time data
+                     * 7. Get recent payment history
+                     */
+                    const redisCommandTemplates = [
+                        ['zremrangebyscore', ':hashrate', '-inf', `(${windowTime}`],  // Clean old hashrate data
+                        ['zrangebyscore', ':hashrate', windowTime, '+inf'],           // Get current hashrate data
+                        ['hgetall', ':stats'],                                        // Pool statistics
+                        ['scard', ':blocksPending'],                                  // Pending block count
+                        ['scard', ':blocksConfirmed'],                               // Confirmed block count
+                        ['scard', ':blocksKicked'],                                  // Orphaned block count
+                        ['smembers', ':blocksPending'],                              // Pending block details
+                        ['smembers', ':blocksConfirmed'],                            // Confirmed block details
+                        ['hgetall', ':shares:roundCurrent'],                         // Current round shares
+                        ['hgetall', ':blocksPendingConfirms'],                       // Block confirmation status
+                        ['zrange', ':payments', -100, -1],                          // Recent payment history (last 100)
+                        ['hgetall', ':shares:timesCurrent']                         // Current round timing data
+                    ];
 
-            const commandsPerCoin = redisCommandTemplates.length;
+                    const commandsPerCoin = redisCommandTemplates.length;
 
-            // Build Redis commands for each coin by prefixing with coin name
-            client.coins.map((coin) => {
-                redisCommandTemplates.map((t) => {
-                    const clonedTemplates = t.slice(0);
-                    clonedTemplates[1] = coin + clonedTemplates[1];  // Prefix Redis key with coin name
-                    redisCommands.push(clonedTemplates);
-                });
-            });
+                    // Build Redis commands for each coin by prefixing with coin name
+                    client.coins.map((coin) => {
+                        redisCommandTemplates.map((t) => {
+                            const clonedTemplates = t.slice(0);
+                            clonedTemplates[1] = coin + clonedTemplates[1];  // Prefix Redis key with coin name
+                            redisCommands.push(clonedTemplates);
+                        });
+                    });
 
-            // Execute all commands in a single Redis pipeline for efficiency
-            client.client.multi(redisCommands).exec((err, replies) => {
-                if (err) {
-                    logger.error(logSystem, 'Global', `error with getting global stats ${JSON.stringify(err)}`);
-                    callback(err);
-                } else {
+                    // Execute all commands in a single Redis pipeline for efficiency
+                    let replies;
+                    try {
+                        replies = await runMulti(client.client, redisCommands);
+                    } catch (err) {
+                        logger.error(logSystem, 'Global', `error with getting global stats ${JSON.stringify(err)}`);
+                        throw err;
+                    }
+
                     // Process Redis replies for each coin (replies are grouped by commandsPerCoin)
                     for (let i = 0; i < replies.length; i += commandsPerCoin) {
                         const coinName = client.coins[i / commandsPerCoin | 0];
@@ -947,384 +989,383 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                         allCoinStats[coinStats.name] = (coinStats);
                     }
                     // sort pools alphabetically
-                    allCoinStats = sortPoolsByName(allCoinStats);
-                    callback();
                 }
-            });
-        }, (err) => {
-            if (err) {
-                logger.error(logSystem, 'Global', `error getting all stats${JSON.stringify(err)}`);
-                callback();
-                return;
-            }
+                // sort pools alphabetically
+                allCoinStats = sortPoolsByName(allCoinStats);
 
-            const portalStats = {
-                time: statGatherTime,
-                global: {
-                    workers: 0,
-                    hashrate: 0
-                },
-                algos: {},
-                pools: allCoinStats
-            };
-
-            /**
-             * Process worker and miner statistics for each coin
-             * 
-             * This section processes the raw hashrate data to calculate individual
-             * worker and miner statistics. The hashrate data format is:
-             * "shares:workerName:timestamp"
-             * 
-             * Key concepts:
-             * - Worker: Individual mining connection (e.g., "tAddr123.rig1")  
-             * - Miner: Base address that owns multiple workers (e.g., "tAddr123")
-             * - Shares: Proof-of-work submissions (positive = valid, negative = invalid)
-             * - Difficulty: Current mining difficulty for the worker
-             */
-            Object.keys(allCoinStats).forEach((coin) => {
-                const coinStats = allCoinStats[coin];
-                coinStats.workers = {};   // Individual worker statistics
-                coinStats.miners = {};    // Aggregated miner statistics (by base address)
-                coinStats.shares = 0;     // Total shares for this coin
-
-                // Process each hashrate entry
-                coinStats.hashrates.forEach((ins) => {
-                    const parts = ins.split(':');
-                    const workerShares = parseFloat(parts[0]);    // Share count (can be negative for invalid)
-                    const miner = parts[1].split('.')[0];         // Base miner address
-                    const worker = parts[1];                      // Full worker identifier
-                    const diff = Math.round(parts[0] * 8192);     // Mining difficulty calculation
-                    const lastShare = parseInt(parts[2]);         // Timestamp of last share
-
-                    if (workerShares > 0) {
-                        // Valid shares processing
-                        coinStats.shares += workerShares;
-                        // Build or update worker statistics
-                        if (worker in coinStats.workers) {
-                            // Update existing worker
-                            coinStats.workers[worker].shares += workerShares;
-                            coinStats.workers[worker].diff = diff;
-                            if (lastShare > coinStats.workers[worker].lastShare) {
-                                coinStats.workers[worker].lastShare = lastShare;
-                            }
-                        } else {
-                            // Initialize new worker with default statistics
-                            coinStats.workers[worker] = {
-                                lastShare: 0,              // Timestamp of most recent share
-                                name: worker,              // Full worker identifier
-                                diff: diff,                // Current mining difficulty
-                                shares: workerShares,      // Valid share count within time window
-                                invalidshares: 0,          // Invalid share count
-                                currRoundShares: 0,        // Shares contributed to current block round
-                                currRoundTime: 0,          // Time spent mining current round
-                                hashrate: null,            // Calculated hashrate (filled later)
-                                hashrateString: null,      // Human-readable hashrate
-                                luckDays: null,            // Expected days to find a block solo
-                                luckHours: null,           // Expected hours to find a block solo
-                                paid: 0,                   // Total amount paid to this worker
-                                balance: 0                 // Current unpaid balance
-                            };
-                        }
-                        // Build or update miner statistics (aggregated across all workers)
-                        if (miner in coinStats.miners) {
-                            // Update existing miner
-                            coinStats.miners[miner].shares += workerShares;
-                            if (lastShare > coinStats.miners[miner].lastShare) {
-                                coinStats.miners[miner].lastShare = lastShare;
-                            }
-                        } else {
-                            // Initialize new miner with aggregated statistics
-                            coinStats.miners[miner] = {
-                                lastShare: 0,              // Most recent share across all workers
-                                name: miner,               // Base miner address
-                                shares: workerShares,      // Total shares across all workers
-                                invalidshares: 0,          // Total invalid shares
-                                currRoundShares: 0,        // Current round contribution
-                                currRoundTime: 0,          // Time spent in current round
-                                hashrate: null,            // Combined hashrate of all workers
-                                hashrateString: null,      // Human-readable combined hashrate
-                                luckDays: null,            // Expected solo mining time (days)
-                                luckHours: null            // Expected solo mining time (hours)
-                            };
-                        }
-                    } else {
-                        // Invalid shares processing (workerShares is negative)
-
-                        // Build or update worker invalid share statistics
-                        if (worker in coinStats.workers) {
-                            coinStats.workers[worker].invalidshares -= workerShares; // Convert negative to positive
-                            coinStats.workers[worker].diff = diff;
-                        } else {
-                            // Initialize worker with invalid shares only
-                            coinStats.workers[worker] = {
-                                lastShare: 0,
-                                name: worker,
-                                diff: diff,
-                                shares: 0,
-                                invalidshares: -workerShares,  // Convert negative to positive count
-                                currRoundShares: 0,
-                                currRoundTime: 0,
-                                hashrate: null,
-                                hashrateString: null,
-                                luckDays: null,
-                                luckHours: null,
-                                paid: 0,
-                                balance: 0
-                            };
-                        }
-                        // build miner stats
-                        if (miner in coinStats.miners) {
-                            coinStats.miners[miner].invalidshares -= workerShares; // workerShares is negative number!
-                        } else {
-                            coinStats.miners[miner] = {
-                                lastShare: 0,
-                                name: miner,
-                                shares: 0,
-                                invalidshares: -workerShares,
-                                currRoundShares: 0,
-                                currRoundTime: 0,
-                                hashrate: null,
-                                hashrateString: null,
-                                luckDays: null,
-                                luckHours: null
-                            };
-                        }
-                    }
-                });
-
-                // Sort miners by hashrate for display purposes
-                coinStats.miners = sortMinersByHashrate(coinStats.miners);
-
-                /**
-                 * Hashrate Calculation Algorithm
-                 * 
-                 * Hashrate is calculated using the formula:
-                 * hashrate = (shareMultiplier * totalShares) / timeWindow
-                 * 
-                 * Where:
-                 * - shareMultiplier = 2^32 / algorithm_multiplier
-                 * - totalShares = sum of all valid shares in time window
-                 * - timeWindow = configured hashrate calculation window (seconds)
-                 * 
-                 * This gives us hashes per second for the pool.
-                 */
-                const shareMultiplier = Math.pow(2, 32) / algos[coinStats.algorithm].multiplier;
-                coinStats.hashrate = shareMultiplier * coinStats.shares / portalConfig.website.stats.hashrateWindow;
-                coinStats.hashrateString = _this.getReadableHashRateString(coinStats.hashrate);
-
-                /**
-                 * Mining Luck Calculation
-                 * 
-                 * Calculates expected time to find a block based on:
-                 * - Network hashrate vs pool hashrate ratio
-                 * - Network block time (55 seconds for most chains)
-                 * - Pool's percentage of total network hashrate
-                 * 
-                 * Formula: (networkHashrate / poolHashrate) * blockTime
-                 */
-                const _blocktime = 55;  // Average block time in seconds
-                const _networkHashRate = parseFloat(coinStats.poolStats.networkSols) * 1.2;  // Network hashrate with adjustment
-                const _myHashRate = (coinStats.hashrate / 1000000) * 2;  // Pool hashrate in comparable units
-
-                coinStats.luckDays = ((_networkHashRate / _myHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
-                coinStats.luckHours = ((_networkHashRate / _myHashRate * _blocktime) / (60 * 60)).toFixed(3);
-
-                // Set basic counts for this pool
-                coinStats.minerCount = Object.keys(coinStats.miners).length;
-                coinStats.workerCount = Object.keys(coinStats.workers).length;
-                portalStats.global.workers += coinStats.workerCount;
-
-                /* algorithm specific global stats */
-                const algo = coinStats.algorithm;
-                if (!portalStats.algos.hasOwnProperty(algo)) {
-                    portalStats.algos[algo] = {
+                const portalStats = {
+                    time: statGatherTime,
+                    global: {
                         workers: 0,
-                        hashrate: 0,
-                        hashrateString: null
-                    };
-                }
-                portalStats.algos[algo].hashrate += coinStats.hashrate;
-                portalStats.algos[algo].workers += Object.keys(coinStats.workers).length;
+                        hashrate: 0
+                    },
+                    algos: {},
+                    pools: allCoinStats
+                };
 
                 /**
-                 * Current Round Statistics Processing
+                 * Process worker and miner statistics for each coin
                  * 
-                 * Process data for the current mining round (block being worked on):
-                 * - Aggregate shares contributed by each worker/miner
-                 * - Track timing data for round duration analysis
-                 * - Update worker and miner objects with round-specific data
-                 */
-                let _shareTotal = parseFloat(0);
-                let _maxTimeShare = parseFloat(0);
-
-                // Process current round share distribution
-                for (const worker in coinStats.currentRoundShares) {
-                    const miner = worker.split('.')[0];  // Extract base miner address
-
-                    // Add to miner's round total
-                    if (miner in coinStats.miners) {
-                        coinStats.miners[miner].currRoundShares += parseFloat(coinStats.currentRoundShares[worker]);
-                    }
-
-                    // Add to worker's round total
-                    if (worker in coinStats.workers) {
-                        coinStats.workers[worker].currRoundShares += parseFloat(coinStats.currentRoundShares[worker]);
-                    }
-
-                    _shareTotal += parseFloat(coinStats.currentRoundShares[worker]);
-                }
-
-                // Process current round timing data
-                for (const worker in coinStats.currentRoundTimes) {
-                    const time = parseFloat(coinStats.currentRoundTimes[worker]);
-
-                    // Track maximum round time for any worker
-                    if (_maxTimeShare < time) {
-                        _maxTimeShare = time;
-                    }
-
-                    const miner = worker.split('.')[0];  // Extract base miner address
-
-                    // Update miner's round time (use maximum across all workers)
-                    if (miner in coinStats.miners && coinStats.miners[miner].currRoundTime < time) {
-                        coinStats.miners[miner].currRoundTime = time;
-                    }
-                }
-
-                // Set round statistics for this coin
-                coinStats.shareCount = _shareTotal;
-                coinStats.maxRoundTime = _maxTimeShare;
-                coinStats.maxRoundTimeString = readableSeconds(_maxTimeShare);
-
-                /**
-                 * Calculate individual worker hashrates and mining luck
+                 * This section processes the raw hashrate data to calculate individual
+                 * worker and miner statistics. The hashrate data format is:
+                 * "shares:workerName:timestamp"
                  * 
-                 * For each worker, calculate:
-                 * - Individual hashrate based on shares contributed
-                 * - Solo mining luck (time to find block alone)
-                 * - Inherit timing data from parent miner
+                 * Key concepts:
+                 * - Worker: Individual mining connection (e.g., "tAddr123.rig1")  
+                 * - Miner: Base address that owns multiple workers (e.g., "tAddr123")
+                 * - Shares: Proof-of-work submissions (positive = valid, negative = invalid)
+                 * - Difficulty: Current mining difficulty for the worker
                  */
-                for (const worker in coinStats.workers) {
-                    // Calculate worker's individual hashrate
-                    const _workerRate = shareMultiplier * coinStats.workers[worker].shares / portalConfig.website.stats.hashrateWindow;
-                    const _wHashRate = (_workerRate / 1000000) * 2;  // Convert to comparable units
+                Object.keys(allCoinStats).forEach((coin) => {
+                    const coinStats = allCoinStats[coin];
+                    coinStats.workers = {};   // Individual worker statistics
+                    coinStats.miners = {};    // Aggregated miner statistics (by base address)
+                    coinStats.shares = 0;     // Total shares for this coin
 
-                    // Calculate solo mining luck for this worker
-                    coinStats.workers[worker].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
-                    coinStats.workers[worker].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
+                    // Process each hashrate entry
+                    coinStats.hashrates.forEach((ins) => {
+                        const parts = ins.split(':');
+                        const workerShares = parseFloat(parts[0]);    // Share count (can be negative for invalid)
+                        const miner = parts[1].split('.')[0];         // Base miner address
+                        const worker = parts[1];                      // Full worker identifier
+                        const diff = Math.round(parts[0] * 8192);     // Mining difficulty calculation
+                        const lastShare = parseInt(parts[2]);         // Timestamp of last share
 
-                    // Set hashrate values
-                    coinStats.workers[worker].hashrate = _workerRate;
-                    coinStats.workers[worker].hashrateString = _this.getReadableHashRateString(_workerRate);
+                        if (workerShares > 0) {
+                            // Valid shares processing
+                            coinStats.shares += workerShares;
+                            // Build or update worker statistics
+                            if (worker in coinStats.workers) {
+                                // Update existing worker
+                                coinStats.workers[worker].shares += workerShares;
+                                coinStats.workers[worker].diff = diff;
+                                if (lastShare > coinStats.workers[worker].lastShare) {
+                                    coinStats.workers[worker].lastShare = lastShare;
+                                }
+                            } else {
+                                // Initialize new worker with default statistics
+                                coinStats.workers[worker] = {
+                                    lastShare: 0,              // Timestamp of most recent share
+                                    name: worker,              // Full worker identifier
+                                    diff: diff,                // Current mining difficulty
+                                    shares: workerShares,      // Valid share count within time window
+                                    invalidshares: 0,          // Invalid share count
+                                    currRoundShares: 0,        // Shares contributed to current block round
+                                    currRoundTime: 0,          // Time spent mining current round
+                                    hashrate: null,            // Calculated hashrate (filled later)
+                                    hashrateString: null,      // Human-readable hashrate
+                                    luckDays: null,            // Expected days to find a block solo
+                                    luckHours: null,           // Expected hours to find a block solo
+                                    paid: 0,                   // Total amount paid to this worker
+                                    balance: 0                 // Current unpaid balance
+                                };
+                            }
+                            // Build or update miner statistics (aggregated across all workers)
+                            if (miner in coinStats.miners) {
+                                // Update existing miner
+                                coinStats.miners[miner].shares += workerShares;
+                                if (lastShare > coinStats.miners[miner].lastShare) {
+                                    coinStats.miners[miner].lastShare = lastShare;
+                                }
+                            } else {
+                                // Initialize new miner with aggregated statistics
+                                coinStats.miners[miner] = {
+                                    lastShare: 0,              // Most recent share across all workers
+                                    name: miner,               // Base miner address
+                                    shares: workerShares,      // Total shares across all workers
+                                    invalidshares: 0,          // Total invalid shares
+                                    currRoundShares: 0,        // Current round contribution
+                                    currRoundTime: 0,          // Time spent in current round
+                                    hashrate: null,            // Combined hashrate of all workers
+                                    hashrateString: null,      // Human-readable combined hashrate
+                                    luckDays: null,            // Expected solo mining time (days)
+                                    luckHours: null            // Expected solo mining time (hours)
+                                };
+                            }
+                        } else {
+                            // Invalid shares processing (workerShares is negative)
 
-                    // Inherit current round time from parent miner
-                    const miner = worker.split('.')[0];
-                    if (miner in coinStats.miners) {
-                        coinStats.workers[worker].currRoundTime = coinStats.miners[miner].currRoundTime;
-                    }
-                }
-
-                /**
-                 * Calculate miner hashrates and mining luck
-                 * 
-                 * For each miner (aggregated across all workers):
-                 * - Combined hashrate of all workers
-                 * - Solo mining luck based on combined hashrate
-                 */
-                for (const miner in coinStats.miners) {
-                    // Calculate miner's combined hashrate
-                    const _workerRate = shareMultiplier * coinStats.miners[miner].shares / portalConfig.website.stats.hashrateWindow;
-                    const _wHashRate = (_workerRate / 1000000) * 2;
-
-                    // Calculate solo mining luck for combined hashrate
-                    coinStats.miners[miner].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
-                    coinStats.miners[miner].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
-
-                    // Set combined hashrate values
-                    coinStats.miners[miner].hashrate = _workerRate;
-                    coinStats.miners[miner].hashrateString = _this.getReadableHashRateString(_workerRate);
-                }
-
-                // Sort workers alphabetically for consistent display
-                coinStats.workers = sortWorkersByName(coinStats.workers);
-
-                // Clean up temporary data used for calculations
-                delete coinStats.hashrates;  // Raw hashrate data no longer needed
-                delete coinStats.shares;     // Total share count no longer needed
-            });
-
-            /**
-             * Finalize algorithm-specific statistics
-             * 
-             * Generate human-readable hashrate strings for each algorithm's
-             * combined statistics across all pools using that algorithm.
-             */
-            Object.keys(portalStats.algos).forEach((algo) => {
-                const algoStats = portalStats.algos[algo];
-                algoStats.hashrateString = _this.getReadableHashRateString(algoStats.hashrate);
-            });
-
-            // Store completed statistics in the module
-            _this.stats = portalStats;
-
-            /**
-             * Historical Data Management
-             * 
-             * Save statistics to history if there are active workers, but only
-             * save essential data to minimize storage requirements. Remove
-             * detailed worker information and temporary round data.
-             */
-            if (portalStats.global.workers > 0) {
-                // Create a lightweight copy for historical storage
-                const saveStats = JSON.parse(JSON.stringify(portalStats));
-                Object.keys(saveStats.pools).forEach((pool) => {
-                    // Remove large, non-essential data for historical storage
-                    delete saveStats.pools[pool].pending;           // Detailed pending blocks
-                    delete saveStats.pools[pool].confirmed;         // Detailed confirmed blocks  
-                    delete saveStats.pools[pool].currentRoundShares; // Current round share data
-                    delete saveStats.pools[pool].currentRoundTimes;  // Current round timing data
-                    delete saveStats.pools[pool].payments;          // Payment history
-                    delete saveStats.pools[pool].miners;            // Detailed miner data
-                });
-
-                // Store for API access and add to history
-                _this.statsString = JSON.stringify(saveStats);
-                _this.statHistory.push(saveStats);
-
-                // Add to pool-specific history for trending
-                addStatPoolHistory(portalStats);
-
-                /**
-                 * Historical Data Retention
-                 * 
-                 * Automatically clean up old historical data based on the
-                 * configured retention period to prevent unlimited growth.
-                 */
-                const retentionTime = (((Date.now() / 1000) - portalConfig.website.stats.historicalRetention) | 0);
-
-                // Clean up in-memory history
-                for (let i = 0; i < _this.statHistory.length; i++) {
-                    if (retentionTime < _this.statHistory[i].time) {
-                        if (i > 0) {
-                            _this.statHistory = _this.statHistory.slice(i);
-                            _this.statPoolHistory = _this.statPoolHistory.slice(i);
+                            // Build or update worker invalid share statistics
+                            if (worker in coinStats.workers) {
+                                coinStats.workers[worker].invalidshares -= workerShares; // Convert negative to positive
+                                coinStats.workers[worker].diff = diff;
+                            } else {
+                                // Initialize worker with invalid shares only
+                                coinStats.workers[worker] = {
+                                    lastShare: 0,
+                                    name: worker,
+                                    diff: diff,
+                                    shares: 0,
+                                    invalidshares: -workerShares,  // Convert negative to positive count
+                                    currRoundShares: 0,
+                                    currRoundTime: 0,
+                                    hashrate: null,
+                                    hashrateString: null,
+                                    luckDays: null,
+                                    luckHours: null,
+                                    paid: 0,
+                                    balance: 0
+                                };
+                            }
+                            // build miner stats
+                            if (miner in coinStats.miners) {
+                                coinStats.miners[miner].invalidshares -= workerShares; // workerShares is negative number!
+                            } else {
+                                coinStats.miners[miner] = {
+                                    lastShare: 0,
+                                    name: miner,
+                                    shares: 0,
+                                    invalidshares: -workerShares,
+                                    currRoundShares: 0,
+                                    currRoundTime: 0,
+                                    hashrate: null,
+                                    hashrateString: null,
+                                    luckDays: null,
+                                    luckHours: null
+                                };
+                            }
                         }
-                        break;
+                    });
+
+                    // Sort miners by hashrate for display purposes
+                    coinStats.miners = sortMinersByHashrate(coinStats.miners);
+
+                    /**
+                     * Hashrate Calculation Algorithm
+                     * 
+                     * Hashrate is calculated using the formula:
+                     * hashrate = (shareMultiplier * totalShares) / timeWindow
+                     * 
+                     * Where:
+                     * - shareMultiplier = 2^32 / algorithm_multiplier
+                     * - totalShares = sum of all valid shares in time window
+                     * - timeWindow = configured hashrate calculation window (seconds)
+                     * 
+                     * This gives us hashes per second for the pool.
+                     */
+                    const shareMultiplier = Math.pow(2, 32) / algos[coinStats.algorithm].multiplier;
+                    coinStats.hashrate = shareMultiplier * coinStats.shares / portalConfig.website.stats.hashrateWindow;
+                    coinStats.hashrateString = _this.getReadableHashRateString(coinStats.hashrate);
+
+                    /**
+                     * Mining Luck Calculation
+                     * 
+                     * Calculates expected time to find a block based on:
+                     * - Network hashrate vs pool hashrate ratio
+                     * - Network block time (55 seconds for most chains)
+                     * - Pool's percentage of total network hashrate
+                     * 
+                     * Formula: (networkHashrate / poolHashrate) * blockTime
+                     */
+                    const _blocktime = 55;  // Average block time in seconds
+                    const _networkHashRate = parseFloat(coinStats.poolStats.networkSols) * 1.2;  // Network hashrate with adjustment
+                    const _myHashRate = (coinStats.hashrate / 1000000) * 2;  // Pool hashrate in comparable units
+
+                    coinStats.luckDays = ((_networkHashRate / _myHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
+                    coinStats.luckHours = ((_networkHashRate / _myHashRate * _blocktime) / (60 * 60)).toFixed(3);
+
+                    // Set basic counts for this pool
+                    coinStats.minerCount = Object.keys(coinStats.miners).length;
+                    coinStats.workerCount = Object.keys(coinStats.workers).length;
+                    portalStats.global.workers += coinStats.workerCount;
+
+                    /* algorithm specific global stats */
+                    const algo = coinStats.algorithm;
+                    if (!portalStats.algos.hasOwnProperty(algo)) {
+                        portalStats.algos[algo] = {
+                            workers: 0,
+                            hashrate: 0,
+                            hashrateString: null
+                        };
                     }
+                    portalStats.algos[algo].hashrate += coinStats.hashrate;
+                    portalStats.algos[algo].workers += Object.keys(coinStats.workers).length;
+
+                    /**
+                     * Current Round Statistics Processing
+                     * 
+                     * Process data for the current mining round (block being worked on):
+                     * - Aggregate shares contributed by each worker/miner
+                     * - Track timing data for round duration analysis
+                     * - Update worker and miner objects with round-specific data
+                     */
+                    let _shareTotal = parseFloat(0);
+                    let _maxTimeShare = parseFloat(0);
+
+                    // Process current round share distribution
+                    for (const worker in coinStats.currentRoundShares) {
+                        const miner = worker.split('.')[0];  // Extract base miner address
+
+                        // Add to miner's round total
+                        if (miner in coinStats.miners) {
+                            coinStats.miners[miner].currRoundShares += parseFloat(coinStats.currentRoundShares[worker]);
+                        }
+
+                        // Add to worker's round total
+                        if (worker in coinStats.workers) {
+                            coinStats.workers[worker].currRoundShares += parseFloat(coinStats.currentRoundShares[worker]);
+                        }
+
+                        _shareTotal += parseFloat(coinStats.currentRoundShares[worker]);
+                    }
+
+                    // Process current round timing data
+                    for (const worker in coinStats.currentRoundTimes) {
+                        const time = parseFloat(coinStats.currentRoundTimes[worker]);
+
+                        // Track maximum round time for any worker
+                        if (_maxTimeShare < time) {
+                            _maxTimeShare = time;
+                        }
+
+                        const miner = worker.split('.')[0];  // Extract base miner address
+
+                        // Update miner's round time (use maximum across all workers)
+                        if (miner in coinStats.miners && coinStats.miners[miner].currRoundTime < time) {
+                            coinStats.miners[miner].currRoundTime = time;
+                        }
+                    }
+
+                    // Set round statistics for this coin
+                    coinStats.shareCount = _shareTotal;
+                    coinStats.maxRoundTime = _maxTimeShare;
+                    coinStats.maxRoundTimeString = readableSeconds(_maxTimeShare);
+
+                    /**
+                     * Calculate individual worker hashrates and mining luck
+                     * 
+                     * For each worker, calculate:
+                     * - Individual hashrate based on shares contributed
+                     * - Solo mining luck (time to find block alone)
+                     * - Inherit timing data from parent miner
+                     */
+                    for (const worker in coinStats.workers) {
+                        // Calculate worker's individual hashrate
+                        const _workerRate = shareMultiplier * coinStats.workers[worker].shares / portalConfig.website.stats.hashrateWindow;
+                        const _wHashRate = (_workerRate / 1000000) * 2;  // Convert to comparable units
+
+                        // Calculate solo mining luck for this worker
+                        coinStats.workers[worker].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
+                        coinStats.workers[worker].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
+
+                        // Set hashrate values
+                        coinStats.workers[worker].hashrate = _workerRate;
+                        coinStats.workers[worker].hashrateString = _this.getReadableHashRateString(_workerRate);
+
+                        // Inherit current round time from parent miner
+                        const miner = worker.split('.')[0];
+                        if (miner in coinStats.miners) {
+                            coinStats.workers[worker].currRoundTime = coinStats.miners[miner].currRoundTime;
+                        }
+                    }
+
+                    /**
+                     * Calculate miner hashrates and mining luck
+                     * 
+                     * For each miner (aggregated across all workers):
+                     * - Combined hashrate of all workers
+                     * - Solo mining luck based on combined hashrate
+                     */
+                    for (const miner in coinStats.miners) {
+                        // Calculate miner's combined hashrate
+                        const _workerRate = shareMultiplier * coinStats.miners[miner].shares / portalConfig.website.stats.hashrateWindow;
+                        const _wHashRate = (_workerRate / 1000000) * 2;
+
+                        // Calculate solo mining luck for combined hashrate
+                        coinStats.miners[miner].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
+                        coinStats.miners[miner].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
+
+                        // Set combined hashrate values
+                        coinStats.miners[miner].hashrate = _workerRate;
+                        coinStats.miners[miner].hashrateString = _this.getReadableHashRateString(_workerRate);
+                    }
+
+                    // Sort workers alphabetically for consistent display
+                    coinStats.workers = sortWorkersByName(coinStats.workers);
+
+                    // Clean up temporary data used for calculations
+                    delete coinStats.hashrates;  // Raw hashrate data no longer needed
+                    delete coinStats.shares;     // Total share count no longer needed
+                });
+
+                /**
+                 * Finalize algorithm-specific statistics
+                 * 
+                 * Generate human-readable hashrate strings for each algorithm's
+                 * combined statistics across all pools using that algorithm.
+                 */
+                Object.keys(portalStats.algos).forEach((algo) => {
+                    const algoStats = portalStats.algos[algo];
+                    algoStats.hashrateString = _this.getReadableHashRateString(algoStats.hashrate);
+                });
+
+                // Store completed statistics in the module
+                _this.stats = portalStats;
+
+                /**
+                 * Historical Data Management
+                 * 
+                 * Save statistics to history if there are active workers, but only
+                 * save essential data to minimize storage requirements. Remove
+                 * detailed worker information and temporary round data.
+                 */
+                if (portalStats.global.workers > 0) {
+                    // Create a lightweight copy for historical storage
+                    const saveStats = JSON.parse(JSON.stringify(portalStats));
+                    Object.keys(saveStats.pools).forEach((pool) => {
+                        // Remove large, non-essential data for historical storage
+                        delete saveStats.pools[pool].pending;           // Detailed pending blocks
+                        delete saveStats.pools[pool].confirmed;         // Detailed confirmed blocks  
+                        delete saveStats.pools[pool].currentRoundShares; // Current round share data
+                        delete saveStats.pools[pool].currentRoundTimes;  // Current round timing data
+                        delete saveStats.pools[pool].payments;          // Payment history
+                        delete saveStats.pools[pool].miners;            // Detailed miner data
+                    });
+
+                    // Store for API access and add to history
+                    _this.statsString = JSON.stringify(saveStats);
+                    _this.statHistory.push(saveStats);
+
+                    // Add to pool-specific history for trending
+                    addStatPoolHistory(portalStats);
+
+                    /**
+                     * Historical Data Retention
+                     * 
+                     * Automatically clean up old historical data based on the
+                     * configured retention period to prevent unlimited growth.
+                     */
+                    const retentionTime = (((Date.now() / 1000) - portalConfig.website.stats.historicalRetention) | 0);
+
+                    // Clean up in-memory history
+                    for (let i = 0; i < _this.statHistory.length; i++) {
+                        if (retentionTime < _this.statHistory[i].time) {
+                            if (i > 0) {
+                                _this.statHistory = _this.statHistory.slice(i);
+                                _this.statPoolHistory = _this.statPoolHistory.slice(i);
+                            }
+                            break;
+                        }
+                    }
+
+                    // Save to Redis and clean up old Redis data
+                    redisStats.multi([
+                        ['zadd', 'statHistory', statGatherTime, _this.statsString],
+                        ['zremrangebyscore', 'statHistory', '-inf', `(${retentionTime}`]
+                    ]).exec((err, replies) => {
+                        if (err) {
+                            logger.error(logSystem, 'Historics', `Error adding stats to historics ${JSON.stringify(err)}`);
+                        }
+                    });
                 }
 
-                // Save to Redis and clean up old Redis data
-                redisStats.multi([
-                    ['zadd', 'statHistory', statGatherTime, _this.statsString],
-                    ['zremrangebyscore', 'statHistory', '-inf', `(${retentionTime}`]
-                ]).exec((err, replies) => {
-                    if (err) {
-                        logger.error(logSystem, 'Historics', `Error adding stats to historics ${JSON.stringify(err)}`);
-                    }
-                });
+                // invoke caller callback
+                if (typeof callback === 'function') callback();
+            } catch (err) {
+                logger.error(logSystem, 'Global', `error getting all stats${JSON.stringify(err)}`);
+                if (typeof callback === 'function') callback();
             }
-            callback();
-        });
+        })();
 
     };
 
