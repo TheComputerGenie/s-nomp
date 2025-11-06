@@ -37,9 +37,341 @@ const path = require('path');
 const redis = require('redis');
 
 const dot = require('dot');
-const express = require('express');
-const bodyParser = require('body-parser');
-const compress = require('compression');
+const http = require('http');
+const { URL } = require('url');
+
+// Lightweight in-file Express adapter (only the minimal API used by this file)
+// Provides: express() -> app, app.use([path], fn), app.get/post(path, fn),
+// app.listen, and express.static(root) middleware factory. This avoids
+// requiring the full Express package while keeping the rest of the file
+// unchanged. We intentionally keep body-parser and compression as external
+// modules (they remain required below) so behavior is preserved.
+function createMiniExpress() {
+    function makeApp() {
+        const middlewares = [];
+        const routes = [];
+
+        function registerRoute(method, pathPattern, handler) {
+            const parts = pathPattern.split('/').filter(Boolean);
+            const paramNames = [];
+            const regexParts = parts.map(p => {
+                if (p.startsWith(':')) { paramNames.push(p.slice(1)); return '([^/]+)'; }
+                return p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            });
+            const regex = new RegExp('^/' + regexParts.join('/') + '$');
+            routes.push({ method, pathPattern, regex, paramNames, handler });
+        }
+
+        const handler = (req, res) => {
+            // basic request augmentation for compatibility
+            try {
+                req.query = Object.fromEntries(new URL(req.url, `http://${req.headers.host || 'localhost'}`).searchParams.entries());
+            } catch (e) {
+                req.query = {};
+            }
+            req.params = {};
+            req.get = (h) => req.headers[h.toLowerCase()];
+            res.header = (n, v) => res.setHeader(n, v);
+            // Provide a flush() shim expected by some handlers (e.g. SSE or
+            // API methods). If a compressor is attached to the response it
+            // will attempt to flush it; otherwise fall back to
+            // flushHeaders() when available.
+            res.flush = () => {
+                try {
+                    if (res._compressor && typeof res._compressor.flush === 'function') {
+                        try { res._compressor.flush(); } catch (e) { /* best-effort */ }
+                        return;
+                    }
+                    if (typeof res.flushHeaders === 'function') return res.flushHeaders();
+                } catch (e) { }
+            };
+            res.send = (a, b) => {
+                if (typeof a === 'number') {
+                    res.statusCode = a;
+                    if (b !== undefined) {
+                        if (!res.headersSent) res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                        return res.end(typeof b === 'string' ? b : JSON.stringify(b));
+                    }
+                    return res.end();
+                }
+                if (!res.headersSent) res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                return res.end(typeof a === 'string' ? a : JSON.stringify(a));
+            };
+
+            // compose middleware list then the matching route handler
+            const handlers = [];
+            middlewares.forEach(mw => handlers.push(mw));
+
+            const method = req.method.toUpperCase();
+            for (const r of routes) {
+                if (r.method !== method) continue;
+                const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
+                const match = pathname.match(r.regex);
+                if (match) {
+                    r.paramNames.forEach((n, i) => req.params[n] = match[i + 1]);
+                    handlers.push(r.handler);
+                    break;
+                }
+            }
+
+            let idx = 0;
+            const next = (err) => {
+                if (err) {
+                    // find next error handler (fn.length === 4)
+                    while (true) {
+                        const h = handlers[idx++];
+                        if (!h) {
+                            if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+                            return res.end('Something broke!');
+                        }
+                        if (h.length === 4) {
+                            try { return h(err, req, res, next); } catch (e) { console.error(e); continue; }
+                        }
+                    }
+                }
+
+                const h = handlers[idx++];
+                if (!h) {
+                    if (!res.headersSent) res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+                    return res.end('Not Found');
+                }
+                if (h.length === 4) return next(); // skip error handlers in normal flow
+                try { return h(req, res, next); } catch (e) { console.error(e); return next(e); }
+            };
+
+            next();
+        };
+
+        handler.get = (p, h) => registerRoute('GET', p, h);
+        handler.post = (p, h) => registerRoute('POST', p, h);
+        handler.use = (a, b) => {
+            if (typeof a === 'string' && typeof b === 'function') {
+                middlewares.push((req, res, next) => {
+                    try {
+                        const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
+                        if (pathname.startsWith(a)) return b(req, res, next);
+                    } catch (e) { }
+                    return next();
+                });
+            } else if (typeof a === 'function') {
+                middlewares.push(a);
+            }
+        };
+        handler.listen = (port, host, cb) => {
+            if (typeof host === 'function') { cb = host; host = undefined; }
+            return http.createServer(handler).listen(port, host, cb);
+        };
+        return handler;
+    }
+
+    function expressStatic(root) {
+        const rootAbs = path.resolve(root);
+        const extMime = {
+            '.html': 'text/html; charset=utf-8',
+            '.js': 'application/javascript; charset=utf-8',
+            '.css': 'text/css; charset=utf-8',
+            '.json': 'application/json; charset=utf-8',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.svg': 'image/svg+xml',
+            '.ico': 'image/x-icon'
+        };
+
+        return (req, res, next) => {
+            try {
+                const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
+                // remove leading / if present
+                const rel = decodeURIComponent(pathname.replace(/^\//, ''));
+                // If mounted at /static the pathname will start with 'static/...'
+                const relPath = rel.replace(/^static\//, '');
+                const fsPath = path.join(rootAbs, relPath);
+                if (!fsPath.startsWith(rootAbs)) return next();
+                if (fs.existsSync(fsPath) && fs.statSync(fsPath).isFile()) {
+                    const ext = path.extname(fsPath).toLowerCase();
+                    const mt = extMime[ext] || 'application/octet-stream';
+                    res.setHeader('Content-Type', mt);
+                    // Basic caching for static assets
+                    res.setHeader('Cache-Control', 'public, max-age=3600');
+                    const stream = fs.createReadStream(fsPath);
+                    stream.on('error', () => next());
+                    stream.pipe(res);
+                    return;
+                }
+            } catch (e) { }
+            return next();
+        };
+    }
+
+    const exp = () => makeApp();
+    exp.static = expressStatic;
+    return exp;
+}
+
+const express = createMiniExpress();
+
+// Native JSON body parser replacement for body-parser.json()
+// Supports POST/PUT/PATCH and parses application/json payloads.
+const bodyParser = {
+    json: () => (req, res, next) => {
+        const method = (req.method || '').toUpperCase();
+        if (!['POST', 'PUT', 'PATCH'].includes(method)) return next();
+
+        const contentType = (req.headers['content-type'] || '').split(';')[0].trim();
+        if (contentType !== 'application/json') return next();
+
+        let raw = '';
+        req.setEncoding('utf8');
+        req.on('data', (chunk) => { raw += chunk; });
+        req.on('end', () => {
+            if (!raw) { req.body = {}; return next(); }
+            try {
+                req.body = JSON.parse(raw);
+            } catch (e) {
+                // keep req.body minimal on parse error
+                req.body = {};
+            }
+            return next();
+        });
+        req.on('error', () => { req.body = {}; return next(); });
+    }
+};
+
+// Lightweight native compression middleware to replace the external
+// `compression` package. This uses Node's built-in zlib to provide
+// Brotli/Gzip/Deflate compression based on the client's Accept-Encoding
+// header. It mirrors the minimal middleware shape (fn(req,res,next)) so
+// existing `app.use(compress())` calls keep working.
+const zlib = require('zlib');
+const compress = () => {
+    return (req, res, next) => {
+        try {
+            const method = (req.method || '').toUpperCase();
+            // Don't compress responses to HEAD requests
+            if (method === 'HEAD') return next();
+
+            const accept = req.headers['accept-encoding'] || '';
+            let encoding = null;
+            if (/\bbr\b/.test(accept)) encoding = 'br';
+            else if (/\bgzip\b/.test(accept)) encoding = 'gzip';
+            else if (/\bdeflate\b/.test(accept)) encoding = 'deflate';
+            if (!encoding) return next();
+
+            // If response is already encoded, skip
+            if (typeof res.getHeader === 'function' && res.getHeader('Content-Encoding')) return next();
+
+            // Advertise that we vary by Accept-Encoding
+            try {
+                const prev = res.getHeader && res.getHeader('Vary');
+                if (!prev) res.setHeader('Vary', 'Accept-Encoding');
+                else if (!/Accept-Encoding/i.test(prev)) res.setHeader('Vary', prev + ', Accept-Encoding');
+            } catch (e) { }
+
+            // Lazy compression: only create compressor on first write/end and
+            // only for compressible content-types. This avoids compressing
+            // SSE (text/event-stream) and binary assets that shouldn't be
+            // altered.
+            // If another instance already wrapped this response, skip to avoid
+            // double-wrapping/double-compression which corrupts output.
+            if (res._compressMiddlewareApplied) return next();
+            try { res._compressMiddlewareApplied = true; } catch (e) { }
+
+            const _write = res.write.bind(res);
+            const _end = res.end.bind(res);
+            let headerWritten = false;
+            let compressor = null;
+            let decided = false;
+            const compressible = (ct) => {
+                if (!ct) return true; // unknown -> allow
+                ct = ct.split(';')[0].trim().toLowerCase();
+                if (!ct) return true;
+                // Don't compress server-sent events or already-compressed media
+                if (ct === 'text/event-stream') return false;
+                if (ct.startsWith('image/')) return false;
+                if (ct === 'application/zip' || ct === 'application/gzip') return false;
+                if (ct.startsWith('video/')) return false;
+                if (ct.startsWith('audio/')) return false;
+                // Compress common text-ish types
+                if (ct.startsWith('text/')) return true;
+                if (ct === 'application/javascript' || ct === 'application/json' || ct === 'application/xml' || ct === 'application/xhtml+xml') return true;
+                return false;
+            };
+
+            const makeCompressor = () => {
+                if (compressor) return compressor;
+                if (encoding === 'br' && typeof zlib.createBrotliCompress === 'function') compressor = zlib.createBrotliCompress();
+                else if (encoding === 'gzip') compressor = zlib.createGzip();
+                else compressor = zlib.createDeflate();
+                try { res._compressor = compressor; } catch (e) { }
+                compressor.on('data', (chunk) => { try { _write(chunk); } catch (e) { /* best-effort */ } });
+                compressor.on('end', () => { try { delete res._compressor; _end(); } catch (e) { /* best-effort */ } });
+                compressor.on('error', (err) => { console.error('compression error', err); try { delete res._compressor; _end(); } catch (e) { } });
+                return compressor;
+            };
+
+            // Override res.write and res.end to decide lazily whether to compress
+            res.write = function (chunk, encodingArg, cb) {
+                if (!decided) {
+                    decided = true;
+                    // Choose based on Content-Type header
+                    const ct = (typeof res.getHeader === 'function') ? res.getHeader('Content-Type') : null;
+                    const doCompress = encoding && compressible(ct);
+                    if (!doCompress) {
+                        // restore original behaviour and write directly
+                        try { if (typeof res.removeHeader === 'function') res.removeHeader('Content-Encoding'); } catch (e) { }
+                        res.write = _write;
+                        res.end = _end;
+                        return res.write(chunk, encodingArg, cb);
+                    }
+                    // perform compression
+                    try { res.setHeader('Content-Encoding', encoding); } catch (e) { }
+                    if (typeof res.removeHeader === 'function') {
+                        try { res.removeHeader('Content-Length'); } catch (e) { }
+                    }
+                    headerWritten = true;
+                    makeCompressor();
+                }
+                if (chunk) {
+                    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encodingArg);
+                    return compressor.write(buf, cb);
+                }
+                if (typeof cb === 'function') cb();
+                return true;
+            };
+
+            res.end = function (chunk, encodingArg, cb) {
+                if (!decided) {
+                    decided = true;
+                    const ct = (typeof res.getHeader === 'function') ? res.getHeader('Content-Type') : null;
+                    const doCompress = encoding && compressible(ct);
+                    if (!doCompress) {
+                        try { if (typeof res.removeHeader === 'function') res.removeHeader('Content-Encoding'); } catch (e) { }
+                        res.write = _write;
+                        res.end = _end;
+                        return res.end(chunk, encodingArg, cb);
+                    }
+                    try { res.setHeader('Content-Encoding', encoding); } catch (e) { }
+                    if (typeof res.removeHeader === 'function') {
+                        try { res.removeHeader('Content-Length'); } catch (e) { }
+                    }
+                    headerWritten = true;
+                    makeCompressor();
+                }
+                if (chunk) {
+                    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encodingArg);
+                    return compressor.end(buf, cb);
+                }
+                return compressor ? compressor.end(cb) : _end(cb);
+            };
+
+            return next();
+        } catch (e) {
+            // If anything goes wrong in the middleware, don't break the app
+            console.error('compression middleware failed', e);
+            return next();
+        }
+    };
+};
 
 const Stratum = require('./stratum');
 const util = require('./stratum/util.js');

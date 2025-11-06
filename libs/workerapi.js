@@ -1,4 +1,5 @@
-const express = require('express');
+const http = require('http');
+const { URL } = require('url');
 const os = require('os');
 
 /**
@@ -20,8 +21,49 @@ function workerapi(listen) {
     /** @private {WorkerAPI} Reference to this instance for use in callbacks */
     const _this = this;
 
-    /** @private {express.Application} Express application instance for handling HTTP requests */
-    const app = express();
+    /** @private {http.Server} Native HTTP server for handling API requests */
+    const server = http.createServer((req, res) => {
+        try {
+            // Parse URL using WHATWG URL, provide a base if Host header missing
+            const base = `http://${req.headers.host || 'localhost'}`;
+            const url = new URL(req.url, base);
+
+            // Only support GET /stats
+            if (req.method === 'GET' && url.pathname === '/stats') {
+                const body = JSON.stringify({
+                    'clients': Object.keys(_this.poolObj.stratumServer.getStratumClients()).length,
+                    'counters': counters,
+                    'lastEvents': lastEvents
+                });
+
+                // For HEAD requests, send headers only
+                if (req.method === 'HEAD') {
+                    res.writeHead(200, {
+                        'Content-Type': 'application/json',
+                        'Content-Length': Buffer.byteLength(body),
+                        'Cache-Control': 'no-store'
+                    });
+                    return res.end();
+                }
+
+                res.writeHead(200, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Content-Length': Buffer.byteLength(body),
+                    'Cache-Control': 'no-store'
+                });
+                return res.end(body);
+            }
+
+            // Unknown route
+            res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+            res.end('Not Found');
+        } catch (err) {
+            // Unexpected server error
+            res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+            res.end('Internal Server Error');
+            console.error('Worker API request handler error:', err);
+        }
+    });
 
     /**
      * Cumulative counters for tracking pool performance metrics
