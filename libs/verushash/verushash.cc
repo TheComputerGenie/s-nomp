@@ -47,13 +47,16 @@ napi_value hash(napi_env env, napi_callback_info info)
   }
 
   // Process/Define Passed Parameters
+  napi_typedarray_type type;
+  size_t length;
   void *input;
   size_t input_len;
-  status = napi_get_buffer_info(env, args[0], &input, &input_len);
-  if (status != napi_ok) {
-    napi_throw_error(env, nullptr, "Argument must be a buffer.");
+  status = napi_get_typedarray_info(env, args[0], &type, &length, &input, nullptr, nullptr);
+  if (status != napi_ok || type != napi_uint8_array) {
+    napi_throw_error(env, nullptr, "Argument must be a Uint8Array.");
     return nullptr;
   }
+  input_len = length;
 
   char output[32];
 
@@ -84,13 +87,16 @@ napi_value hash2(napi_env env, napi_callback_info info)
   }
 
   // Process/Define Passed Parameters
+  napi_typedarray_type type;
+  size_t length;
   void *input;
   size_t input_len;
-  status = napi_get_buffer_info(env, args[0], &input, &input_len);
-  if (status != napi_ok) {
-    napi_throw_error(env, nullptr, "Argument must be a buffer.");
+  status = napi_get_typedarray_info(env, args[0], &type, &length, &input, nullptr, nullptr);
+  if (status != napi_ok || type != napi_uint8_array) {
+    napi_throw_error(env, nullptr, "Argument must be a Uint8Array.");
     return nullptr;
   }
+  input_len = length;
 
   char output[32];
 
@@ -123,13 +129,16 @@ napi_value hash2b(napi_env env, napi_callback_info info)
   }
 
   // Process/Define Passed Parameters
+  napi_typedarray_type type;
+  size_t length;
   void *input;
   size_t input_len;
-  status = napi_get_buffer_info(env, args[0], &input, &input_len);
-  if (status != napi_ok) {
-    napi_throw_error(env, nullptr, "Argument must be a buffer.");
+  status = napi_get_typedarray_info(env, args[0], &type, &length, &input, nullptr, nullptr);
+  if (status != napi_ok || type != napi_uint8_array) {
+    napi_throw_error(env, nullptr, "Argument must be a Uint8Array.");
     return nullptr;
   }
+  input_len = length;
 
   char output[32];
 
@@ -162,13 +171,16 @@ napi_value hash2b1(napi_env env, napi_callback_info info)
   }
 
   // Process/Define Passed Parameters
+  napi_typedarray_type type;
+  size_t length;
   void *input;
   size_t input_len;
-  status = napi_get_buffer_info(env, args[0], &input, &input_len);
-  if (status != napi_ok) {
-    napi_throw_error(env, nullptr, "Argument must be a buffer.");
+  status = napi_get_typedarray_info(env, args[0], &type, &length, &input, nullptr, nullptr);
+  if (status != napi_ok || type != napi_uint8_array) {
+    napi_throw_error(env, nullptr, "Argument must be a Uint8Array.");
     return nullptr;
   }
+  input_len = length;
 
   char output[32];
 
@@ -232,13 +244,16 @@ napi_value hash2b2(napi_env env, napi_callback_info info)
   }
 
   // Process/Define Passed Parameters
+  napi_typedarray_type type;
+  size_t length;
   void *input;
   size_t input_len;
-  status = napi_get_buffer_info(env, args[0], &input, &input_len);
-  if (status != napi_ok) {
-    napi_throw_error(env, nullptr, "Argument must be a buffer.");
+  status = napi_get_typedarray_info(env, args[0], &type, &length, &input, nullptr, nullptr);
+  if (status != napi_ok || type != napi_uint8_array) {
+    napi_throw_error(env, nullptr, "Argument must be a Uint8Array.");
     return nullptr;
   }
+  input_len = length;
 
   char output[32];
 
