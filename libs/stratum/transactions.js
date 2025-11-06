@@ -9,7 +9,7 @@
  * @version 1.0.0
  */
 
-const bitcoin = require('bitgo-utxo-lib');
+const bitcoin = require('../utxo');
 const util = require('./util.js');
 
 /**
