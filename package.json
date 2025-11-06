@@ -34,7 +34,6 @@
         "url": "https://github.com/ComputerGenieCo/s-nomp.git"
     },
     "dependencies": {
-        "base58-native": "^0.1.4",
         "bignum": "^0.13.0",
         "bitgo-utxo-lib": "git+https://github.com/Oink70/bitgo-utxo-lib.git",
         "body-parser": "^1.18.3",

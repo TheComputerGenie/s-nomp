@@ -7,13 +7,13 @@
  * 
  * @module libs/stratum/util
  * @requires crypto - Node.js built-in cryptographic functionality
- * @requires base58-native - Base58 encoding/decoding library
+ * @requires base58-native.js - NATIVE Base58 encoding/decoding library
  * @requires bignum - Arbitrary precision arithmetic library
  */
 
 const crypto = require('crypto');
 
-const base58 = require('base58-native');
+const base58 = require('./base58-native.js');
 const bignum = require('bignum');
 
 /**
