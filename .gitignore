@@ -4,3 +4,8 @@ docker-compose.override.yml
 node_modules/
 pool_configs/*.json
 npm-debug.log
+
+# Build artifacts
+libs/verushash/build/
+libs/verushash/lib/
+*.node
