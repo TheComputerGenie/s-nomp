@@ -36,9 +36,6 @@ license notices from those files are included verbatim where possible.
 - website/static/css/font-awesome.min.css
   - Contains: "License - http://fontawesome.io/license (Font: SIL OFL 1.1, CSS: MIT License)"
 
-- scripts/pbaascheck.sh
-  - Contains: "© verus.io 2018-2024, released under MIT license"
-
 If you are the author or copyright holder of any file listed above and would like
 to update the license information or request a change, please open an issue or a
 pull request on the repository.
