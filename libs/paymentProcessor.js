@@ -5,7 +5,7 @@ const redis = require('redis');
 
 const Stratum = require('./stratum');
 const CreateRedisClient = require('./createRedisClient');
-const PoolLogger = require('./logUtil.js');
+const PoolLogger = require('./PoolLogger.js');
 
 const writeFileAsync = promisify(fs.writeFile);
 

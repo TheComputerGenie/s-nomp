@@ -41,9 +41,9 @@ const redis = require('redis');
 
 /**
  * PoolLogger: application logging utility providing leveled logs and colors.
- * See `./libs/logUtil.js` for implementation details.
+ * See `./libs/PoolLogger.js` for implementation details.
  */
-const PoolLogger = require('./libs/logUtil.js');
+const PoolLogger = require('./libs/PoolLogger.js');
 /**
  * CliListener: listens on a local TCP port for admin CLI commands and emits
  * events for the master process to act upon.
@@ -940,7 +940,7 @@ const processCoinSwitchCommand = function (params, options, reply) {
     switchNames.forEach((name) => {
         if (poolConfigs[newCoin].coin.algorithm !== portalConfig.switching[name].algorithm) {
             replyError(`Cannot switch a ${portalConfig.switching[name].algorithm
-            } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
+                } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
             return;
         }
 

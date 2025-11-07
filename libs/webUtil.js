@@ -1,18 +1,3 @@
-/**
- * Parse a JSON value stored in an environment variable.
- *
- * If the environment variable does not exist, returns undefined unless a
- * `defaultValue` is provided or `throwOnMissing` is set.
- *
- * Attempts several parsing strategies to handle common patterns (direct JSON,
- * double-encoded JSON, and wrapped/escaped strings). Options allow callers to
- * opt into throwing on missing variables or parse errors.
- *
- * Examples:
- *   safeParseEnvJSON('MYVAR')
- *   safeParseEnvJSON('MYVAR', { defaultValue: {} })
- *   safeParseEnvJSON('MYVAR', { throwOnMissing: true })
- */
 const fs = require('fs');
 const path = require('path');
 const http = require('http');

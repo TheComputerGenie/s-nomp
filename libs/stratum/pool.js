@@ -1,6 +1,6 @@
 const events = require('events');
 
-const PoolLogger = require('../logUtil.js');
+const PoolLogger = require('../PoolLogger.js');
 
 const varDiff = require('./varDiff.js');
 const daemon = require('./daemon.js');
@@ -216,7 +216,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
     function OutputPoolInfo() {
         // Create formatted startup message with coin identification
         const startMessage = `\r\n\t\t\t\t\t\tStratum Pool Server Started for ${options.coin.name
-        } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
+            } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
 
         // In multi-process setups, only show detailed info from main process (forkId 0)
         // Other processes just log a simple debug message to avoid cluttered logs

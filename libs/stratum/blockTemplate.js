@@ -8,11 +8,19 @@
  * @requires ./merkleTree - For merkle root calculations
  * @requires ./transactions - For transaction generation and fee calculation
  * @requires ./util - For various utility functions
- * @requires ../logUtil - For logging operations
+ * @requires ../PoolLogger - For logging operations
  * 
  * @author s-nomp contributors
  * @since 1.0.0
  */
+
+'use strict';
+
+// Core requires
+const merkle = require('./merkleTree.js');
+const transactions = require('./transactions.js');
+const util = require('./util.js');
+const PoolLogger = require('../PoolLogger.js');
 
 // Lightweight replacement for the `bignum` package using native BigInt (Node.js v21+).
 // We provide a minimal wrapper that matches the small API surface used in this file
@@ -66,11 +74,6 @@ const bignum = (input, base) => {
 
     return new BigNum(input, base);
 };
-
-const merkle = require('./merkleTree.js');
-const transactions = require('./transactions.js');
-const util = require('./util.js');
-const PoolLogger = require('../logUtil.js');
 
 
 /**
@@ -358,6 +361,87 @@ const BlockTemplate = module.exports = function BlockTemplate(
 
     // Block template is now ready for mining operations
 
+    // === Final Difficulty Calculation and Logging ===
+
+    /**
+     * Final difficulty calculation using utility function
+     * This may differ from the initial calculation and provides the authoritative difficulty
+     * @type {number}
+     */
+    this.difficulty = util.calculateDifficulty(this.rpcData.target);
+
+    // Log block template creation (only from main thread to avoid spam)
+    if (!process.env.forkId || process.env.forkId === '0') {
+        logger.trace('Blocks', coin.name, `Thread ${parseInt(process.env.forkId) + 1}`, `${this.rpcData.height} block diff is: ${this.difficulty}`);
+    }
+
+    // === Mining Job Parameters Method ===
+
+    /**
+     * Generates parameters for the mining.notify stratum message.
+     * This method creates the parameter array that gets sent to miners
+     * to inform them about new mining jobs.
+     * 
+     * Standard stratum mining.notify parameters:
+     * 0. Job ID - Unique identifier for this mining job
+     * 1. Version - Block version (4 bytes, little-endian)
+     * 2. Previous Hash - Hash of previous block (32 bytes, little-endian) 
+     * 3. Merkle Root - Transaction merkle root (32 bytes, little-endian)
+     * 4. Final Sapling Root - Privacy coin root hash (32 bytes, little-endian)
+     * 5. Timestamp - Current time (4 bytes, little-endian)
+     * 6. Bits - Difficulty target (4 bytes, little-endian)
+     * 7. Clean Jobs - Boolean indicating if previous jobs should be discarded
+     * 8. Solution Space - VerusHash reserved solution space (optional)
+     * 
+     * @method getJobParams
+     * @returns {Array} Array of parameters for stratum mining.notify message
+     * 
+     * @example
+     * const jobParams = blockTemplate.getJobParams();
+     * // Send to miner: ["mining.notify", jobParams]
+     */
+    this.getJobParams = function () {
+        // Convert difficulty bits to little-endian format
+        const nbits = util.reverseBuffer(Buffer.from(this.rpcData.bits, 'hex'));
+
+        // Build job parameters array (cached after first call)
+        if (!this.jobParams) {
+            this.jobParams = [
+                this.jobId,                                                           // 0: Job identifier
+                util.packUInt32LE(this.rpcData.version).toString('hex'),             // 1: Block version
+                this.prevHashReversed,                                               // 2: Previous block hash
+                this.merkleRootReversed,                                             // 3: Merkle root
+                this.finalSaplingRootHashReversed,                                   // 4: Final sapling root
+                util.packUInt32LE(this.rpcData.curtime).toString('hex'),            // 5: Timestamp
+                nbits.toString('hex'),                                               // 6: Difficulty bits
+                true                                                                 // 7: Clean jobs flag
+            ];
+
+            // VerusHash V2.1 activation - add solution space if available
+            if (this.rpcData.solution !== undefined && typeof this.rpcData.solution === 'string') {
+                /**
+                 * Reserved solution space for VerusHash mining algorithm
+                 * Contains space that miners can use for additional nonce values
+                 * @type {string}
+                 */
+                let reservedSolutionSpace = this.rpcData.solution.replace(/[0]+$/, ''); // Trim trailing zeros
+
+                // Ensure even number of hex characters
+                if ((reservedSolutionSpace.length % 2) == 1) {
+                    reservedSolutionSpace += '0';
+                }
+                this.jobParams.push(reservedSolutionSpace);                          // 8: Solution space
+            }
+
+            // PBaaS may require block header nonce to be sent to miners
+            // Currently commented out but available for future use
+            //if (this.rpcData.nonce) {
+            //    this.jobParams.push(this.rpcData.nonce);                           // 9: Header nonce
+            //}
+        }
+        return this.jobParams;
+    };
+
     // === Block Header Serialization Method ===
 
     /**
@@ -537,87 +621,6 @@ const BlockTemplate = module.exports = function BlockTemplate(
         // Duplicate submission detected
         return false;
     };
-
-    // === Mining Job Parameters Method ===
-
-    /**
-     * Generates parameters for the mining.notify stratum message.
-     * This method creates the parameter array that gets sent to miners
-     * to inform them about new mining jobs.
-     * 
-     * Standard stratum mining.notify parameters:
-     * 0. Job ID - Unique identifier for this mining job
-     * 1. Version - Block version (4 bytes, little-endian)
-     * 2. Previous Hash - Hash of previous block (32 bytes, little-endian) 
-     * 3. Merkle Root - Transaction merkle root (32 bytes, little-endian)
-     * 4. Final Sapling Root - Privacy coin root hash (32 bytes, little-endian)
-     * 5. Timestamp - Current time (4 bytes, little-endian)
-     * 6. Bits - Difficulty target (4 bytes, little-endian)
-     * 7. Clean Jobs - Boolean indicating if previous jobs should be discarded
-     * 8. Solution Space - VerusHash reserved solution space (optional)
-     * 
-     * @method getJobParams
-     * @returns {Array} Array of parameters for stratum mining.notify message
-     * 
-     * @example
-     * const jobParams = blockTemplate.getJobParams();
-     * // Send to miner: ["mining.notify", jobParams]
-     */
-    this.getJobParams = function () {
-        // Convert difficulty bits to little-endian format
-        const nbits = util.reverseBuffer(Buffer.from(this.rpcData.bits, 'hex'));
-
-        // Build job parameters array (cached after first call)
-        if (!this.jobParams) {
-            this.jobParams = [
-                this.jobId,                                                           // 0: Job identifier
-                util.packUInt32LE(this.rpcData.version).toString('hex'),             // 1: Block version
-                this.prevHashReversed,                                               // 2: Previous block hash
-                this.merkleRootReversed,                                             // 3: Merkle root
-                this.finalSaplingRootHashReversed,                                   // 4: Final sapling root
-                util.packUInt32LE(this.rpcData.curtime).toString('hex'),            // 5: Timestamp
-                nbits.toString('hex'),                                               // 6: Difficulty bits
-                true                                                                 // 7: Clean jobs flag
-            ];
-
-            // VerusHash V2.1 activation - add solution space if available
-            if (this.rpcData.solution !== undefined && typeof this.rpcData.solution === 'string') {
-                /**
-                 * Reserved solution space for VerusHash mining algorithm
-                 * Contains space that miners can use for additional nonce values
-                 * @type {string}
-                 */
-                let reservedSolutionSpace = this.rpcData.solution.replace(/[0]+$/, ''); // Trim trailing zeros
-
-                // Ensure even number of hex characters
-                if ((reservedSolutionSpace.length % 2) == 1) {
-                    reservedSolutionSpace += '0';
-                }
-                this.jobParams.push(reservedSolutionSpace);                          // 8: Solution space
-            }
-
-            // PBaaS may require block header nonce to be sent to miners
-            // Currently commented out but available for future use
-            //if (this.rpcData.nonce) {
-            //    this.jobParams.push(this.rpcData.nonce);                           // 9: Header nonce
-            //}
-        }
-        return this.jobParams;
-    };
-
-    // === Final Difficulty Calculation and Logging ===
-
-    /**
-     * Final difficulty calculation using utility function
-     * This may differ from the initial calculation and provides the authoritative difficulty
-     * @type {number}
-     */
-    this.difficulty = util.calculateDifficulty(this.rpcData.target);
-
-    // Log block template creation (only from main thread to avoid spam)
-    if (!process.env.forkId || process.env.forkId === '0') {
-        logger.trace('Blocks', coin.name, `Thread ${parseInt(process.env.forkId) + 1}`, `${this.rpcData.height} block diff is: ${this.difficulty}`);
-    }
 
     // BlockTemplate instance is now fully initialized and ready for mining operations
 };

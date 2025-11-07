@@ -9,7 +9,7 @@ const Stratum = require('./stratum');
 const util = require('./stratum/util.js');
 const api = require('./api.js');
 const CreateRedisClient = require('./createRedisClient.js');
-const PoolLogger = require('./logUtil.js');
+const PoolLogger = require('./PoolLogger.js');
 const { safeParseEnvJSON, watchPaths, serveStatic, createMiniApp } = require('./webUtil.js');
 
 // Use the official doT package instead of the local implementation
