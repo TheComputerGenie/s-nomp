@@ -14,7 +14,7 @@
     "bugs": {
         "url": "https://github.com/ComputerGenieCo/s-nomp/issues"
     },
-    "license": "MIT",
+    "license": "GPL-3.0-or-later",
     "author": "ComputerGenieCo",
     "contributors": [
         "aayanl",

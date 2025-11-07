@@ -79,4 +79,7 @@ Contributions are welcome. Please open issues or pull requests on the [GitHub re
 
 ## License
 
-MIT - See `LICENSE` file.
+This project is primarily licensed under the GNU General Public License v3 (GPLv3).
+See `LICENSE` for the full text. Some third-party files included in this repository
+remain under the MIT License or other permissive licenses; those files retain their
+original notices and are listed in `THIRD_PARTY_LICENSES.md`.
