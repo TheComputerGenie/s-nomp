@@ -12,84 +12,17 @@ const CreateRedisClient = require('./createRedisClient.js');
 const PoolLogger = require('./logUtil.js');
 const { safeParseEnvJSON, watchPaths, serveStatic, createMiniApp } = require('./webUtil.js');
 
+// Use the official doT package instead of the local implementation
+let dot;
+try {
+    dot = require('dot');
+} catch (e) {
+    // Fallback: provide a minimal shim that preserves the api used in this file
+    dot = { templateSettings: { strip: false }, template: (t) => () => t };
+}
 
-
-const dot = (function () {
-    const api = {};
-    api.templateSettings = { strip: false };
-
-    function compile(template) {
-        const parts = template.split(/{{([\s\S]*?)}}/g);
-        let code = 'let out = "";\n';
-        let loopCounter = 0;
-
-        for (let i = 0; i < parts.length; i++) {
-            if (i % 2 === 0) {
-                if (parts[i].length > 0) {
-                    code += `out += ${JSON.stringify(parts[i])};\n`;
-                }
-            } else {
-                const inner = parts[i];
-                const s = inner.trim();
-                if (s.length === 0) {
-                    continue;
-                }
-
-                if (s[0] === '=') {
-                    code += `out += (${s.slice(1)});\n`;
-                } else if (s[0] === '!') {
-                    code += `out += (${s.slice(1)});\n`;
-                } else if (s[0] === '?') {
-                    if (s === '??') {
-                        code += '} else {\n';
-                    } else if (s === '?') {
-                        code += '}\n';
-                    } else {
-                        code += `if (${s.slice(1)}) {\n`;
-                    }
-                } else if (s[0] === '~') {
-                    if (s === '~') {
-                        code += '}\n';
-                    } else {
-                        const loopSpec = s.slice(1).trim();
-                        const bits = loopSpec.split(':').map(b => b.trim()).filter(Boolean);
-                        const arrExpr = bits[0] || '[]';
-                        const valName = bits[1] || (`_v${loopCounter}`);
-                        const idxName = bits[2] || (`_i${loopCounter}`);
-                        const arrVar = `__arr${loopCounter}`;
-                        loopCounter++;
-                        code += `const ${arrVar} = (${arrExpr}) || []; for (let ${idxName} = 0; ${idxName} < ${arrVar}.length; ${idxName}++) { const ${valName} = ${arrVar}[${idxName}];\n`;
-                    }
-                } else {
-                    code += `${s}\n`;
-                }
-            }
-        }
-
-        code += 'return out;';
-
-        try {
-
-            return new Function('it', `with (it || {}) {\n${code}\n}`);
-        } catch (e) {
-
-            try {
-                if (typeof logger !== 'undefined' && logger && typeof logger.error === 'function') {
-                    logger.error('Website', 'Template', `template compile failed: ${e && e.message}`);
-                } else {
-                    console.error(`template compile failed: ${e && e.message}`);
-                }
-            } catch (logErr) { }
-            return function () {
-                return template;
-            };
-        }
-    }
-
-    api.template = compile;
-    return api;
-})();
-
+// Ensure the strip setting is explicitly set as the original code expected
+if (!dot.templateSettings) dot.templateSettings = {};
 dot.templateSettings.strip = false;
 
 
@@ -174,6 +107,10 @@ module.exports = function () {
                 logger.error(logSystem, 'Template', `Failed rendering template for ${pageName}: ${e}`);
                 pageProcessed[pageName] = `<!-- rendering error for ${pageName} -->`;
             }
+        });
+        // Decouple index processing from page processing to avoid re-rendering everything
+        Object.keys(pageTemplates).forEach(pageName => {
+            if (pageName === 'index' || !pageProcessed[pageName]) return;
             if (typeof pageTemplates.index === 'function') {
                 try {
                     indexesProcessed[pageName] = pageTemplates.index({ page: pageProcessed[pageName], selected: pageName, stats: portalStats.stats, poolConfigs: poolConfigs, portalConfig: portalConfig });
@@ -353,14 +290,18 @@ module.exports = function () {
 
     const shares = function (req, res, next) {
         portalStats.getCoins(() => {
-            processTemplates(); res.end(indexesProcessed['user_shares']);
+            processTemplates();
+            try { res.setHeader('Content-Type', 'text/html; charset=utf-8'); } catch (e) { }
+            res.end(indexesProcessed['user_shares']);
         });
     };
 
     const usershares = function (req, res, next) {
         const coin = req.params.coin || null; if (coin != null) {
             portalStats.getCoinTotals(coin, null, () => {
-                processTemplates(); res.end(indexesProcessed['user_shares']);
+                processTemplates();
+                try { res.setHeader('Content-Type', 'text/html; charset=utf-8'); } catch (e) { }
+                res.end(indexesProcessed['user_shares']);
             });
         } else {
             next();
@@ -388,10 +329,12 @@ module.exports = function () {
 
     app.get('/get_page', (req, res, next) => {
         const requestedPage = getPage(req.query.id); if (requestedPage) {
+            try { res.setHeader('Content-Type', 'text/html; charset=utf-8'); } catch (e) { }
             res.end(requestedPage); return;
         } next();
     });
     app.get('/key.html', (req, res, next) => {
+        try { res.setHeader('Content-Type', 'text/html; charset=utf-8'); } catch (e) { }
         res.end(keyScriptProcessed);
     });
     app.get('/workers/:address', minerpage);
