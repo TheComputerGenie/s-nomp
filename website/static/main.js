@@ -1,6 +1,8 @@
 $(() => {
     $('.hot-swapper').click(function (event) {
-        if (event.which !== 1) return;
+        if (event.which !== 1) {
+            return;
+        }
         const pageId = $(this).attr('href').slice(1);
         window.location.href = `/${pageId}`;
         event.preventDefault();

@@ -22,7 +22,9 @@ try {
 }
 
 // Ensure the strip setting is explicitly set as the original code expected
-if (!dot.templateSettings) dot.templateSettings = {};
+if (!dot.templateSettings) {
+    dot.templateSettings = {};
+}
 dot.templateSettings.strip = false;
 
 
@@ -110,7 +112,9 @@ module.exports = function () {
         });
         // Decouple index processing from page processing to avoid re-rendering everything
         Object.keys(pageTemplates).forEach(pageName => {
-            if (pageName === 'index' || !pageProcessed[pageName]) return;
+            if (pageName === 'index' || !pageProcessed[pageName]) {
+                return;
+            }
             if (typeof pageTemplates.index === 'function') {
                 try {
                     indexesProcessed[pageName] = pageTemplates.index({ page: pageProcessed[pageName], selected: pageName, stats: portalStats.stats, poolConfigs: poolConfigs, portalConfig: portalConfig });
@@ -291,7 +295,9 @@ module.exports = function () {
     const shares = function (req, res, next) {
         portalStats.getCoins(() => {
             processTemplates();
-            try { res.setHeader('Content-Type', 'text/html; charset=utf-8'); } catch (e) { }
+            try {
+                res.setHeader('Content-Type', 'text/html; charset=utf-8'); 
+            } catch (e) { }
             res.end(indexesProcessed['user_shares']);
         });
     };
@@ -300,7 +306,9 @@ module.exports = function () {
         const coin = req.params.coin || null; if (coin != null) {
             portalStats.getCoinTotals(coin, null, () => {
                 processTemplates();
-                try { res.setHeader('Content-Type', 'text/html; charset=utf-8'); } catch (e) { }
+                try {
+                    res.setHeader('Content-Type', 'text/html; charset=utf-8'); 
+                } catch (e) { }
                 res.end(indexesProcessed['user_shares']);
             });
         } else {
@@ -329,12 +337,16 @@ module.exports = function () {
 
     app.get('/get_page', (req, res, next) => {
         const requestedPage = getPage(req.query.id); if (requestedPage) {
-            try { res.setHeader('Content-Type', 'text/html; charset=utf-8'); } catch (e) { }
+            try {
+                res.setHeader('Content-Type', 'text/html; charset=utf-8'); 
+            } catch (e) { }
             res.end(requestedPage); return;
         } next();
     });
     app.get('/key.html', (req, res, next) => {
-        try { res.setHeader('Content-Type', 'text/html; charset=utf-8'); } catch (e) { }
+        try {
+            res.setHeader('Content-Type', 'text/html; charset=utf-8'); 
+        } catch (e) { }
         res.end(keyScriptProcessed);
     });
     app.get('/workers/:address', minerpage);
