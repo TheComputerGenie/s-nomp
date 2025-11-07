@@ -6,7 +6,7 @@ const { URL } = require('url');
 const { pipeline } = require('stream');
 
 const Stratum = require('./stratum');
-const util = require('./stratum/util.js');
+const util = require('./utils/util.js');
 const api = require('./api.js');
 const CreateRedisClient = require('./createRedisClient.js');
 const PoolLogger = require('./PoolLogger.js');

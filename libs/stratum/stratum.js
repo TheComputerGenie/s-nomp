@@ -27,21 +27,8 @@ const net = require('net');
 const tls = require('tls');
 const fs = require('fs');
 const EventEmitter = require('events');
-const util = require('./util.js');
+const util = require('../utils/util.js');
 
-/**
- * Safely converts a value to a string, sanitizing it by removing non-alphanumeric
- * characters except for dots. Used primarily for worker names and other user inputs.
- *
- * @param {*} s - The value to convert to a string.
- * @returns {string} The sanitized string, or empty string if input is null/undefined.
- */
-function safeString(s) {
-    if (s === undefined || s === null) {
-        return '';
-    }
-    return String(s).replace(/[^a-zA-Z0-9.]/g, '');
-}
 
 /**
  * Creates a subscription counter that generates unique subscription IDs for Stratum clients.
@@ -218,7 +205,7 @@ class StratumClient extends EventEmitter {
                 break;
             case 'mining.authorize':
                 // Handle worker authorization
-                this.workerName = safeString((msg.params && msg.params[0]) || '');
+                this.workerName = util.safeString((msg.params && msg.params[0]) || '');
                 this.workerPass = (msg.params && msg.params[1]) || '';
                 const addr = (this.workerName || '').split('.')[0];
                 this.authorizeFn(this.remoteAddress, this.socket.localPort, addr, this.workerPass, (res) => {
@@ -235,7 +222,7 @@ class StratumClient extends EventEmitter {
                 // Handle share submission
                 this.lastActivity = Date.now();
                 if (!this.workerName) {
-                    this.workerName = safeString((msg.params && msg.params[0]) || '');
+                    this.workerName = util.safeString((msg.params && msg.params[0]) || '');
                 }
                 if (this.authorized === false) {
                     this._sendJson({ id: id, result: null, error: [24, 'unauthorized worker', null] });

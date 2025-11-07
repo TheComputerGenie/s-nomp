@@ -8,7 +8,7 @@ const peer = require('./peer.js');
 const stratum = require('./stratum.js');
 const jobManager = require('./jobManager.js');
 const algos = require('./algoProperties.js');
-const util = require('./util.js');
+const util = require('../utils/util.js');
 
 /*process.on('uncaughtException', function(err) {
  console.log(err.stack);
@@ -169,7 +169,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
     function GetFirstJob(finishedCallback) {
         // Attempt to get the first block template to ensure daemon is responsive
         // and we can generate valid mining jobs before accepting connections
-        GetBlockTemplate((error, result) => {
+        util.getBlockTemplate(_this.daemon, options, _this.jobManager, logger, logSystem, logComponent, logSubCat, (error, result) => {
             if (error) {
                 // Critical failure - if we can't get a block template, the pool cannot function
                 logger.error(logSystem, logComponent, logSubCat, 'Error with getblocktemplate on creating first job, server cannot start');
@@ -216,7 +216,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
     function OutputPoolInfo() {
         // Create formatted startup message with coin identification
         const startMessage = `\r\n\t\t\t\t\t\tStratum Pool Server Started for ${options.coin.name
-            } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
+        } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
 
         // In multi-process setups, only show detailed info from main process (forkId 0)
         // Other processes just log a simple debug message to avoid cluttered logs
@@ -411,68 +411,6 @@ const pool = module.exports = function pool(options, authorizeFn) {
     }
 
     /**
-     * Submits a solved block to the cryptocurrency network.
-     * 
-     * Coin daemons use different methods for block submission:
-     * - submitblock: Standard method for most coins
-     * - submitmergedblock: For PBaaS (Public Blockchains as a Service) with solution version > 6
-     * - getblocktemplate with mode='submit': Fallback method for older daemons
-     * 
-     * @function SubmitBlock
-     * @private
-     * @param {number} height - Block height of the submitted block
-     * @param {string} blockHex - Hexadecimal representation of the complete block
-     * @param {Function} callback - Callback function to execute after submission
-     */
-    function SubmitBlock(height, blockHex, callback) {
-        // Determine which RPC method to use for block submission
-        let rpcCommand, rpcArgs;
-
-        if (options.hasSubmitMethod) {
-            // Use submitblock method (preferred for most modern daemons)
-            rpcCommand = 'submitblock';
-
-            // Special handling for PBaaS (Public Blockchains as a Service)
-            // Check solution version in block header to determine submission method
-            const solution_ver = parseInt(util.reverseBuffer(Buffer.from(blockHex.substr(286, 8), 'hex')).toString('hex'), 16);
-            if (solution_ver > 6) {
-                // Use merged block submission for newer PBaaS solution versions
-                rpcCommand = 'submitmergedblock';
-            }
-            rpcArgs = [blockHex];
-        } else {
-            // Fallback to getblocktemplate with submit mode (older daemons)
-            rpcCommand = 'getblocktemplate';
-            rpcArgs = [{ 'mode': 'submit', 'data': blockHex }];
-        }
-
-        // Submit block to all configured daemon instances
-        _this.daemon.cmd(rpcCommand,
-            rpcArgs,
-            (results) => {
-                // Check results from each daemon instance
-                for (let i = 0; i < results.length; i++) {
-                    const result = results[i];
-
-                    if (result.error) {
-                        // Log RPC errors (network issues, malformed blocks, etc.)
-                        logger.error(logSystem, logComponent, logSubCat, `rpc error with daemon instance ${result.instance.index} when submitting block with ${rpcCommand} ${JSON.stringify(result.error)}`);
-                        return;
-                    } else if (result.response === 'rejected') {
-                        // Block was rejected by the network (orphaned, invalid, etc.)
-                        logger.error(logSystem, logComponent, logSubCat, `Daemon instance ${result.instance.index} rejected a supposedly valid block`);
-                        return;
-                    }
-                }
-
-                // All daemon instances accepted the block
-                logger.debug(logSystem, logComponent, logSubCat, `Submitted Block using ${rpcCommand} successfully to daemon instance(s)`);
-                callback();
-            }
-        );
-    }
-
-    /**
      * Configures reward recipients and calculates total pool fee percentage.
      * Sets up the addresses and percentages for pool fees, which are
      * deducted from block rewards before distributing to miners.
@@ -580,11 +518,11 @@ const pool = module.exports = function pool(options, authorizeFn) {
                     jobManagerLastSubmitBlockHex = blockHex;
 
                     // Submit the block to the network
-                    SubmitBlock(shareData.height, blockHex, () => {
+                    util.submitBlock(_this.daemon, options, logger, logSystem, logComponent, logSubCat, shareData.height, blockHex, () => {
                         // Handle different block types
                         if (!shareData.blockOnlyPBaaS) {
                             // Standard block - verify acceptance via RPC
-                            CheckBlockAccepted(shareData.blockHash, (isAccepted, tx) => {
+                            util.checkBlockAccepted(_this.daemon, logger, logSystem, logComponent, logSubCat, shareData.blockHash, (isAccepted, tx) => {
                                 // Update block status based on network acceptance
                                 isValidBlock = isAccepted === true;
 
@@ -600,7 +538,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
                                 emitShare();
 
                                 // Request new block template after successful submission
-                                GetBlockTemplate((error, result, foundNewBlock) => {
+                                util.getBlockTemplate(_this.daemon, options, _this.jobManager, logger, logSystem, logComponent, logSubCat, (error, result, foundNewBlock) => {
                                     if (foundNewBlock) {
                                         logger.debug(logSystem, logComponent, logSubCat, 'Block notification via RPC after block submission');
                                     }
@@ -807,7 +745,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
             logger.debug(logSystem, logComponent, logSubCat, `No new blocks for ${options.jobRebroadcastTimeout} seconds - updating transactions & rebroadcasting work`);
 
             // Request fresh block template to update transaction set
-            GetBlockTemplate((error, rpcData, processedBlock) => {
+            util.getBlockTemplate(_this.daemon, options, _this.jobManager, logger, logSystem, logComponent, logSubCat, (error, rpcData, processedBlock) => {
                 // Handle errors or already processed blocks
                 if (error || processedBlock) {
                     return;
@@ -989,7 +927,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
         const pollingInterval = options.blockRefreshInterval;
 
         blockPollingIntervalId = setInterval(() => {
-            GetBlockTemplate((error, rpcData, newJob) => {
+            util.getBlockTemplate(_this.daemon, options, _this.jobManager, logger, logSystem, logComponent, logSubCat, (error, rpcData, newJob) => {
                 if (newJob) {
                     logger.debug(logSystem, logComponent, logSubCat, 'Block update via RPC polling');
                 }
@@ -997,217 +935,9 @@ const pool = module.exports = function pool(options, authorizeFn) {
         }, pollingInterval);
     }
 
-    /**
-     * Retrieves block template from daemon and processes it for mining.
-     * 
-     * The function handles different coin algorithms:
-     * - Standard coins: Gets block height, subsidy info, then template
-     * - Verushash coins: Gets template directly (daemon builds the block)
-     * 
-     * Block templates contain all information needed to create mining jobs:
-     * - Previous block hash
-     * - Merkle root and transactions
-     * - Difficulty target
-     * - Timestamp and version
-     * - Reward information (miner, founders, masternodes)
-     * 
-     * Includes deduplication logic to handle multiple daemon instances
-     * streaming identical responses.
-     * 
-     * @function GetBlockTemplate
-     * @private
-     * @param {Function} callback - Callback with (error, rpcData, processedNewBlock)
-     */
-    function GetBlockTemplate(callback) {
-        // used to dedupe identical getblocktemplate responses coming from
-        // multiple daemon instances when daemon.cmd is run with streamResults=true
-        const processedGbtKeys = new Set();
+    // getBlockTemplate moved to libs/utils/rpc.js and is invoked via util.getBlockTemplate
 
-        /**
-         * Gets the current blockchain height to determine next block height.
-         * @private
-         */
-        function getCurrentBlockHeight() {
-            _this.daemon.cmd('getblockcount',
-                [],
-                (result) => {
-                    const next = parseInt(result[0].response);
-                    getBlockSubsidyandTemplate(next + 1);
-                });
-        }
-
-        /**
-         * Gets block subsidy information and then the block template.
-         * @private
-         * @param {number} next_height - The height of the next block to mine
-         */
-        function getBlockSubsidyandTemplate(next_height) {
-            _this.daemon.cmd('getblocksubsidy',
-                [],
-                (result) => {
-                    if (result.error) {
-                        callback(result.error);
-                    } else {
-                        getBlockTemplate(next_height, result[0].response);
-                    }
-                });
-        }
-
-        /**
-         * Gets the actual block template from daemon with subsidy information.
-         * @private
-         * @param {number} next_height - The height of the next block
-         * @param {Object} subsidy - Block subsidy information
-         */
-        function getBlockTemplate(next_height, subsidy) {
-            // Prepare getblocktemplate RPC call with required capabilities
-            const gbtFunction = 'getblocktemplate';
-            const gbtArgs = {
-                'capabilities': [
-                    'coinbasetxn',      // We want coinbase transaction details  
-                    'workid',           // Support for work identification
-                    'coinbase/append'   // Allow appending data to coinbase
-                ]
-            };
-
-            _this.daemon.cmd(gbtFunction,
-                [gbtArgs],
-                (result) => {
-                    // Handle deduplication for multiple daemon instances
-                    // Multiple daemons may return identical templates simultaneously
-                    try {
-                        // Create unique key from previous block hash and timestamp
-                        const key = result.response && result.response.previousblockhash ?
-                            `${result.response.previousblockhash}_${result.response.curtime}` : null;
-
-                        if (key && processedGbtKeys.has(key)) {
-                            // Skip duplicate template that we've already processed
-                            return;
-                        }
-                        if (key) {
-                            // Mark this template as processed
-                            processedGbtKeys.add(key);
-                        }
-                    } catch (e) {
-                        // Ignore deduplication errors - not critical
-                    }
-
-                    if (result.error) {
-                        logger.error(logSystem, logComponent, logSubCat, `getblocktemplate call failed for daemon instance ${result.instance.index} with error ${JSON.stringify(result.error)}`);
-                        callback(result.error);
-                    } else {
-                        // Merge subsidy information into the block template
-                        result.response.miner = subsidy.miner;
-                        result.response.founders = (subsidy.founders || subsidy.community);
-
-                        // Handle special cases where coins don't provide correct subsidy info
-                        // Allow manual override of reward percentages in coin configuration
-                        if (options.coin.rewardMinersPercent) {
-                            result.response.miner = options.coin.blockReward * options.coin.rewardMinersPercent;
-                        }
-
-                        if (options.coin.rewardFoundersPercent) {
-                            result.response.founders = options.coin.blockReward * options.coin.rewardFoundersPercent;
-                        }
-
-                        // Handle masternode rewards (different coins use different names)
-                        result.response.securenodes = (subsidy.securenodes || 0);
-                        result.response.supernodes = (subsidy.supernodes || 0);
-
-                        // Process the template through job manager to create mining job
-                        const processedNewBlock = _this.jobManager.processTemplate(result.response);
-
-                        // Return the processed template
-                        callback(null, result.response, processedNewBlock);
-
-                        // Prevent multiple callbacks from being called
-                        callback = () => { };
-                    }
-                }, true  // Enable streaming results from multiple daemons
-            );
-        }
-
-        /**
-         * Gets block template specifically for Verushash algorithm.
-         * Verushash coins handle block building in the daemon, so no separate
-         * subsidy calls are needed. The coinbase value is extracted directly.
-         * @private
-         */
-        function getVerusBlockTemplate() {
-            const gbtFunction = 'getblocktemplate';
-            const gbtArgs = { 'capabilities': ['coinbasetxn', 'workid', 'coinbase/append'] };
-            _this.daemon.cmd(gbtFunction,
-                [gbtArgs],
-                (result) => {
-                    if (result.error) {
-                        logger.error(logSystem, logComponent, logSubCat, `getblocktemplate call failed for daemon instance ${result.instance.index} with error ${JSON.stringify(result.error)}`);
-                        callback(result.error);
-                    } else {
-
-                        result.response.miner = result.response.coinbasetxn.coinbasevalue / 100000000;
-                        result.response.founders = 0;
-                        result.response.securenodes = 0;
-                        result.response.supernodes = 0;
-
-                        const processedNewBlock = _this.jobManager.processTemplate(result.response);
-                        callback(null, result.response, processedNewBlock);
-                        callback = () => { };
-                    }
-                }, true
-            );
-        }
-
-        // If algo is verushash, the daemon will build the block, so there's no need for a blockheight or blocksubsidy.
-        if (options.coin.algorithm == 'verushash') {
-            getVerusBlockTemplate();
-        } else {
-            getCurrentBlockHeight();
-        }
-    }
-
-    /**
-     * Verifies if a submitted block was accepted by the network.
-     * After submitting a block, this function checks if it was actually
-     * accepted by querying the daemon for the block by hash.
-     * 
-     * A block is considered accepted if:
-     * - It exists in the blockchain (getblock returns valid response)
-     * - It has non-negative confirmations (positive confirmations = accepted)
-     * 
-     * @function CheckBlockAccepted
-     * @private
-     * @param {string} blockHash - Hash of the block to check
-     * @param {Function} callback - Callback with (isAccepted, txHash or error)
-     */
-    function CheckBlockAccepted(blockHash, callback) {
-        // Query the daemon to verify if our submitted block was accepted
-        _this.daemon.cmd('getblock',
-            [blockHash],
-            (results) => {
-                // Filter results to find valid responses matching our block hash
-                const validResults = results.filter((result) => {
-                    return result.response && (result.response.hash === blockHash);
-                });
-
-                // Check if we got any valid responses
-                if (validResults.length >= 1) {
-                    // Block exists in blockchain - check confirmation status
-                    if (validResults[0].response.confirmations >= 0) {
-                        // Block accepted with valid confirmations
-                        // Return true with the coinbase transaction hash
-                        callback(true, validResults[0].response.tx[0]);
-                    } else {
-                        // Block exists but has negative confirmations (orphaned/invalid)
-                        callback(false, { 'confirmations': validResults[0].response.confirmations });
-                    }
-                    return;
-                }
-
-                // Block not found in blockchain - was rejected by network
-                callback(false, { 'unknown': 'check coin daemon logs' });
-            }
-        );
-    }
+    // checkBlockAccepted moved to libs/utils/rpc.js and is invoked via util.checkBlockAccepted
 
     /**
      * Processes block notifications from external sources.
@@ -1245,7 +975,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
             // rather than checking if the hash differs from our current previous block hash.
 
             // Request new block template to update miners with fresh work
-            GetBlockTemplate((error, result) => {
+            util.getBlockTemplate(_this.daemon, options, _this.jobManager, logger, logSystem, logComponent, logSubCat, (error, result) => {
                 if (error) {
                     logger.error(logSystem, logComponent, logSubCat,
                         `Block notify error getting block template for ${options.coin.name}`);

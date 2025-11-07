@@ -12,7 +12,7 @@ const net = require('net');
 const crypto = require('crypto');
 const events = require('events');
 
-const util = require('./util.js');
+const util = require('../utils/util.js');
 
 // Example of p2p in node from TheSeven: http://paste.pm/e54.js
 

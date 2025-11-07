@@ -10,42 +10,7 @@
  */
 
 const bitcoin = require('../utxo');
-const util = require('./util.js');
-
-/**
- * Creates a standard Pay-to-Public-Key-Hash (P2PKH) script for regular addresses.
- * This is the most common Bitcoin transaction output script type.
- * 
- * @param {Buffer} addrHash - The 20-byte hash160 of the public key
- * @returns {Buffer} Compiled Bitcoin script for P2PKH transaction
- * @example
- * const addrHash = bitcoin.address.fromBase58Check('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa').hash;
- * const script = scriptCompile(addrHash);
- */
-const scriptCompile = addrHash => bitcoin.script.compile([
-    bitcoin.opcodes.OP_DUP,
-    bitcoin.opcodes.OP_HASH160,
-    addrHash,
-    bitcoin.opcodes.OP_EQUALVERIFY,
-    bitcoin.opcodes.OP_CHECKSIG
-]);
-
-/**
- * Creates a Pay-to-Script-Hash (P2SH) script for founders/treasury addresses.
- * This script type is commonly used for multi-signature addresses and
- * more complex spending conditions.
- * 
- * @param {Buffer} address - The 20-byte script hash
- * @returns {Buffer} Compiled Bitcoin script for P2SH transaction
- * @example
- * const scriptHash = bitcoin.address.fromBase58Check('3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy').hash;
- * const script = scriptFoundersCompile(scriptHash);
- */
-const scriptFoundersCompile = address => bitcoin.script.compile([
-    bitcoin.opcodes.OP_HASH160,
-    address,
-    bitcoin.opcodes.OP_EQUAL
-]);
+const util = require('../utils/util.js');
 
 /**
  * Stores the hash of the last generated transaction.
@@ -218,25 +183,25 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                 // Add pool reward output (remaining amount after all other rewards)
                 // Pool gets: (100% - treasury% - secureNodes% - superNodes% - fees%) + transaction fees
                 txb.addOutput(
-                    scriptCompile(poolAddrHash),
+                    util.scriptCompile(poolAddrHash),
                     Math.round(blockReward * (1 - (coin.percentTreasuryUpdateReward + coin.percentSecureNodesReward + coin.percentSuperNodesReward + feePercent) / 100)) + feeReward
                 );
 
                 // Add treasury reward output (uses P2SH script for enhanced security)
                 txb.addOutput(
-                    scriptFoundersCompile(foundersAddrHash),
+                    util.scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentTreasuryUpdateReward / 100))
                 );
 
                 // Add Secure Nodes reward output
                 txb.addOutput(
-                    scriptFoundersCompile(secureNodesAddrHash),
+                    util.scriptFoundersCompile(secureNodesAddrHash),
                     Math.round(blockReward * (coin.percentSecureNodesReward / 100))
                 );
 
                 // Add Super Nodes reward output
                 txb.addOutput(
-                    scriptFoundersCompile(superNodesAddrHash),
+                    util.scriptFoundersCompile(superNodesAddrHash),
                     Math.round(blockReward * (coin.percentSuperNodesReward / 100))
                 );
 
@@ -256,13 +221,13 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
 
                 // Add pool reward output (remaining after treasury and fees)
                 txb.addOutput(
-                    scriptCompile(poolAddrHash),
+                    util.scriptCompile(poolAddrHash),
                     Math.round(blockReward * (1 - (coin.percentTreasuryReward + feePercent) / 100)) + feeReward
                 );
 
                 // Add treasury reward output
                 txb.addOutput(
-                    scriptFoundersCompile(foundersAddrHash),
+                    util.scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentTreasuryReward / 100))
                 );
             } else {
@@ -281,13 +246,13 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
 
                 // Add pool reward output (remaining after founders reward and fees)
                 txb.addOutput(
-                    scriptCompile(poolAddrHash),
+                    util.scriptCompile(poolAddrHash),
                     Math.round(blockReward * (1 - (coin.percentFoundersReward + feePercent) / 100)) + feeReward
                 );
 
                 // Add founders reward output
                 txb.addOutput(
-                    scriptFoundersCompile(foundersAddrHash),
+                    util.scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentFoundersReward / 100))
                 );
             }
@@ -296,7 +261,7 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
             // Pool receives full block reward minus fee recipients, plus all transaction fees
             feesDivided = true; // Mark that fees are included in pool calculation
             txb.addOutput(
-                scriptCompile(poolAddrHash),
+                util.scriptCompile(poolAddrHash),
                 Math.round((blockReward + feeReward) * (1 - (feePercent / 100)))
             );
         }
@@ -325,19 +290,19 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
 
                 // Add pool reward output (reduced by treasury percentage, fees, and masternode payment)
                 txb.addOutput(
-                    scriptCompile(poolAddrHash),
+                    util.scriptCompile(poolAddrHash),
                     Math.round(blockReward * (1 - (coin.percentTreasuryReward + feePercent) / 100)) + feeReward - masternodeReward
                 );
 
                 // Add treasury reward output
                 txb.addOutput(
-                    scriptFoundersCompile(foundersAddrHash),
+                    util.scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentTreasuryReward / 100))
                 );
 
                 // Add masternode reward output (uses regular P2PKH script)
                 txb.addOutput(
-                    scriptCompile(masternodeAddrHash),
+                    util.scriptCompile(masternodeAddrHash),
                     Math.round(masternodeReward)
                 );
             } else {
@@ -353,19 +318,19 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
 
                 // Add pool reward output (reduced by founders percentage, fees, and masternode payment)
                 txb.addOutput(
-                    scriptCompile(poolAddrHash),
+                    util.scriptCompile(poolAddrHash),
                     Math.round(blockReward * (1 - (coin.percentFoundersReward + feePercent) / 100)) + feeReward - masternodeReward
                 );
 
                 // Add founders reward output
                 txb.addOutput(
-                    scriptFoundersCompile(foundersAddrHash),
+                    util.scriptFoundersCompile(foundersAddrHash),
                     Math.round(blockReward * (coin.percentFoundersReward / 100))
                 );
 
                 // Add masternode reward output
                 txb.addOutput(
-                    scriptCompile(masternodeAddrHash),
+                    util.scriptCompile(masternodeAddrHash),
                     Math.round(masternodeReward)
                 );
             }
@@ -375,13 +340,13 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
 
             // Add pool reward output (reduced by fees and masternode payment)
             txb.addOutput(
-                scriptCompile(poolAddrHash),
+                util.scriptCompile(poolAddrHash),
                 Math.round(blockReward * (1 - (feePercent / 100))) + feeReward - masternodeReward
             );
 
             // Add masternode reward output
             txb.addOutput(
-                scriptCompile(masternodeAddrHash),
+                util.scriptCompile(masternodeAddrHash),
                 Math.round(masternodeReward)
             );
         }
@@ -395,7 +360,7 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
         const recipientAmount = Math.round((blockReward + (feesDivided ? feeReward : 0)) * (recipient.percent / 100));
 
         txb.addOutput(
-            scriptCompile(bitcoin.address.fromBase58Check(recipient.address).hash),
+            util.scriptCompile(bitcoin.address.fromBase58Check(recipient.address).hash),
             recipientAmount
         );
     });

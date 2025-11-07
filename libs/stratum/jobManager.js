@@ -23,7 +23,7 @@ const crypto = require('crypto');
 
 // Use native BigInt instead of the old 'bignum' dependency
 
-const util = require('./util.js');
+const util = require('../utils/util.js');
 const blockTemplate = require('./blockTemplate.js');
 const algos = require('./algoProperties.js');
 

@@ -9,7 +9,7 @@ const net = require('net');
 const tls = require('tls');
 const fs = require('fs');
 const EventEmitter = require('events');
-const util = require('./util.js');
+const util = require('../utils/util.js');
 
 // --- small helpers kept private to this file ---
 const isString = (v) => typeof v === 'string';

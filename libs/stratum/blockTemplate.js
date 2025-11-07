@@ -19,7 +19,7 @@
 // Core requires
 const merkle = require('./merkleTree.js');
 const transactions = require('./transactions.js');
-const util = require('./util.js');
+const util = require('../utils/util.js');
 const PoolLogger = require('../PoolLogger.js');
 
 // Lightweight replacement for the `bignum` package using native BigInt (Node.js v21+).
@@ -27,53 +27,8 @@ const PoolLogger = require('../PoolLogger.js');
 // (construction from hex, toNumber, toString, valueOf). This lets other code that
 // expects a "bignum-like" object continue to work without pulling the external
 // dependency.
-const bignum = (input, base) => {
-    class BigNum {
-        constructor(val, base) {
-            if (typeof val === 'string') {
-                if (base === 16) {
-                    // Accept hex strings with or without 0x prefix
-                    const h = val.startsWith('0x') ? val : `0x${val}`;
-                    this.value = BigInt(h);
-                } else if (base === 10 || typeof base === 'undefined') {
-                    this.value = BigInt(val);
-                } else {
-                    // Generic parse for other bases
-                    this.value = BigInt(parseInt(val, base));
-                }
-            } else if (typeof val === 'bigint') {
-                this.value = val;
-            } else if (typeof val === 'number') {
-                this.value = BigInt(val);
-            } else {
-                this.value = BigInt(0);
-            }
-        }
-
-        // Return a JS Number (may lose precision for very large values,
-        // similar to many usages of toNumber() in existing codebases)
-        toNumber() {
-            return Number(this.value);
-        }
-
-        toString(radix) {
-            // Default to base 10 if no radix provided
-            return this.value.toString(radix || 10);
-        }
-
-        // Allow arithmetic interop by returning the primitive BigInt
-        valueOf() {
-            return this.value;
-        }
-
-        // JSON serialization
-        toJSON() {
-            return this.toString();
-        }
-    }
-
-    return new BigNum(input, base);
-};
+// Use shared lightweight BigNum factory from utils
+const bignum = util.bignum;
 
 
 /**

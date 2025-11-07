@@ -1,13 +1,23 @@
+/**
+ * Base58 native implementation
+ *
+ * @fileoverview High-performance base58 and base58-check encoding/decoding.
+ * @author ComputerGenieCo
+ * @version 21.7.3
+ * @license GPL-3.0-or-later
+ * @copyright 2025
+ */
+
 'use strict';
-/*
-Copyright (c) 2018-2025 ComputerGenieCo
-Copyright 2013 BitPay, Inc.
-Copyright (c) 2011 Stefan Thomas <justmoon@members.fsf.org>
-Native extensions are
-Copyright (c) 2011 Andrew Schaaf <andrew@andrewschaaf.com>
-Parts of this software are based on BitcoinJ
-Copyright (c) 2011 Google Inc.
-*/
+/**
+ * based on the older work of:
+ * Copyright 2013 BitPay, Inc.
+ * Copyright (c) 2011 Stefan Thomas <justmoon@members.fsf.org>
+ * Native extensions are
+ * Copyright (c) 2011 Andrew Schaaf <andrew@andrewschaaf.com>
+ * Parts of this software are based on BitcoinJ
+ * Copyright (c) 2011 Google Inc.
+ */
 const crypto = require('crypto');
 
 // Use native BigInt and modern Buffer APIs.
@@ -52,7 +62,7 @@ function bigIntToBuffer(num) {
 // Vanilla Base58 Encoding
 const base58 = {
     encode: function (buf) {
-    // accept strings (utf8/hex) or Buffer - coerce to Buffer
+        // accept strings (utf8/hex) or Buffer - coerce to Buffer
         if (typeof buf === 'string') {
             buf = Buffer.from(buf, 'utf8');
         }
@@ -191,3 +201,4 @@ exports.base58 = base58;
 exports.base58Check = base58Check;
 exports.encode = base58.encode;
 exports.decode = base58.decode;
+
