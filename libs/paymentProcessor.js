@@ -1,7 +1,6 @@
 
 const fs = require('fs');
 const { promisify } = require('util');
-const redis = require('redis');
 
 const Stratum = require('./stratum');
 const CreateRedisClient = require('./createRedisClient');
@@ -85,19 +84,16 @@ class PaymentProcessor {
             }
         };
 
-        // Shielding operation tracking (for privacy coins like Zcash)
-        this.opidCount = 0;  // Number of active z_sendmany operations
-        this.opids = [];     // Array of operation IDs to monitor
+        // Shielding removed for Verus; only track bad blocks
         this.badBlocks = {}; // Track blocks that failed validation (retry mechanism)
 
         // Payment processing configuration with sensible defaults
-        this.minConfShield = Math.max(this.processingConfig.minConf || 10, 1);     // Min confirmations for shielding
         this.minConfPayout = Math.max(this.processingConfig.minConf || 10, 1);     // Min confirmations for payouts
         this.paymentIntervalSecs = Math.max(this.processingConfig.paymentInterval || 120, 30); // Payment frequency
         this.maxBlocksPerPayment = Math.max(this.processingConfig.maxBlocksPerPayment || 3, 1); // Blocks per payment run
         this.pplntEnabled = this.processingConfig.paymentMode === 'pplnt' || false; // PPLNT payment mode
         this.pplntTimeQualify = this.processingConfig.pplnt || 0.51;                // PPLNT time threshold (51%)
-        this.requireShielding = poolConfig.coin.requireShielding === true;          // Requires shielded transactions
+        // Verus-only: shielding/z-address support removed
         this.fee = parseFloat(poolConfig.coin.txfee) || 0.0004;                     // Transaction fee reserve
     }
 
@@ -123,11 +119,7 @@ class PaymentProcessor {
         // Main payment processing interval
         this.paymentInterval = setInterval(() => this.processPayments(), this.paymentIntervalSecs * 1000);
 
-        // Shielding intervals (for privacy coins that require T→Z and Z→T transfers)
-        if (this.requireShielding) {
-            this.shieldingInterval = setInterval(() => this.shieldingCycle(), Math.max(this.poolConfig.walletInterval || 1, 1) * 60 * 1000);
-            this.opidCheckInterval = setInterval(() => this.checkOpids(), 57 * 1000);
-        }
+        // No shielding in Verus build - removed z-address operations
 
         // Statistics caching intervals
         this.statsInterval = setInterval(() => this.cacheNetworkStats(), 58 * 1000);
@@ -139,10 +131,6 @@ class PaymentProcessor {
      */
     async validateDaemons() {
         const validations = [this.validateAddress(this.poolConfig.address)];
-        if (this.requireShielding) {
-            validations.push(this.validateTAddress(this.poolConfig.tAddress));
-            validations.push(this.validateZAddress(this.poolConfig.zAddress));
-        }
         await Promise.all(validations);
     }
 
@@ -154,28 +142,6 @@ class PaymentProcessor {
         const result = await this.cmd('validateaddress', [address]);
         if (!result.ismine) {
             throw new Error(`Daemon does not own pool address: ${address}`);
-        }
-    }
-
-    /**
-     * Validate that the daemon owns the transparent address (for shielded coins)
-     * @param {string} address - The t-address to validate
-     */
-    async validateTAddress(address) {
-        const result = await this.cmd('validateaddress', [address]);
-        if (!result.ismine) {
-            throw new Error(`Daemon does not own pool t-address: ${address}`);
-        }
-    }
-
-    /**
-     * Validate that the daemon owns the shielded address (for privacy coins)
-     * @param {string} address - The z-address to validate
-     */
-    async validateZAddress(address) {
-        const result = await this.cmd('z_validateaddress', [address]);
-        if (!result.ismine) {
-            throw new Error(`Daemon does not own pool z-address: ${address}`);
         }
     }
 
@@ -251,9 +217,9 @@ class PaymentProcessor {
         // Build workers object with balances converted to satoshis
         const workers = {};
         if (balances) {
-            for (const w in balances) {
+            Object.keys(balances).forEach(w => {
                 workers[w] = { balance: util.coinsToSatoshis(parseFloat(balances[w]), this.magnitude) };
-            }
+            });
         }
 
         // Parse pending blocks into round objects
@@ -328,10 +294,18 @@ class PaymentProcessor {
         const batchRPC = rounds.map(r => ['gettransaction', [r.txHash]]);
         const txDetails = await this.batchCmd(batchRPC);
 
+        // Precompute counts of blocks per height for quick checks
+        const heightCounts = {};
+        for (let i = 0; i < rounds.length; i++) {
+            heightCounts[rounds[i].height] = (heightCounts[rounds[i].height] || 0) + 1;
+        }
+
+        const validated = [];
         let payingBlocks = 0;
 
-        return rounds.filter(round => {
-            const tx = txDetails[rounds.indexOf(round)];
+        for (let i = 0; i < rounds.length; i++) {
+            const round = rounds[i];
+            const tx = txDetails[i] || {};
 
             // Handle bad blocks with retry mechanism (RPC error -5 = invalid transaction)
             if (tx.error && tx.error.code === -5) {
@@ -344,7 +318,7 @@ class PaymentProcessor {
                 } else {
                     // Retry this block in the next payment run
                     this.logger.warn(this.logSystem, this.logComponent, `Abandoned block ${round.txHash} check ${this.badBlocks[round.txHash]}/15`);
-                    return false; // Skip this round for now
+                    continue; // Skip this round for now
                 }
             } else if (tx && tx.result) {
                 // Block is now valid - clear from bad blocks tracking
@@ -355,7 +329,7 @@ class PaymentProcessor {
 
                 round.confirmations = tx.result.confirmations || 0;
                 // Find transaction detail for pool address or use first available
-                const detail = tx.result.details.find(d => d.address === this.poolConfig.address) || tx.result.details[0];
+                const detail = (tx.result.details || []).find(d => d.address === this.poolConfig.address) || (tx.result.details || [])[0];
 
                 if (detail) {
                     round.category = detail.category;
@@ -371,31 +345,24 @@ class PaymentProcessor {
             }
 
             // Limit concurrent payments to prevent overwhelming the daemon
-            if (round.category === 'generate' && round.confirmations >= this.minConfPayout) {
-                payingBlocks++;
-                if (payingBlocks > this.maxBlocksPerPayment) {
-                    round.category = 'immature'; // Defer payment to next run
+            if (round.category === 'generate') {
+                if (round.confirmations >= this.minConfPayout) {
+                    payingBlocks++;
+                    if (payingBlocks > this.maxBlocksPerPayment) {
+                        round.category = 'immature'; // Defer payment to next run
+                    }
+                } else {
+                    round.category = 'immature'; // Not enough confirmations yet
                 }
-            } else if (round.category === 'generate') {
-                round.category = 'immature'; // Not enough confirmations yet
             }
 
             // Determine if shares can be safely deleted (no other blocks at same height)
-            round.canDeleteShares = (() => {
-                for (let i = 0; i < rounds.length; i++) {
-                    const compareR = rounds[i];
-                    if ((compareR.height === round.height)
-                        && (compareR.category !== 'kicked')
-                        && (compareR.category !== 'orphan')
-                        && (compareR.serialized !== round.serialized)) {
-                        return false;
-                    }
-                }
-                return true;
-            })();
+            round.canDeleteShares = heightCounts[round.height] === 1;
 
-            return true;
-        });
+            validated.push(round);
+        }
+
+        return validated;
     }
 
     /**
@@ -433,7 +400,8 @@ class PaymentProcessor {
         });
 
         // Verify pool has sufficient balance for all payments
-        const tBalance = await this.listUnspent(null, this.requireShielding ? this.poolConfig.address : null, this.minConfPayout);
+        // Verus: no shielded address exclusion
+        const tBalance = await this.listUnspent(null, null, this.minConfPayout);
         if (tBalance < totalOwed) {
             this.logger.warn(this.logSystem, this.logComponent, `Insufficient funds for payment (${util.satoshisToCoins(tBalance, this.magnitude, this.coinPrecision)} < ${util.satoshisToCoins(totalOwed, this.magnitude, this.coinPrecision)}). Deferring payments.`);
             // Convert all generate blocks to immature to defer payments
@@ -510,7 +478,7 @@ class PaymentProcessor {
         let totalSent = 0;
 
         // Aggregate payments by miner address and validate addresses
-        for (const w in workers) {
+        Object.keys(workers).forEach(w => {
             const worker = workers[w];
             const address = this.getProperAddress(w.split('.')[0]);
             worker.address = address;
@@ -521,7 +489,7 @@ class PaymentProcessor {
                 addressAmounts[address] = (addressAmounts[address] || 0) + toSend;
                 totalSent += toSend;
             }
-        }
+        });
 
         // Return early if no payments to process
         if (Object.keys(addressAmounts).length === 0) {
@@ -530,9 +498,9 @@ class PaymentProcessor {
 
         // Convert satoshis to coin amounts for sendmany RPC
         const finalAddressAmounts = {};
-        for (const addr in addressAmounts) {
+        Object.keys(addressAmounts).forEach(addr => {
             finalAddressAmounts[addr] = util.satoshisToCoins(addressAmounts[addr], this.magnitude, this.coinPrecision);
-        }
+        });
 
         try {
             // Execute sendmany RPC call to send all payments in single transaction
@@ -540,7 +508,7 @@ class PaymentProcessor {
             this.logger.info(this.logSystem, this.logComponent, `Payments sent in transaction: ${txid}`);
 
             // Update worker records with sent amounts and balance changes
-            for (const w in workers) {
+            Object.keys(workers).forEach(w => {
                 const worker = workers[w];
                 const toSend = (worker.balance || 0) + (worker.reward || 0);
                 if (toSend >= this.minPaymentSatoshis) {
@@ -550,7 +518,7 @@ class PaymentProcessor {
                     worker.sent = 0;
                     worker.balanceChange = worker.reward || 0; // Add to balance for next time
                 }
-            }
+            });
 
             // Create payment record for pool history
             const paymentRecord = {
@@ -597,7 +565,7 @@ class PaymentProcessor {
         const finalRedisCommands = [];
 
         // Update worker balances and payout totals
-        for (const w in workers) {
+        Object.keys(workers).forEach(w => {
             const worker = workers[w];
             if (worker.balanceChange) {
                 finalRedisCommands.push(['hincrbyfloat', `${this.coin}:balances`, w, util.satoshisToCoins(worker.balanceChange, this.magnitude, this.coinPrecision)]);
@@ -605,7 +573,7 @@ class PaymentProcessor {
             if (worker.sent) {
                 finalRedisCommands.push(['hincrbyfloat', `${this.coin}:payouts`, w, worker.sent]);
             }
-        }
+        });
 
         // Process blocks based on their final category
         const roundsToDelete = [];
@@ -619,9 +587,9 @@ class PaymentProcessor {
                     // For orphaned blocks, redistribute shares to current round
                     if (r.category === 'orphan' && r.workerShares) {
                         this.logger.warn(this.logSystem, this.logComponent, `Moving shares from orphaned block ${r.height} to current round.`);
-                        for (const worker in r.workerShares) {
+                        Object.keys(r.workerShares).forEach(worker => {
                             finalRedisCommands.push(['hincrby', `${this.coin}:shares:roundCurrent`, worker, r.workerShares[worker]]);
-                        }
+                        });
                     }
                     break;
 
@@ -669,123 +637,6 @@ class PaymentProcessor {
         }
     }
 
-    /**
-     * Automatic shielding cycle for privacy coins (Zcash family)
-     * Manages the movement of funds between transparent and shielded addresses
-     * 
-     * Logic:
-     * 1. If transparent balance > threshold: Shield funds (T->Z)
-     * 2. If transparent balance is low but shielded balance > threshold: Unshield funds (Z->T)
-     * 
-     * This ensures there are always sufficient transparent funds for mining payouts
-     * while keeping most pool funds in the privacy-enhanced shielded pool.
-     */
-    async shieldingCycle() {
-        if (!this.requireShielding) {
-            return;
-        } // Skip if shielding not required
-
-        try {
-            const tBalance = await this.listUnspent(this.poolConfig.address, null, this.minConfShield);
-            const shieldingThreshold = util.coinsToSatoshis(0.001, this.magnitude); // 0.001 coin threshold
-
-            if (tBalance > shieldingThreshold) {
-                // Shield transparent funds to privacy pool
-                await this.sendTToZ(tBalance);
-            } else {
-                // Check if we need to unshield funds for payouts
-                const zBalance = await this.listUnspentZ(this.poolConfig.zAddress, this.minConfShield);
-                if (zBalance > shieldingThreshold) {
-                    await this.sendZToT(zBalance);
-                }
-            }
-        } catch (error) {
-            this.logger.error(this.logSystem, this.logComponent, `Shielding cycle error: ${error.message}`);
-        }
-    }
-
-    /**
-     * Send transparent funds to shielded address (T->Z transaction)
-     * Used for accumulating transparent coinbase rewards into shielded pool
-     * Prevents concurrent operations and enforces minimum balance threshold
-     * 
-     * @param {Number} tBalance - Transparent balance in satoshis
-     */
-    async sendTToZ(tBalance) {
-        if (this.opidCount > 0) {
-            return;
-        } // Prevent concurrent shielding operations
-        const amount = util.satoshisToCoins(tBalance - 10000, this.magnitude, this.coinPrecision); // Reserve 0.0001 for fees
-        if (amount <= 0) {
-            return;
-        }
-
-        const params = [this.poolConfig.address, [{ address: this.poolConfig.zAddress, amount }]];
-        const opid = await this.cmd('z_sendmany', params);
-        this.opidCount++;
-        this.opids.push(opid);
-        this.logger.info(this.logSystem, this.logComponent, `Shielding ${amount} T to Z, opid: ${opid}`);
-    }
-
-    /**
-     * Send shielded funds to transparent address (Z->T transaction)
-     * Used for paying miners from the shielded pool
-     * Limits unshielding amount and prevents concurrent operations
-     * 
-     * @param {Number} zBalance - Shielded balance in satoshis
-     */
-    async sendZToT(zBalance) {
-        if (this.opidCount > 0) {
-            return;
-        } // Prevent concurrent unshielding operations
-        let amount = util.satoshisToCoins(zBalance - 10000, this.magnitude, this.coinPrecision); // Reserve 0.0001 for fees
-        if (amount <= 0) {
-            return;
-        }
-        if (amount > 100) {
-            amount = 100;
-        } // Limit unshielding to 100 coins per operation
-
-        const params = [this.poolConfig.zAddress, [{ address: this.poolConfig.tAddress, amount }]];
-        const opid = await this.cmd('z_sendmany', params);
-        this.opidCount++;
-        this.opids.push(opid);
-        this.logger.info(this.logSystem, this.logComponent, `Unshielding ${amount} Z to T, opid: ${opid}`);
-    }
-
-    /**
-     * Check status of async shielded transactions and clean up completed operations
-     * Monitors operation IDs to determine when shielding/unshielding completes
-     * Automatically removes completed operations from tracking arrays
-     */
-    async checkOpids() {
-        if (this.opids.length === 0) {
-            return;
-        }
-
-        const statuses = await this.cmd('z_getoperationstatus', [this.opids]);
-        if (!statuses) {
-            return;
-        }
-
-        for (const op of statuses) {
-            if (op.status === 'success' || op.status === 'failed') {
-                // Remove completed operation from tracking
-                const index = this.opids.indexOf(op.id);
-                if (index > -1) {
-                    this.opids.splice(index, 1);
-                    this.opidCount--;
-                }
-
-                // Log operation result
-                if (op.status === 'success') {
-                    this.logger.info(this.logSystem, this.logComponent, `Operation ${op.id} succeeded. TXID: ${op.result.txid}`);
-                } else {
-                    this.logger.error(this.logSystem, this.logComponent, `Operation ${op.id} failed. Error: ${op.error.message}`);
-                }
-            }
-        }
-    }
 
     /**
      * Cache current network statistics in Redis for website display
@@ -837,18 +688,7 @@ class PaymentProcessor {
         return util.coinsToSatoshis(balance, this.magnitude);
     }
 
-    /**
-     * Get shielded address balance with minimum confirmations
-     * Used for checking available funds in shielded pool
-     * 
-     * @param {String} address - Shielded address to check
-     * @param {Number} minConf - Minimum confirmations required
-     * @returns {Number} Balance in satoshis
-     */
-    async listUnspentZ(address, minConf) {
-        const balance = await this.cmd('z_getbalance', [address, minConf]);
-        return util.coinsToSatoshis(balance || 0, this.magnitude);
-    }
+
 
     /**
      * Validate miner address and return proper address for payments
