@@ -136,7 +136,9 @@ class Website {
      */
     processTemplates() {
         Object.keys(this.pageTemplates).forEach((pageName) => {
-            if (pageName === 'index') return;
+            if (pageName === 'index') {
+                return;
+            }
             const tpl = this.pageTemplates[pageName];
             if (typeof tpl !== 'function') {
                 this.logger.error(this.logSystem, 'Template', `Template for page ${pageName} is not a function`);
@@ -151,7 +153,9 @@ class Website {
         });
 
         Object.keys(this.pageTemplates).forEach(pageName => {
-            if (pageName === 'index' || !this.pageProcessed[pageName]) return;
+            if (pageName === 'index' || !this.pageProcessed[pageName]) {
+                return;
+            }
             if (typeof this.pageTemplates.index === 'function') {
                 try {
                     this.indexesProcessed[pageName] = this.pageTemplates.index({ page: this.pageProcessed[pageName], selected: pageName, stats: this.portalStats.stats, poolConfigs: this.poolConfigs, portalConfig: this.portalConfig });
@@ -173,12 +177,16 @@ class Website {
         try {
             const redisConf = this.portalConfig.redis || {};
             const client = CreateRedisClient(redisConf);
-            if (redisConf.password) client.auth(redisConf.password);
+            if (redisConf.password) {
+                client.auth(redisConf.password);
+            }
 
             const coinBytes = await new Promise((resolve, reject) => {
                 client.hgetall('coinVersionBytes', (err, res) => {
                     client.quit();
-                    if (err) return reject(err);
+                    if (err) {
+                        return reject(err);
+                    }
                     resolve(res || {});
                 });
             });
@@ -214,7 +222,7 @@ class Website {
      * @param {Function} next - The next middleware function.
      */
     minerPage(req, res, next) {
-        let address = (req.params.address || '').split('.')[0];
+        const address = (req.params.address || '').split('.')[0];
         if (address) {
             this.portalStats.getBalanceByAddress(address, () => {
                 this.processTemplates();
@@ -289,7 +297,9 @@ class Website {
             if (this.websiteConfig.adminCenter && this.websiteConfig.adminCenter.enabled) {
                 let bodyRaw = '';
                 req.setEncoding('utf8');
-                req.on('data', (c) => { bodyRaw += c; });
+                req.on('data', (c) => {
+                    bodyRaw += c; 
+                });
                 req.on('end', () => {
                     let parsed = {};
                     try {

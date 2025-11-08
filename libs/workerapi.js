@@ -161,8 +161,12 @@ class WorkerAPI {
 
     stop() {
         try {
-            if (this.server && this.server.close) this.server.close();
-            if (this.poolObj && this.poolObj.removeAllListeners) this.poolObj.removeAllListeners('share');
+            if (this.server && this.server.close) {
+                this.server.close();
+            }
+            if (this.poolObj && this.poolObj.removeAllListeners) {
+                this.poolObj.removeAllListeners('share');
+            }
         } catch (e) {
             console.error('Error stopping WorkerAPI:', e);
         }

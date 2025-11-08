@@ -38,14 +38,20 @@ function bigIntToBuffer(n, size, opts) {
         }
         const z = Buffer.from([0]);
         if (typeof size === 'number') {
-            if (z.length < size) return Buffer.concat([Buffer.alloc(size - z.length), z]);
-            if (z.length > size) return z.slice(-size);
+            if (z.length < size) {
+                return Buffer.concat([Buffer.alloc(size - z.length), z]);
+            }
+            if (z.length > size) {
+                return z.slice(-size);
+            }
         }
         return z;
     }
 
     let hex = n.toString(16);
-    if (hex.length % 2) hex = `0${hex}`;
+    if (hex.length % 2) {
+        hex = `0${hex}`;
+    }
     let buf = Buffer.from(hex, 'hex');
 
     if (typeof size === 'number') {
