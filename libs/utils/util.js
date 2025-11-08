@@ -42,6 +42,7 @@ exports.sha256Checksum = a.sha256Checksum;
 exports.validateVerusAddress = a.validateVerusAddress;
 
 // crypto (c)
+exports.bigIntToBuffer = c.bigIntToBuffer;
 exports.bignum = c.bignum;
 exports.bignumFromBitsBuffer = c.bignumFromBitsBuffer;
 exports.bignumFromBitsHex = c.bignumFromBitsHex;

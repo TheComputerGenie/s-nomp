@@ -19,6 +19,9 @@
  * Copyright (c) 2011 Google Inc.
  */
 const crypto = require('crypto');
+// unified bigIntToBuffer from crypto utilities (used for converting BigInt -> Buffer,
+// base58 decoder requests empty-buffer-for-zero via opts.zeroEmpty)
+const { bigIntToBuffer } = require('./crypto');
 
 // Use native BigInt and modern Buffer APIs.
 let globalBuffer = Buffer.alloc(1024);
@@ -38,25 +41,6 @@ function bufferToBigInt(buf) {
         result = (result << 8n) + BigInt(buf[i]);
     }
     return result;
-}
-
-// Helper: convert BigInt to minimal Buffer (big-endian). Returns empty Buffer for 0n.
-function bigIntToBuffer(num) {
-    if (num === 0n) {
-        return Buffer.alloc(0);
-    }
-    const parts = [];
-    let n = num;
-    while (n > 0n) {
-        parts.push(Number(n & 0xffn));
-        n = n >> 8n;
-    }
-    // parts are little-endian, convert to big-endian
-    const buf = Buffer.alloc(parts.length);
-    for (let j = 0; j < parts.length; j++) {
-        buf[j] = parts[parts.length - 1 - j];
-    }
-    return buf;
 }
 
 // Vanilla Base58 Encoding
@@ -128,10 +112,10 @@ const base58 = {
             if (i === str.length) {
                 return zb;
             }
-            const answerBuf = bigIntToBuffer(answer);
+            const answerBuf = bigIntToBuffer(answer, undefined, { zeroEmpty: true });
             return Buffer.concat([zb, answerBuf], i + answerBuf.length);
         } else {
-            return bigIntToBuffer(answer);
+            return bigIntToBuffer(answer, undefined, { zeroEmpty: true });
         }
     },
 };

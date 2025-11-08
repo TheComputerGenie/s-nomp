@@ -20,16 +20,42 @@ function bufferToBigInt(buff) {
     return result;
 }
 
-// Convert a non-negative BigInt to a minimal big-endian Buffer (no leading zeros)
-function bigIntToBuffer(n) {
+// Convert a non-negative BigInt to a big-endian Buffer.
+// Parameters:
+//   n: BigInt
+//   size: optional integer => force output to this exact byte length (left-pad with 0x00 or truncate high bytes)
+//   opts: optional object { zeroEmpty: boolean } => if true, return empty Buffer for 0n
+function bigIntToBuffer(n, size, opts) {
+    const zeroEmpty = opts && opts.zeroEmpty;
     if (n === 0n) {
-        return Buffer.from([0]);
+        if (zeroEmpty) {
+            const zb = Buffer.alloc(0);
+            if (typeof size === 'number' && size > 0) {
+                // honor requested size by returning zero-padded buffer
+                return Buffer.alloc(size);
+            }
+            return zb;
+        }
+        const z = Buffer.from([0]);
+        if (typeof size === 'number') {
+            if (z.length < size) return Buffer.concat([Buffer.alloc(size - z.length), z]);
+            if (z.length > size) return z.slice(-size);
+        }
+        return z;
     }
+
     let hex = n.toString(16);
-    if (hex.length % 2) {
-        hex = `0${hex}`;
+    if (hex.length % 2) hex = `0${hex}`;
+    let buf = Buffer.from(hex, 'hex');
+
+    if (typeof size === 'number') {
+        if (buf.length < size) {
+            buf = Buffer.concat([Buffer.alloc(size - buf.length), buf]);
+        } else if (buf.length > size) {
+            buf = buf.slice(-size);
+        }
     }
-    return Buffer.from(hex, 'hex');
+    return buf;
 }
 
 exports.bufferToBigInt = bufferToBigInt;
