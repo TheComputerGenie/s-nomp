@@ -1,10 +1,31 @@
 #!/usr/bin/env python3
-"""Find duplicated JS/TS functions in the repository.
+"""
+@fileoverview Find duplicated JS/TS functions in the repository.
 
 Produces JSON with groups: exact_body_duplicates, identical_named_duplicates, fuzzy_duplicates.
 
-This is a heuristic scanner (regex-based) — it will catch most top-level and assigned functions,
-but may miss or mis-parse complex patterns. It's designed to be safe and fast without external deps.
+This is a lightweight, heuristic scanner (regex-based) — it will catch most top-level and
+assigned functions but may miss or mis-parse complex patterns. It's designed to be safe
+and fast without external dependencies and intended for developer review rather than
+automated refactoring.
+
+Author: ComputerGenieCo
+Version: 1.2.0
+Copyright: 2025
+
+Usage:
+    # Run and write the report to the repository tools folder (recommended):
+    python3 tools/find_js_duplicates.py > tools/duplicates_report.json
+
+    # Run and view JSON on stdout (no file written):
+    python3 tools/find_js_duplicates.py
+
+Notes:
+    - The script prints a JSON object to stdout; redirect it to a file when you want to
+        store or review the results persistently.
+    - The produced JSON contains three top-level arrays: exact_body_duplicates,
+        identical_named_duplicates, and fuzzy_duplicates. Each entry contains file paths
+        and line ranges to help with manual review.
 """
 import os
 import re
@@ -16,14 +37,29 @@ from difflib import SequenceMatcher
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 EXTS = ('.js', '.jsx', '.ts', '.tsx')
-EXCLUDE_DIRS = ('node_modules', 'dist', 'build', '.git')
+EXCLUDE_DIRS = ('node_modules', 'dist', 'build', '.git', 'website/static/scripts')
 
 
 def list_files(root):
     files = []
     for dirpath, dirnames, filenames in os.walk(root):
         # filter out excluded dirs
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+        # Support EXCLUDE_DIRS entries that are multi-level relative paths
+        rel_dir = os.path.relpath(dirpath, root)
+        if rel_dir == '.':
+            rel_dir = ''
+
+        def keep_dir(d):
+            # child relative path from root, normalize for comparison
+            child_rel = os.path.normpath(os.path.join(rel_dir, d)) if rel_dir else d
+            for ex in EXCLUDE_DIRS:
+                ex_norm = os.path.normpath(ex)
+                # exact match or prefix match (exclude nested paths)
+                if child_rel == ex_norm or child_rel.startswith(ex_norm + os.sep):
+                    return False
+            return True
+
+        dirnames[:] = [d for d in dirnames if keep_dir(d)]
         for fn in filenames:
             if fn.endswith(EXTS):
                 files.append(os.path.join(dirpath, fn))
@@ -63,6 +99,14 @@ FUNC_PATTERNS = [
     re.compile(r"^\s*([A-Za-z0-9_$]+)\s*\([^\)]*\)\s*\{", re.M),
 ]
 
+# Names that look like control keywords or trivial global calls —
+# if these are matched as method-shorthand they are almost certainly
+# false positives for our purpose. Keep this list small and obvious.
+KEYWORD_NAMES = {
+    'if', 'for', 'while', 'switch', 'catch', 'else',
+    'constructor', 'settimeout', 'setinterval', 'timeout'
+}
+
 
 def extract_functions(code, path):
     lines = code.splitlines()
@@ -79,6 +123,12 @@ def extract_functions(code, path):
             if m:
                 matched = m
                 name = m.group(1) if m.groups() else None
+                # Skip trivial control-like matches early (blacklist)
+                if name and name.strip().lower() in KEYWORD_NAMES:
+                    i += 1
+                    matched = None
+                    name = None
+                    break
                 break
         if not matched:
             i += 1
