@@ -9,3 +9,5 @@ npm-debug.log
 libs/verushash/build/
 libs/verushash/lib/
 *.node
+
+tools/duplicates_report.json
