@@ -12,6 +12,9 @@ const ONE = Buffer.alloc(1, 1);
 
 const ecurve = require('ecurve');
 const secp256k1 = ecurve.getCurveByName('secp256k1');
+// unified bigIntToBuffer from utils aggregator file (used for fixed-width 32-byte
+// conversions for ECDSA fields)
+const { bigIntToBuffer } = require('../utils/util');
 
 // BigInteger compatibility for ecurve
 function BigInteger(value) {
@@ -84,20 +87,6 @@ function deterministicGenerateK(hash, x, checkSig) {
 // Helper functions for BigInt
 function bigIntFromBuffer(buf) {
     return global.BigInt(`0x${buf.toString('hex')}`);
-}
-
-function bigIntToBuffer(bigInt, size) {
-    let hex = bigInt.toString(16);
-    if (hex.length % 2) {
-        hex = `0${hex}`;
-    }
-    let buf = Buffer.from(hex, 'hex');
-    if (buf.length < size) {
-        buf = Buffer.concat([Buffer.alloc(size - buf.length), buf]);
-    } else if (buf.length > size) {
-        buf = buf.slice(-size);
-    }
-    return buf;
 }
 
 function bigIntSignum(bigInt) {
