@@ -10,11 +10,10 @@ const COIN_CONSTANTS = {
     sapling: 227520,
     peerMagic: 'ad8a58e2',
     txfee: 0.0001,
-    requireShielding: false,
     burnFees: false,
     explorer: {
-        txURL: 'https://explorer.veruscoin.io/tx/',
-        blockURL: 'https://explorer.veruscoin.io/block/'
+        txURL: 'https://insight.verus.io/tx/',
+        blockURL: 'https://insight.verus.io/block/'
     }
 };
 
