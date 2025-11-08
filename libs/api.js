@@ -1,72 +1,74 @@
-const redis = require('redis');
-
-const stats = require('./stats.js');
-
 /**
- * API Module for Mining Pool Portal
- * 
+ * @fileoverview API Module for Mining Pool Portal
+ *
  * This module handles HTTP API requests for the mining pool, providing endpoints
  * for statistics, worker information, payments, and real-time data streaming.
  * It serves as the main interface for external applications and the web frontend
  * to access pool data and statistics.
- * 
- * @module API
- * @param {Object} logger - Logger instance for logging API events and errors
- * @param {Object} portalConfig - Main portal configuration object
- * @param {Object} poolConfigs - Configuration objects for all configured pools
- * @returns {Object} API handler object with request handling methods
+ *
+ * @author ComputerGenieCo
+ * @version 21.7.3
+ * @copyright 2025
  */
-module.exports = function (logger, portalConfig, poolConfigs) {
+const redis = require('redis');
+const stats = require('./stats.js');
 
-    const _this = this;
+/**
+ * API handler for the mining pool portal.
+ *
+ * @class Api
+ * @param {Object} logger - Logger instance for logging API events and errors.
+ * @param {Object} portalConfig - Main portal configuration object.
+ * @param {Object} poolConfigs - Configuration objects for all configured pools.
+ */
+module.exports = class Api {
+    constructor(logger, portalConfig, poolConfigs) {
+        /**
+         * Portal statistics instance
+         * Handles all statistical data collection, processing, and retrieval
+         * @type {stats}
+         */
+        this.stats = new stats(logger, portalConfig, poolConfigs);
 
-    /**
-     * Portal statistics instance
-     * Handles all statistical data collection, processing, and retrieval
-     * @type {stats}
-     */
-    const portalStats = this.stats = new stats(logger, portalConfig, poolConfigs);
-
-    /**
-     * Active live statistics connections
-     * Stores WebSocket-like connections for real-time statistics streaming
-     * Key: unique connection ID, Value: response object for the connection
-     * @type {Object.<string, Object>}
-     */
-    this.liveStatConnections = {};
+        /**
+         * Active live statistics connections
+         * Stores WebSocket-like connections for real-time statistics streaming
+         * Key: unique connection ID, Value: response object for the connection
+         * @type {Object.<string, Object>}
+         */
+        this.liveStatConnections = {};
+    }
 
     /**
      * Main API request handler
-     * 
+     *
      * Routes incoming HTTP requests to appropriate handlers based on the method parameter.
      * Supports multiple endpoints including statistics, blocks, worker data, and payments.
-     * 
-     * @method handleApiRequest
+     *
      * @param {Object} req - Express request object containing URL parameters and query data
      * @param {Object} res - Express response object for sending data back to client
      * @param {Function} next - Express next middleware function for unhandled requests
      * @returns {void}
      */
-    this.handleApiRequest = function (req, res, next) {
-
+    handleApiRequest(req, res, next) {
         switch (req.params.method) {
             case 'stats':
                 // Return current pool statistics in JSON format
                 // Includes hashrates, worker counts, block data, and network information
                 res.header('Content-Type', 'application/json');
-                res.end(portalStats.statsString);
+                res.end(this.stats.statsString);
                 return;
             case 'pool_stats':
                 // Return historical pool statistics data
                 // Used for generating charts and trend analysis on the frontend
                 res.header('Content-Type', 'application/json');
-                res.end(JSON.stringify(portalStats.statPoolHistory));
+                res.end(JSON.stringify(this.stats.statPoolHistory));
                 return;
             case 'blocks':
             case 'getblocksstats':
                 // Retrieve block statistics and information
                 // Includes found blocks, pending blocks, and block rewards
-                portalStats.getBlocks((data) => {
+                this.stats.getBlocks((data) => {
                     res.header('Content-Type', 'application/json');
                     res.end(JSON.stringify(data));
                 });
@@ -83,11 +85,11 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                         if (address != null && address.length > 0) {
                             // Extract base address (remove worker name if present)
                             address = address.split('.')[0];
-                            //portalStats.getPoolBalancesByAddress(address, function(balances) {
+                            //this.stats.getPoolBalancesByAddress(address, function(balances) {
                             //	res.end(JSON.stringify(balances));
                             //});
                             // Get balance data for the specified address across all pools
-                            portalStats.getPoolBalancesByAddress(address, (balances) => {
+                            this.stats.getPoolBalancesByAddress(address, (balances) => {
                                 // Object to store formatted balance data grouped by pool
                                 const formattedBalances = {};
 
@@ -143,11 +145,11 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                 // Get payment information for all pools
                 // Returns pending blocks and payment history for each pool
                 const poolBlocks = [];
-                for (const pool in portalStats.stats.pools) {
+                for (const pool in this.stats.stats.pools) {
                     poolBlocks.push({
                         name: pool,
-                        pending: portalStats.stats.pools[pool].pending,    // Pending block rewards
-                        payments: portalStats.stats.pools[pool].payments   // Historical payments
+                        pending: this.stats.stats.pools[pool].pending,    // Pending block rewards
+                        payments: this.stats.stats.pools[pool].payments   // Historical payments
                     });
                 }
                 res.header('Content-Type', 'application/json');
@@ -164,21 +166,21 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                         const history = {};    // Historical hashrate data for each worker
                         const workers = {};    // Current worker statistics
                         let address = url_parms[1] || null;
-                        //res.end(portalStats.getWorkerStats(address));
+                        //res.end(this.stats.getWorkerStats(address));
                         if (address != null && address.length > 0) {
                             // Extract base miner address (remove worker name if present)
                             address = address.split('.')[0];
                             // Get miner's balance information across all pools and workers
-                            portalStats.getBalanceByAddress(address, (balances) => {
+                            this.stats.getBalanceByAddress(address, (balances) => {
                                 // Get current round share total for the address
-                                portalStats.getTotalSharesByAddress(address, (shares) => {
+                                this.stats.getTotalSharesByAddress(address, (shares) => {
                                     let totalHash = parseFloat(0.0);   // Combined hashrate of all workers
                                     const totalShares = shares;         // Total shares submitted in current round
                                     let networkSols = 0;                // Network difficulty/solutions per second
                                     // Build historical hashrate data for all workers belonging to this address
-                                    for (const h in portalStats.statHistory) {
-                                        for (const pool in portalStats.statHistory[h].pools) {
-                                            for (const w in portalStats.statHistory[h].pools[pool].workers) {
+                                    for (const h in this.stats.statHistory) {
+                                        for (const pool in this.stats.statHistory[h].pools) {
+                                            for (const w in this.stats.statHistory[h].pools[pool].workers) {
                                                 // Check if worker belongs to the requested address
                                                 if (w.startsWith(address)) {
                                                     // Initialize history array for this worker if needed
@@ -186,25 +188,25 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                                                         history[w] = [];
                                                     }
                                                     // Add hashrate data point if available
-                                                    if (portalStats.statHistory[h].pools[pool].workers[w].hashrate) {
+                                                    if (this.stats.statHistory[h].pools[pool].workers[w].hashrate) {
                                                         history[w].push({
-                                                            time: portalStats.statHistory[h].time,
-                                                            hashrate: portalStats.statHistory[h].pools[pool].workers[w].hashrate
+                                                            time: this.stats.statHistory[h].time,
+                                                            hashrate: this.stats.statHistory[h].pools[pool].workers[w].hashrate
                                                         });
                                                     }
                                                 }
                                             }
                                             // order check...
-                                            //console.log(portalStats.statHistory[h].time);
+                                            //console.log(this.stats.statHistory[h].time);
                                         }
                                     }
                                     // Collect current worker statistics and balance information
-                                    for (const pool in portalStats.stats.pools) {
-                                        for (const w in portalStats.stats.pools[pool].workers) {
+                                    for (const pool in this.stats.stats.pools) {
+                                        for (const w in this.stats.stats.pools[pool].workers) {
                                             // Check if worker belongs to the requested address
                                             if (w.startsWith(address)) {
                                                 // Copy worker statistics
-                                                workers[w] = portalStats.stats.pools[pool].workers[w];
+                                                workers[w] = this.stats.stats.pools[pool].workers[w];
                                                 // Add balance information for this worker
                                                 for (const b in balances.balances) {
                                                     if (w == balances.balances[b].worker) {
@@ -216,9 +218,9 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                                                 workers[w].balance = (workers[w].balance || 0);
                                                 workers[w].paid = (workers[w].paid || 0);
                                                 // Accumulate total hashrate across all workers
-                                                totalHash += portalStats.stats.pools[pool].workers[w].hashrate;
+                                                totalHash += this.stats.stats.pools[pool].workers[w].hashrate;
                                                 // Get network difficulty information
-                                                networkSols = portalStats.stats.pools[pool].poolStats.networkSols;
+                                                networkSols = this.stats.stats.pools[pool].poolStats.networkSols;
                                             }
                                         }
                                     }
@@ -264,20 +266,20 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                             // Extract base miner address (remove worker name if present)
                             address = address.split('.')[0];
                             // Get miner's balance information across all pools and workers
-                            portalStats.getBalanceByAddress(address, (balances) => {
+                            this.stats.getBalanceByAddress(address, (balances) => {
                                 // Get current round share total for the address
-                                portalStats.getTotalSharesByAddress(address, (shares) => {
+                                this.stats.getTotalSharesByAddress(address, (shares) => {
                                     let totalHash = parseFloat(0.0);   // Combined hashrate of all workers
                                     const totalShares = shares;         // Total shares submitted in current round
                                     let networkSols = 0;                // Network difficulty/solutions per second
 
                                     // Collect ONLY current worker statistics (skip historical data processing)
-                                    for (const pool in portalStats.stats.pools) {
-                                        for (const w in portalStats.stats.pools[pool].workers) {
+                                    for (const pool in this.stats.stats.pools) {
+                                        for (const w in this.stats.stats.pools[pool].workers) {
                                             // Check if worker belongs to the requested address
                                             if (w.startsWith(address)) {
                                                 // Copy worker statistics
-                                                workers[w] = portalStats.stats.pools[pool].workers[w];
+                                                workers[w] = this.stats.stats.pools[pool].workers[w];
                                                 // Add balance information for this worker
                                                 for (const b in balances.balances) {
                                                     if (w == balances.balances[b].worker) {
@@ -289,9 +291,9 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                                                 workers[w].balance = (workers[w].balance || 0);
                                                 workers[w].paid = (workers[w].paid || 0);
                                                 // Accumulate total hashrate across all workers
-                                                totalHash += portalStats.stats.pools[pool].workers[w].hashrate;
+                                                totalHash += this.stats.stats.pools[pool].workers[w].hashrate;
                                                 // Get network difficulty information
-                                                networkSols = portalStats.stats.pools[pool].poolStats.networkSols;
+                                                networkSols = this.stats.stats.pools[pool].poolStats.networkSols;
                                             }
                                         }
                                     }
@@ -334,32 +336,31 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                 // Generate unique ID for this connection
                 const uid = Math.random().toString();
                 // Store connection for broadcasting updates
-                _this.liveStatConnections[uid] = res;
+                this.liveStatConnections[uid] = res;
                 res.flush();
                 // Clean up connection when client disconnects
                 req.on('close', () => {
-                    delete _this.liveStatConnections[uid];
+                    delete this.liveStatConnections[uid];
                 });
                 return;
             default:
                 // Pass unhandled requests to next middleware
                 next();
         }
-    };
+    }
 
     /**
      * Administrative API request handler
-     * 
+     *
      * Handles admin-specific API endpoints that require elevated privileges.
      * Currently supports retrieving pool configuration data.
-     * 
-     * @method handleAdminApiRequest
+     *
      * @param {Object} req - Express request object containing URL parameters
      * @param {Object} res - Express response object for sending data back to client
      * @param {Function} next - Express next middleware function for unhandled requests
      * @returns {void}
      */
-    this.handleAdminApiRequest = function (req, res, next) {
+    handleAdminApiRequest(req, res, next) {
         switch (req.params.method) {
             case 'pools': {
                 // Return pool configuration data for administrative purposes
@@ -371,6 +372,16 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                 // Pass unhandled admin requests to next middleware
                 next();
         }
-    };
+    }
 
+    /**
+     * Closes all active Server-Sent Events (SSE) connections.
+     * This is useful for gracefully shutting down the API.
+     * @returns {void}
+     */
+    close() {
+        for (const uid in this.liveStatConnections) {
+            this.liveStatConnections[uid].end();
+        }
+    }
 };
