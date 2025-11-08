@@ -474,86 +474,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
     /** @const {number} Decimal precision for coin amounts */
     const coinPrecision = magnitude.toString().length - 1;
 
-    /**
-     * Round a number to specified decimal places with high precision
-     * 
-     * @param {number} n - Number to round
-     * @param {number} [digits=0] - Number of decimal places
-     * @returns {number} Rounded number
-     */
-    function roundTo(n, digits) {
-        if (digits === undefined) {
-            digits = 0;
-        }
-        const multiplicator = Math.pow(10, digits);
-        n = parseFloat((n * multiplicator).toFixed(11));
-        const test = (Math.round(n) / multiplicator);
-        return +(test.toFixed(digits));
-    }
-
-    /**
-     * Convert satoshis (smallest unit) to coin amount
-     * 
-     * @param {number} satoshis - Amount in satoshis
-     * @returns {number} Amount in coins with proper precision
-     */
-    const satoshisToCoins = function (satoshis) {
-        return roundTo((satoshis / magnitude), coinPrecision);
-    };
-
-    /**
-     * Convert coin amount to satoshis (smallest unit)
-     * 
-     * @param {number} coins - Amount in coins
-     * @returns {number} Amount in satoshis (rounded to integer)
-     */
-    const coinsToSatoshies = function (coins) {
-        return Math.round(coins * magnitude);
-    };
-
-    /**
-     * Round coin amount to standard precision
-     * 
-     * @param {number} number - Coin amount to round
-     * @returns {number} Rounded coin amount
-     */
-    function coinsRound(number) {
-        return roundTo(number, coinPrecision);
-    }
-
-    /**
-     * Convert seconds to human-readable time format
-     * 
-     * Converts a duration in seconds to a readable string format showing
-     * days, hours, minutes, and seconds. Automatically adjusts the display
-     * to show the most significant units (e.g., omits days if duration < 1 day).
-     * 
-     * @param {number} t - Duration in seconds
-     * @returns {string} Formatted time string (e.g., "2d 3h 45m 12s", "1h 30m 5s", "45s")
-     */
-    function readableSeconds(t) {
-        let seconds = Math.round(t);
-        let minutes = Math.floor(seconds / 60);
-        let hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-
-        // Calculate remaining units after extracting larger units
-        hours = hours - (days * 24);
-        minutes = minutes - (days * 24 * 60) - (hours * 60);
-        seconds = seconds - (days * 24 * 60 * 60) - (hours * 60 * 60) - (minutes * 60);
-
-        // Return most appropriate format based on duration
-        if (days > 0) {
-            return (`${days}d ${hours}h ${minutes}m ${seconds}s`);
-        }
-        if (hours > 0) {
-            return (`${hours}h ${minutes}m ${seconds}s`);
-        }
-        if (minutes > 0) {
-            return (`${minutes}m ${seconds}s`);
-        }
-        return (`${seconds}s`);
-    }
+    // readableSeconds has been moved to libs/utils/misc.js and is exported via util.getReadableTimeString
 
     /**
      * Get list of configured coins/pools
@@ -573,7 +494,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
         // The original waterfall performed a single async step; call directly.
         _this.getBalanceByAddress(address, (result) => {
             const total = (result && result.totalHeld) ? result.totalHeld : 0;
-            cback(coinsRound(total).toFixed(8));
+            cback(util.coinsRound(total, coinPrecision).toFixed(8));
         });
     };
 
@@ -711,7 +632,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                             workers[workerName] = (workers[workerName] || {});
                         } else {
                             paidAmount = parseFloat(pays[1][i]);
-                            workers[workerName].paid = coinsRound(paidAmount);
+                            workers[workerName].paid = util.coinsRound(paidAmount, coinPrecision);
                             totalPaid += paidAmount;
                         }
                     }
@@ -723,7 +644,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                             workers[workerName] = (workers[workerName] || {});
                         } else {
                             balAmount = parseFloat(bals[1][b]);
-                            workers[workerName].balance = coinsRound(balAmount);
+                            workers[workerName].balance = util.coinsRound(balAmount, coinPrecision);
                             totalHeld += balAmount;
                         }
                     }
@@ -735,7 +656,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                             workers[workerName] = (workers[workerName] || {});
                         } else {
                             pendingAmount = parseFloat(pends[1][b]);
-                            workers[workerName].immature = coinsRound(satoshisToCoins(pendingAmount));
+                            workers[workerName].immature = util.coinsRound(util.satoshisToCoins(pendingAmount, magnitude, coinPrecision), coinPrecision);
                             totalImmature += pendingAmount;
                         }
                     }
@@ -757,9 +678,9 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                 // Return comprehensive balance information
                 cback({
-                    totalHeld: coinsRound(totalHeld),
-                    totalPaid: coinsRound(totalPaid),
-                    totalImmature: satoshisToCoins(totalImmature),
+                    totalHeld: util.coinsRound(totalHeld, coinPrecision),
+                    totalPaid: util.coinsRound(totalPaid, coinPrecision),
+                    totalImmature: util.satoshisToCoins(totalImmature, magnitude, coinPrecision),
                     balances
                 });
             } catch (err) {
@@ -795,7 +716,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                         const paidAmount = parseFloat(pays[1][i + 1]);
 
                         workers[workerName] = workers[workerName] || {};
-                        workers[workerName].paid = coinsRound(paidAmount);
+                        workers[workerName].paid = util.coinsRound(paidAmount, coinPrecision);
                     }
 
                     // Process balances
@@ -804,7 +725,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                         const balAmount = parseFloat(bals[1][j + 1]);
 
                         workers[workerName] = workers[workerName] || {};
-                        workers[workerName].balance = coinsRound(balAmount);
+                        workers[workerName].balance = util.coinsRound(balAmount, coinPrecision);
                     }
 
                     // Process immature balances
@@ -813,7 +734,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                         const pendingAmount = parseFloat(pends[1][k + 1]);
 
                         workers[workerName] = workers[workerName] || {};
-                        workers[workerName].immature = coinsRound(pendingAmount);
+                        workers[workerName].immature = util.coinsRound(pendingAmount, coinPrecision);
                     }
 
                     // Push balances for each worker to the poolBalances array
@@ -1244,7 +1165,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                     // Set round statistics for this coin
                     coinStats.shareCount = _shareTotal;
                     coinStats.maxRoundTime = _maxTimeShare;
-                    coinStats.maxRoundTimeString = readableSeconds(_maxTimeShare);
+                    coinStats.maxRoundTimeString = util.getReadableTimeString(_maxTimeShare);
 
                     /**
                      * Calculate individual worker hashrates and mining luck
