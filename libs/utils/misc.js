@@ -41,20 +41,28 @@ exports.getReadableHashRateString = hashrate => {
     return hashrate.toFixed(2) + byteUnits[i];
 };
 
-exports.shiftMax256Right = shiftRight => {
-    let arr256 = Array.apply(null, new Array(256)).map(Number.prototype.valueOf, 1);
-    const arrLeft = Array.apply(null, new Array(shiftRight)).map(Number.prototype.valueOf, 0);
-    arr256 = arrLeft.concat(arr256).slice(0, 256);
-    const octets = [];
-    for (let i = 0; i < 32; i++) {
-        octets[i] = 0;
-        const bits = arr256.slice(i * 8, i * 8 + 8);
-        for (let f = 0; f < bits.length; f++) {
-            const multiplier = Math.pow(2, f);
-            octets[i] += bits[f] * multiplier;
+/**
+ * Build a 256-bit (32-byte) Buffer where the first `shift` bits are 0 and the remaining bits are 1.
+ * Bits are packed little-endian into bytes (bit 0 is LSB of octet 0).
+ *
+ * @param {number} shift - number of zero bits to prefix (clamped to [0,256])
+ * @returns {Buffer}
+ */
+exports.buildShifted256Buffer = function (shift) {
+    const s = Math.max(0, Math.min(256, (shift | 0)));
+    const octets = new Uint8Array(32);
+    for (let bitIndex = 0; bitIndex < 256; bitIndex++) {
+        if (bitIndex >= s) {
+            const octetIndex = (bitIndex >> 3);
+            const bitPos = bitIndex & 7;
+            octets[octetIndex] |= (1 << bitPos);
         }
     }
     return Buffer.from(octets);
+};
+
+exports.shiftMax256Right = shiftRight => {
+    return exports.buildShifted256Buffer(shiftRight);
 };
 
 /**
@@ -93,4 +101,38 @@ exports.getReadableNetworkHashRateString = function (hashrate) {
     const i = Math.floor((Math.log(hashrate / 1000) / Math.log(1000)) - 1);
     hashrate = (hashrate / 1000) / Math.pow(1000, i + 1);
     return hashrate.toFixed(2) + byteUnits[i];
+};
+
+/**
+ * Convert seconds to human-readable time format
+ *
+ * Converts a duration in seconds to a readable string format showing
+ * days, hours, minutes, and seconds. Automatically adjusts the display
+ * to show the most significant units (e.g., omits days if duration < 1 day).
+ *
+ * @param {number} t - Duration in seconds
+ * @returns {string} Formatted time string (e.g., "2d 3h 45m 12s", "1h 30m 5s", "45s")
+ */
+exports.getReadableTimeString = function (t) {
+    let seconds = Math.round(t);
+    let minutes = Math.floor(seconds / 60);
+    let hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    // Calculate remaining units after extracting larger units
+    hours = hours - (days * 24);
+    minutes = minutes - (days * 24 * 60) - (hours * 60);
+    seconds = seconds - (days * 24 * 60 * 60) - (hours * 60 * 60) - (minutes * 60);
+
+    // Return most appropriate format based on duration
+    if (days > 0) {
+        return (`${days}d ${hours}h ${minutes}m ${seconds}s`);
+    }
+    if (hours > 0) {
+        return (`${hours}h ${minutes}m ${seconds}s`);
+    }
+    if (minutes > 0) {
+        return (`${minutes}m ${seconds}s`);
+    }
+    return (`${seconds}s`);
 };

@@ -63,6 +63,7 @@ exports.uint256BufferFromHash = e.uint256BufferFromHash;
 // misc (m)
 exports.getReadableHashRateString = m.getReadableHashRateString;
 exports.getReadableNetworkHashRateString = m.getReadableNetworkHashRateString;
+exports.getReadableTimeString = m.getReadableTimeString;
 exports.range = m.range;
 exports.safeString = m.safeString;
 exports.shiftMax256Right = m.shiftMax256Right;
@@ -78,6 +79,11 @@ exports.serializeNumber = n.serializeNumber;
 exports.serializeString = n.serializeString;
 exports.varIntBuffer = n.varIntBuffer;
 exports.varStringBuffer = n.varStringBuffer;
+// coin helpers
+exports.roundTo = n.roundTo;
+exports.satoshisToCoins = n.satoshisToCoins;
+exports.coinsToSatoshis = n.coinsToSatoshis;
+exports.coinsRound = n.coinsRound;
 
 // rpc (b)
 exports.checkBlockAccepted = b.checkBlockAccepted;

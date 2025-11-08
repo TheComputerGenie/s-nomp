@@ -9,6 +9,7 @@
  */
 
 const crypto = require('crypto');
+const misc = require('./misc');
 
 // Convert a big-endian Buffer to a BigInt
 function bufferToBigInt(buff) {
@@ -74,19 +75,8 @@ exports.convertBitsToBuff = bitsBuff => {
 };
 
 exports.getTruncatedDiff = shift => {
-    let arr256 = Array.apply(null, new Array(256)).map(Number.prototype.valueOf, 1);
-    const arrLeft = Array.apply(null, new Array(shift)).map(Number.prototype.valueOf, 0);
-    arr256 = arrLeft.concat(arr256).slice(0, 256);
-    const octets = [];
-    for (let i = 0; i < 32; i++) {
-        octets[i] = 0;
-        const bits = arr256.slice(i * 8, i * 8 + 8);
-        for (let f = 0; f < bits.length; f++) {
-            const multiplier = Math.pow(2, f);
-            octets[i] += bits[f] * multiplier;
-        }
-    }
-    return exports.convertBitsToBuff(exports.bufferToCompactBits(Buffer.from(octets)));
+    const bitsBuf = misc.buildShifted256Buffer(shift);
+    return exports.convertBitsToBuff(exports.bufferToCompactBits(bitsBuf));
 };
 
 exports.calculateDifficulty = targetHex => {

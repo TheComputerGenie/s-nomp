@@ -114,3 +114,51 @@ exports.packInt64LE = num => {
     buff.writeUInt32LE(Math.floor(num / Math.pow(2, 32)), 4);
     return buff;
 };
+
+// Coin amount helpers (rounding and unit conversions)
+/**
+ * Round a number to specified decimal places with high precision
+ * @param {number} n
+ * @param {number} digits
+ * @returns {number}
+ */
+exports.roundTo = function (n, digits) {
+    if (digits === undefined) {
+        digits = 0;
+    }
+    const multiplicator = Math.pow(10, digits);
+    n = parseFloat((n * multiplicator).toFixed(11));
+    const test = (Math.round(n) / multiplicator);
+    return +(test.toFixed(digits));
+};
+
+/**
+ * Convert satoshis (smallest unit) to coin amount using magnitude and precision
+ * @param {number} satoshis
+ * @param {number} magnitude - number of satoshis per coin (e.g. 1e8)
+ * @param {number} coinPrecision - decimal digits for the coin
+ * @returns {number}
+ */
+exports.satoshisToCoins = function (satoshis, magnitude, coinPrecision) {
+    return exports.roundTo((satoshis / magnitude), coinPrecision);
+};
+
+/**
+ * Convert coins to satoshis using magnitude
+ * @param {number} coins
+ * @param {number} magnitude
+ * @returns {number}
+ */
+exports.coinsToSatoshis = function (coins, magnitude) {
+    return Math.round(coins * magnitude);
+};
+
+/**
+ * Round coin amount to standard precision
+ * @param {number} number
+ * @param {number} coinPrecision
+ * @returns {number}
+ */
+exports.coinsRound = function (number, coinPrecision) {
+    return exports.roundTo(number, coinPrecision);
+};
