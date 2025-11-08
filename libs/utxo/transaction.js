@@ -12,32 +12,10 @@ const opcodes = require('./opcodes');
 const networks = require('./networks');
 const types = require('./types');
 const crypto = require('crypto');
+const { typeforce } = require('./utxoUtils');
 
 // Native typeforce replacement
-function typeforce(validator, value) {
-    if (typeof validator === 'function') {
-        // Convert arguments object to array if needed (but not Buffers or other objects with length)
-        let testValue = value;
-        if (value && typeof value === 'object' && typeof value.length === 'number' &&
-            !Array.isArray(value) && !Buffer.isBuffer(value) &&
-            Object.prototype.toString.call(value) === '[object Arguments]') {
-            testValue = Array.prototype.slice.call(value);
-        }
-
-        if (!validator(testValue)) {
-            throw new TypeError(`Expected ${validator.name || 'valid type'}`);
-        }
-    } else if (Array.isArray(validator)) {
-        if (!Array.isArray(value)) {
-            throw new TypeError('Expected array');
-        }
-        // For argument validation, we validate each argument against corresponding validator
-        for (let i = 0; i < validator.length && i < value.length; i++) {
-            typeforce(validator[i], value[i]);
-        }
-    }
-    return value;
-}
+// The typeforce function is now imported from utxoUtils.js
 
 function varSliceSize(someScript) {
     const length = someScript.length;
