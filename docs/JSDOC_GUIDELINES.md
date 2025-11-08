@@ -20,6 +20,24 @@ Every source file that implements a module, class, or complex utility should inc
 - `@version`
 - `@copyright`
 
+Placement and requires ordering
+
+- The fileoverview JSDoc MUST begin at line 1 of the source file (no leading blank lines or comments).
+- Immediately after the fileoverview block, list all `require()` (or `import`) statements.
+- The require/import lines should be alphabetized by their module specifier string (case-insensitive). For example, when sorting by the string given to `require()`:
+	- `const Api = require('./api.js');`
+	- `const webUtil = require('./webUtil.js');`
+	- `const crypto = require('crypto');`
+	- `const fs = require('fs');`
+	- `const http = require('http');`
+	- `const https = require('https');`
+	- `const path = require('path');`
+	- `const url = require('url');`
+
+Notes:
+- Alphabetization is case-insensitive and compares the literal module specifier strings.
+- Keep any short, single-line comment describing a particular require immediately above that require statement if helpful, but do not insert other code between the fileoverview and the require list.
+
 Example:
 
 ```js
@@ -117,6 +135,7 @@ Example (abridged):
 ## Style and best practices
 
 - Keep descriptions short and factual.
+- Begin file metadata at line 1 whenever possible.
 - Use sentence-case and avoid unnecessary adjectives.
 - Maintain consistent ordering of tags.
 - Limit the length of doc comments to what is necessary — keep implementation details in function bodies or separate developer docs.
