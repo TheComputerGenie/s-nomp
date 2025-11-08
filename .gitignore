@@ -11,3 +11,5 @@ libs/verushash/lib/
 *.node
 
 tools/duplicates_report.json
+
+internal/
