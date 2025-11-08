@@ -152,40 +152,7 @@ function calculateAverageHashrate(pool) {
     return avg;
 }
 
-/**
- * Converts raw hashrate value to human-readable string with appropriate units
- * @description Takes a hashrate value in H/s and formats it with the most appropriate
- * unit (H/s, KH/s, MH/s, GH/s, TH/s, PH/s) for display. The function doubles the
- * input value and uses logarithmic scaling to determine the best unit.
- * @function getReadableHashRateString
- * @param {number} hashrate - Raw hashrate value in H/s
- * @returns {string} Formatted hashrate string with units (e.g., "1.23 MH/s")
- * @example
- * getReadableHashRateString(1500000) // Returns "3.00 MH/s"
- * getReadableHashRateString(500) // Returns "1.00 H/s"
- */
-function getReadableHashRateString(hashrate) {
-    // Double the hashrate value (implementation-specific scaling factor)
-    hashrate = (hashrate * 2);
-
-    // Handle small values that don't need unit scaling
-    if (hashrate < 1000000) {
-        return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)} H/s`;
-    }
-
-    // Define unit suffixes in ascending order of magnitude
-    const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
-
-    // Calculate the appropriate unit index using logarithmic scaling
-    // Subtracts 1 to account for the initial /1000 division
-    const i = Math.floor((Math.log(hashrate / 1000) / Math.log(1000)) - 1);
-
-    // Scale the hashrate to the appropriate unit
-    hashrate = (hashrate / 1000) / Math.pow(1000, i + 1);
-
-    // Return formatted string with 2 decimal places and appropriate unit
-    return hashrate.toFixed(2) + byteUnits[i];
-}
+// getReadableHashRateString provided by /static/js/utils.js
 
 /**
  * Formats timestamp for chart x-axis display

@@ -100,36 +100,6 @@ const FULL_DATA_FETCH_INTERVAL = 30000;
 let sseUpdateCounter = 0;
 
 /**
- * Converts a raw hashrate value into a human-readable string with appropriate units
- * 
- * @param {number} hashrate - Raw hashrate value to convert
- * @returns {string} Formatted hashrate string with units (H/s, KH/s, MH/s, etc.)
- * 
- * @example
- * getReadableHashRateString(1500000) // Returns "1.50 MH/s"
- * getReadableHashRateString(500000)  // Returns "500.00 H/s"
- */
-function getReadableHashRateString(hashrate) {
-    // Double the hashrate value (algorithm-specific multiplier)
-    hashrate = (hashrate * 2);
-
-    // For small hashrates, return in H/s without unit conversion
-    if (hashrate < 1000000) {
-        return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)} H/s`;
-    }
-
-    // Array of unit suffixes for progressively larger hashrates
-    const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
-
-    // Calculate the appropriate unit index based on magnitude
-    const i = Math.floor((Math.log(hashrate / 1000) / Math.log(1000)) - 1);
-
-    // Convert to the appropriate unit and format with 2 decimal places
-    hashrate = (hashrate / 1000) / Math.pow(1000, i + 1);
-    return hashrate.toFixed(2) + byteUnits[i];
-}
-
-/**
  * Formats a timestamp into a readable time-of-day string for chart display
  * 
  * @param {number} timestamp - Unix timestamp in milliseconds

@@ -151,7 +151,7 @@
                     {{if (block[4] != null) { }}
                     <!--<span style="padding-left: 18px;"><small>{{=readableDate(block[4])}}</small></span>-->
                     <span style="padding-left: 18px;"><small id="{{=block[2]}}"></small></span>
-                    <script>document.getElementById("{{=block[2]}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format({{=block[4]}});</script>
+                    <script>document.getElementById("{{=block[2]}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(Number("{{=block[4]}}"));</script>
                     {{ } }}
                     {{if (it.stats.pools[pool].pending.confirms) { }}
                         {{if (it.stats.pools[pool].pending.confirms[block[0]]) { }}
@@ -179,7 +179,7 @@
                     {{if (block[4] != null) { }}
                     <!--<span style="padding-left: 18px;"><small>{{=readableDate(block[4])}}</small></span>-->
                     <span style="padding-left: 18px;"><small id="{{=block[2]}}"></small></span>
-                    <script>document.getElementById("{{=block[2]}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format({{=block[4]}});</script>
+                    <script>document.getElementById("{{=block[2]}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(Number("{{=block[4]}}"));</script>
                     {{ } }}
                     <span style="float:right; padding-left: 18px; color: green;"><small>*CREDITED*</small></span>
                     <div><i class="fa fa-gavel"></i><small>Mined By:</small> <a href="/workers/{{=block[3].split('.')[0]}}">{{=block[3]}}</a></div>
@@ -189,7 +189,7 @@
             {{ } }}
       <!--{{=JSON.stringify(blockscomb)}}-->
       <script>
-      var blockscomb = ({{=JSON.stringify(blockscomb)}})
+      var blockscomb = JSON.parse('{{=JSON.stringify(blockscomb)}}');
       </script>
             </div>
       </div>
@@ -286,7 +286,7 @@ var legend = vis.selectAll('.legend')
     .enter()
     .append('g')
     .attr('class', 'legend')
-    .attr('id', {{=JSON.stringify(pool)}})
+    .attr('id', '{{=JSON.stringify(pool)}}')
     .attr('transform', function(d, i) {
           var height = legendRectSize + legendSpacing;
           var offset = height * color.domain().length / 2;
@@ -336,13 +336,5 @@ legend.append('text')
         });
     });
 
-    function getReadableNetworkHashRateString(hashrate){
-        hashrate = (hashrate * 1000000);
-        if (hashrate < 1000000)
-            return '0 H/s';
-        var byteUnits = [ ' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s' ];
-        var i = Math.floor((Math.log(hashrate/1000) / Math.log(1000)) - 1);
-        hashrate = (hashrate/1000) / Math.pow(1000, i + 1);
-        return hashrate.toFixed(2) + byteUnits[i];
-    }
+    // use global getReadableNetworkHashRateString provided by /static/js/utils.js
 </script>

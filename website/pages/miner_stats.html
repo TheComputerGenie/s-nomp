@@ -146,9 +146,10 @@
 <div id="boxesWorkers"> </div>
 
 <script>
-    var _miner = "{{=String(it.stats.address).split(".")[0]}}";
+    var _miner = "{{=String(it.stats.address).split('.')[0]}}";
     var _workerCount = 0;
     window.statsSource = new EventSource("/api/live_stats");
+    // Load the page-specific script
     document.querySelector('main').appendChild(document.createElement('script')).src = '/static/miner_stats.js';
 
     function displayPoolBalances(walletAddress) {
@@ -177,13 +178,13 @@
 
     // Call the displayPoolBalances function when the page is loaded
     document.addEventListener('DOMContentLoaded', function() {
-        var walletAddress = "{{=String(it.stats.address).split(".")[0]}}";
+        var walletAddress = "{{=String(it.stats.address).split('.')[0]}}";
         displayPoolBalances(walletAddress);
     });
 
 // Call the displayPoolBalances function when the page is loaded
     document.addEventListener('DOMContentLoaded', function() {
-      var walletAddress = "{{=String(it.stats.address).split(".")[0]}}";
+      var walletAddress = "{{=String(it.stats.address).split('.')[0]}}";
       displayPoolBalances(walletAddress);
     });
 </script>
