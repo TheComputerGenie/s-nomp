@@ -6,6 +6,7 @@ const redis = require('redis');
 const Stratum = require('./stratum');
 const CreateRedisClient = require('./createRedisClient');
 const PoolLogger = require('./PoolLogger.js');
+const util = require('./utils/util.js');
 
 const writeFileAsync = promisify(fs.writeFile);
 
@@ -255,7 +256,7 @@ class PaymentProcessor {
         const workers = {};
         if (balances) {
             for (const w in balances) {
-                workers[w] = { balance: this.coinsToSatoshis(parseFloat(balances[w])) };
+                workers[w] = { balance: util.coinsToSatoshis(parseFloat(balances[w]), this.magnitude) };
             }
         }
 
@@ -363,7 +364,7 @@ class PaymentProcessor {
                 if (detail) {
                     round.category = detail.category;
                     if (round.category === 'generate' || round.category === 'immature') {
-                        round.reward = this.coinsRound(parseFloat(detail.amount || detail.value));
+                        round.reward = util.coinsRound(parseFloat(detail.amount || detail.value), this.coinPrecision);
                     }
                 } else {
                     this.logger.error(this.logSystem, this.logComponent, `ERROR: Missing output details to pool address for transaction ${round.txHash}`);
@@ -432,13 +433,13 @@ class PaymentProcessor {
         // Calculate total amount owed (existing balances + new rewards - fees)
         let totalOwed = Object.values(workers).reduce((sum, worker) => sum + (worker.balance || 0), 0);
         payingRounds.forEach(r => {
-            totalOwed += this.coinsToSatoshis(r.reward) - this.coinsToSatoshis(this.fee);
+            totalOwed += util.coinsToSatoshis(r.reward, this.magnitude) - util.coinsToSatoshis(this.fee, this.magnitude);
         });
 
         // Verify pool has sufficient balance for all payments
         const tBalance = await this.listUnspent(null, this.requireShielding ? this.poolConfig.address : null, this.minConfPayout);
         if (tBalance < totalOwed) {
-            this.logger.warn(this.logSystem, this.logComponent, `Insufficient funds for payment (${this.satoshisToCoins(tBalance)} < ${this.satoshisToCoins(totalOwed)}). Deferring payments.`);
+            this.logger.warn(this.logSystem, this.logComponent, `Insufficient funds for payment (${util.satoshisToCoins(tBalance, this.magnitude, this.coinPrecision)} < ${util.satoshisToCoins(totalOwed, this.magnitude, this.coinPrecision)}). Deferring payments.`);
             // Convert all generate blocks to immature to defer payments
             rounds.forEach(r => {
                 if (r.category === 'generate') {
@@ -483,7 +484,7 @@ class PaymentProcessor {
             round.workerShares = workerShares;
 
             // Calculate net reward after fee deduction
-            const reward = this.coinsToSatoshis(round.reward) - this.coinsToSatoshis(this.fee);
+            const reward = util.coinsToSatoshis(round.reward, this.magnitude) - util.coinsToSatoshis(this.fee, this.magnitude);
 
             // Distribute reward proportionally based on shares
             for (const workerAddress in workerShares) {
@@ -534,7 +535,7 @@ class PaymentProcessor {
         // Convert satoshis to coin amounts for sendmany RPC
         const finalAddressAmounts = {};
         for (const addr in addressAmounts) {
-            finalAddressAmounts[addr] = this.satoshisToCoins(addressAmounts[addr]);
+            finalAddressAmounts[addr] = util.satoshisToCoins(addressAmounts[addr], this.magnitude, this.coinPrecision);
         }
 
         try {
@@ -547,7 +548,7 @@ class PaymentProcessor {
                 const worker = workers[w];
                 const toSend = (worker.balance || 0) + (worker.reward || 0);
                 if (toSend >= this.minPaymentSatoshis) {
-                    worker.sent = this.satoshisToCoins(toSend);
+                    worker.sent = util.satoshisToCoins(toSend, this.magnitude, this.coinPrecision);
                     worker.balanceChange = -worker.balance; // Deduct old balance
                 } else {
                     worker.sent = 0;
@@ -559,7 +560,7 @@ class PaymentProcessor {
             const paymentRecord = {
                 time: Date.now(),
                 txid: txid,
-                amount: this.satoshisToCoins(totalSent),
+                amount: util.satoshisToCoins(totalSent, this.magnitude, this.coinPrecision),
                 fee: this.fee,
                 workers: Object.keys(addressAmounts).length,
                 paid: finalAddressAmounts
@@ -603,7 +604,7 @@ class PaymentProcessor {
         for (const w in workers) {
             const worker = workers[w];
             if (worker.balanceChange) {
-                finalRedisCommands.push(['hincrbyfloat', `${this.coin}:balances`, w, this.satoshisToCoins(worker.balanceChange)]);
+                finalRedisCommands.push(['hincrbyfloat', `${this.coin}:balances`, w, util.satoshisToCoins(worker.balanceChange, this.magnitude, this.coinPrecision)]);
             }
             if (worker.sent) {
                 finalRedisCommands.push(['hincrbyfloat', `${this.coin}:payouts`, w, worker.sent]);
@@ -690,7 +691,7 @@ class PaymentProcessor {
 
         try {
             const tBalance = await this.listUnspent(this.poolConfig.address, null, this.minConfShield);
-            const shieldingThreshold = this.coinsToSatoshis(0.001); // 0.001 coin threshold
+            const shieldingThreshold = util.coinsToSatoshis(0.001, this.magnitude); // 0.001 coin threshold
 
             if (tBalance > shieldingThreshold) {
                 // Shield transparent funds to privacy pool
@@ -718,7 +719,7 @@ class PaymentProcessor {
         if (this.opidCount > 0) {
             return;
         } // Prevent concurrent shielding operations
-        const amount = this.satoshisToCoins(tBalance - 10000); // Reserve 0.0001 for fees
+        const amount = util.satoshisToCoins(tBalance - 10000, this.magnitude, this.coinPrecision); // Reserve 0.0001 for fees
         if (amount <= 0) {
             return;
         }
@@ -741,7 +742,7 @@ class PaymentProcessor {
         if (this.opidCount > 0) {
             return;
         } // Prevent concurrent unshielding operations
-        let amount = this.satoshisToCoins(zBalance - 10000); // Reserve 0.0001 for fees
+        let amount = util.satoshisToCoins(zBalance - 10000, this.magnitude, this.coinPrecision); // Reserve 0.0001 for fees
         if (amount <= 0) {
             return;
         }
@@ -884,7 +885,7 @@ class PaymentProcessor {
                 }
             });
         }
-        return this.coinsToSatoshis(balance);
+        return util.coinsToSatoshis(balance, this.magnitude);
     }
 
     /**
@@ -897,7 +898,7 @@ class PaymentProcessor {
      */
     async listUnspentZ(address, minConf) {
         const balance = await this.cmd('z_getbalance', [address, minConf]);
-        return this.coinsToSatoshis(balance || 0);
+        return util.coinsToSatoshis(balance || 0, this.magnitude);
     }
 
     /**
@@ -954,44 +955,6 @@ class PaymentProcessor {
                 }
             });
         });
-    }
-    /**
-     * Convert satoshis to coin decimal representation
-     * @param {Number} satoshis - Value in satoshis
-     * @returns {Number} Value in coins with proper precision
-     */
-    satoshisToCoins(satoshis) {
-        return this.roundTo(satoshis / this.magnitude, this.coinPrecision);
-    }
-
-    /**
-     * Convert coins to satoshi representation
-     * @param {Number} coins - Value in coins
-     * @returns {Number} Value in satoshis (integer)
-     */
-    coinsToSatoshis(coins) {
-        return Math.round(coins * this.magnitude);
-    }
-
-    /**
-     * Round coin amount to proper decimal precision
-     * @param {Number} number - Coin amount to round
-     * @returns {Number} Rounded amount with coin precision
-     */
-    coinsRound(number) {
-        return this.roundTo(number, this.coinPrecision);
-    }
-
-    /**
-     * Utility function to round numbers to specified decimal places
-     * @param {Number} n - Number to round
-     * @param {Number} digits - Number of decimal places
-     * @returns {Number} Rounded number
-     */
-    roundTo(n, digits) {
-        const multiplicator = Math.pow(10, digits);
-        n = parseFloat((n * multiplicator).toFixed(11));
-        return Math.round(n) / multiplicator;
     }
 }
 
