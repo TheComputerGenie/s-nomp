@@ -32,7 +32,7 @@ exports.range = (start, stop, step) => {
 
 exports.getReadableHashRateString = hashrate => {
     let i = -1;
-    const byteUnits = [' KH', ' MH', ' GH', ' TH', ' PH'];
+    const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
     do {
         hashrate = hashrate / 1024;
         i++;
@@ -69,4 +69,28 @@ exports.safeString = function (s) {
         return '';
     }
     return String(s).replace(/[^a-zA-Z0-9.]/g, '');
+};
+
+/**
+ * Formats network hashrate for display purposes
+ *
+ * This function is similar to getReadableHashRateString but applies a
+ * network-specific scaling factor and returns a short string for very
+ * low values (e.g., '0 Sol'). Kept here to centralize display logic for
+ * both server-side modules and any other consumers.
+ *
+ * @param {number} hashrate - Raw network hashrate value
+ * @returns {string}
+ */
+exports.getReadableNetworkHashRateString = function (hashrate) {
+    hashrate = (hashrate * 1000000);
+
+    if (hashrate < 1000000) {
+        return '0 Sol';
+    }
+
+    const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
+    const i = Math.floor((Math.log(hashrate / 1000) / Math.log(1000)) - 1);
+    hashrate = (hashrate / 1000) / Math.pow(1000, i + 1);
+    return hashrate.toFixed(2) + byteUnits[i];
 };

@@ -62,6 +62,7 @@ exports.uint256BufferFromHash = e.uint256BufferFromHash;
 
 // misc (m)
 exports.getReadableHashRateString = m.getReadableHashRateString;
+exports.getReadableNetworkHashRateString = m.getReadableNetworkHashRateString;
 exports.range = m.range;
 exports.safeString = m.safeString;
 exports.shiftMax256Right = m.shiftMax256Right;

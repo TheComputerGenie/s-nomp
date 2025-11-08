@@ -38,6 +38,7 @@ const os = require('os');
 
 const algos = require('./stratum/algoProperties.js');
 const { promisify } = require('util');
+const util = require('./utils/util.js');
 
 // Helper to execute a Redis MULTI pipeline and return a Promise
 function runMulti(client, commands) {
@@ -955,7 +956,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                                 totalPaid: replies[i + 2] ? (replies[i + 2].totalPaid || 0) : 0,
                                 networkBlocks: replies[i + 2] ? (replies[i + 2].networkBlocks || 0) : 0,
                                 networkSols: replies[i + 2] ? (replies[i + 2].networkSols || 0) : 0,
-                                networkSolsString: getReadableNetworkHashRateString(replies[i + 2] ? (replies[i + 2].networkSols || 0) : 0),
+                                networkSolsString: util.getReadableNetworkHashRateString(replies[i + 2] ? (replies[i + 2].networkSols || 0) : 0),
                                 networkDiff: replies[i + 2] ? (replies[i + 2].networkDiff || 0) : 0,
                                 networkConnections: replies[i + 2] ? (replies[i + 2].networkConnections || 0) : 0,
                                 networkVersion: replies[i + 2] ? (replies[i + 2].networkSubVersion || 0) : 0,
@@ -1482,33 +1483,8 @@ module.exports = function (logger, portalConfig, poolConfigs) {
         }
     }
 
-    /**
-     * Convert hashrate to human-readable string format
-     * 
-     * Converts raw hashrate (hashes per second) to a formatted string with
-     * appropriate units (H/s, KH/s, MH/s, GH/s, TH/s, PH/s).
-     * 
-     * The hashrate is multiplied by 2 for display purposes (algorithm-specific adjustment).
-     * 
-     * @param {number} hashrate - Raw hashrate in hashes per second
-     * @returns {string} Formatted hashrate string (e.g., "1.25 MH/s")
-     * 
-     * @example
-     * stats.getReadableHashRateString(1500000); // Returns "3.00 MH/s"
-     */
-    this.getReadableHashRateString = function (hashrate) {
-        hashrate = (hashrate * 2);  // Algorithm-specific adjustment
-
-        // Handle very low hashrates
-        if (hashrate < 1000000) {
-            return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)} H/s`;
-        }
-
-        const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
-        const i = Math.floor((Math.log(hashrate / 1000) / Math.log(1000)) - 1);
-        hashrate = (hashrate / 1000) / Math.pow(1000, i + 1);
-        return hashrate.toFixed(2) + byteUnits[i];
-    };
+    // Delegate to central util implementation to avoid duplicate logic across the codebase
+    this.getReadableHashRateString = util.getReadableHashRateString;
 
     /**
      * Convert network hashrate to human-readable string format
@@ -1520,16 +1496,5 @@ module.exports = function (logger, portalConfig, poolConfigs) {
      * @param {number} hashrate - Network hashrate value
      * @returns {string} Formatted network hashrate string
      */
-    function getReadableNetworkHashRateString(hashrate) {
-        hashrate = (hashrate * 1000000);  // Network-specific scaling
-
-        if (hashrate < 1000000) {
-            return '0 Sol';  // Return "0 Sol" for very low network hashrates
-        }
-
-        const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
-        const i = Math.floor((Math.log(hashrate / 1000) / Math.log(1000)) - 1);
-        hashrate = (hashrate / 1000) / Math.pow(1000, i + 1);
-        return hashrate.toFixed(2) + byteUnits[i];
-    }
+    // Use util.getReadableNetworkHashRateString (centralized in libs/utils/misc.js)
 };
