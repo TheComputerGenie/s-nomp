@@ -844,13 +844,6 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                     for (let i = 0; i < replies.length; i += commandsPerCoin) {
                         const coinName = client.coins[i / commandsPerCoin | 0];
 
-                        // Extract market statistics if available
-                        let marketStats = {};
-                        if (replies[i + 2]) {
-                            if (replies[i + 2].coinmarketcap) {
-                                marketStats = replies[i + 2] ? (JSON.parse(replies[i + 2].coinmarketcap)[0] || 0) : 0;
-                            }
-                        }
                         /**
                          * Construct comprehensive coin statistics object
                          * 
@@ -883,8 +876,6 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                                 networkVersion: replies[i + 2] ? (replies[i + 2].networkSubVersion || 0) : 0,
                                 networkProtocolVersion: replies[i + 2] ? (replies[i + 2].networkProtocolVersion || 0) : 0
                             },
-
-                            marketStats: marketStats,  // External market data (price, volume, etc.)
 
                             // Block status counts
                             blocks: {

@@ -22,7 +22,7 @@ const writeFileAsync = promisify(fs.writeFile);
  * - Duplicate block detection and resolution
  * - Bad block retry mechanism with exponential backoff
  * - Orphaned block share redistribution
- * - Network and market statistics caching
+ * - Network statistics caching
  * - Comprehensive error handling and logging
  * 
  * Payment Processing Flow:
@@ -97,7 +97,6 @@ class PaymentProcessor {
         this.maxBlocksPerPayment = Math.max(this.processingConfig.maxBlocksPerPayment || 3, 1); // Blocks per payment run
         this.pplntEnabled = this.processingConfig.paymentMode === 'pplnt' || false; // PPLNT payment mode
         this.pplntTimeQualify = this.processingConfig.pplnt || 0.51;                // PPLNT time threshold (51%)
-        this.getMarketStats = poolConfig.coin.getMarketStats === true;              // Fetch market data
         this.requireShielding = poolConfig.coin.requireShielding === true;          // Requires shielded transactions
         this.fee = parseFloat(poolConfig.coin.txfee) || 0.0004;                     // Transaction fee reserve
     }
@@ -132,9 +131,6 @@ class PaymentProcessor {
 
         // Statistics caching intervals
         this.statsInterval = setInterval(() => this.cacheNetworkStats(), 58 * 1000);
-        if (this.getMarketStats) {
-            this.marketStatsInterval = setInterval(() => this.cacheMarketStats(), 300 * 1000);
-        }
     }
 
     /**
@@ -812,53 +808,6 @@ class PaymentProcessor {
             await this.redis.multi(redisCommands).exec();
         } catch (error) {
             this.logger.error(this.logSystem, this.logComponent, `Error caching network stats: ${error.message}`);
-        }
-    }
-
-    /**
-     * Cache cryptocurrency market data from CoinMarketCap API
-     * Retrieves price, volume, and market cap data for pool website
-     * Handles coin name mapping for API compatibility (e.g., zen -> zencash)
-     * 
-     * Note: Uses CoinMarketCap v1 API for compatibility with existing pool infrastructure.
-     * For production use, consider upgrading to v2 API with proper API key authentication.
-     */
-    async cacheMarketStats() {
-        try {
-            let coinName = this.coin.replace('_testnet', '').toLowerCase();
-            if (coinName === 'zen') {
-                coinName = 'zencash';
-            } // API name mapping
-
-            // Attempt to fetch from CoinMarketCap v1 API (may be rate limited)
-            const response = await fetch(`https://api.coinmarketcap.com/v1/ticker/${coinName}/`, {
-                headers: {
-                    'User-Agent': 'NOMP Pool Software'
-                },
-                signal: AbortSignal.timeout(10000) // 10 second timeout
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const body = await response.json();
-
-            if (body && body.length > 0) {
-                await this.redis.hset(`${this.coin}:stats`, 'coinmarketcap', JSON.stringify(body));
-                this.logger.debug(this.logSystem, this.logComponent, `Successfully cached market stats for ${coinName}`);
-            } else {
-                this.logger.warn(this.logSystem, this.logComponent, `No market data returned for ${coinName}`);
-            }
-        } catch (error) {
-            // Market stats are not critical for pool operation, so we log but don't throw
-            if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED') || error.name === 'TimeoutError') {
-                this.logger.warn(this.logSystem, this.logComponent, `CoinMarketCap API unavailable: ${error.message}`);
-            } else if (error.message.includes('429')) {
-                this.logger.warn(this.logSystem, this.logComponent, `CoinMarketCap API rate limit exceeded`);
-            } else {
-                this.logger.error(this.logSystem, this.logComponent, `Error caching market stats: ${error.message}`);
-            }
         }
     }
 
