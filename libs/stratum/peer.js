@@ -3,7 +3,7 @@
  * This module implements the Bitcoin P2P protocol to connect to network nodes and listen for
  * new blocks and transactions. It handles the low-level networking protocol including
  * message parsing, version handshake, and inventory message processing.
- * 
+ *
  * @author s-nomp Contributors
  * @version 1.0.0
  */
@@ -16,11 +16,10 @@ const util = require('../utils/util.js');
 
 // Example of p2p in node from TheSeven: http://paste.pm/e54.js
 
-
 /**
  * Creates a fixed-length buffer from a string, zero-padded if necessary.
  * This is used for creating protocol command strings that must be exactly 12 bytes.
- * 
+ *
  * @param {string} s - The string to convert to a buffer
  * @param {number} len - The desired length of the buffer
  * @returns {Buffer} A buffer of the specified length containing the string data
@@ -35,7 +34,7 @@ const fixedLenStringBuffer = function (s, len) {
 /**
  * Creates a 12-byte buffer for Bitcoin protocol command strings.
  * Bitcoin protocol commands are always exactly 12 bytes long, zero-padded.
- * 
+ *
  * @param {string} s - The command string (e.g., 'version', 'inv', 'ping')
  * @returns {Buffer} A 12-byte buffer containing the command string
  */
@@ -48,7 +47,7 @@ const commandStringBuffer = function (s) {
  * This is essential for parsing Bitcoin protocol messages which have variable lengths.
  * The function accumulates data until the required amount is reached, then calls back
  * with the data and any excess bytes that were read.
- * 
+ *
  * @param {Stream} stream - The readable stream to read from (must emit 'data' events)
  * @param {number} amount - The exact number of bytes to read
  * @param {Buffer|null} preRead - Optional buffer containing data already read
@@ -87,7 +86,7 @@ const readFlowingBytes = function (stream, amount, preRead, callback) {
  * This class manages the entire lifecycle of a P2P connection including connection
  * establishment, protocol handshake, message parsing, and event emission for
  * important network events like new blocks.
- * 
+ *
  * @class Peer
  * @extends EventEmitter
  * @param {Object} options - Configuration options for the peer connection
@@ -102,7 +101,7 @@ const readFlowingBytes = function (stream, amount, preRead, callback) {
  * @param {number} options.protocolVersion - Bitcoin protocol version to use
  * @param {number} options.startHeight - Starting block height for sync
  * @param {Object} options.logger - Logger instance for error reporting
- * 
+ *
  * @emits Peer#connected - When successfully connected and handshake completed
  * @emits Peer#disconnected - When connection is lost after successful handshake
  * @emits Peer#connectionRejected - When connection attempt is rejected
@@ -187,7 +186,6 @@ const Peer = module.exports = function (options) {
         getblocks: commandStringBuffer('getblocks') // Request block hashes
     };
 
-
     /**
      * Initialize the peer connection immediately upon construction.
      * This IIFE (Immediately Invoked Function Expression) starts the connection process.
@@ -196,12 +194,11 @@ const Peer = module.exports = function (options) {
         Connect();
     })();
 
-
     /**
      * Establishes a TCP connection to the peer and sets up event handlers.
      * This function handles connection retry logic and emits appropriate events
      * based on connection success or failure states.
-     * 
+     *
      * @private
      */
     function Connect() {
@@ -266,14 +263,14 @@ const Peer = module.exports = function (options) {
      * Sets up the Bitcoin protocol message parser for the client connection.
      * This handles the continuous parsing of incoming data stream into discrete
      * protocol messages according to Bitcoin's message format specification.
-     * 
+     *
      * Bitcoin message format:
      * - 4 bytes: Magic number (network identifier)
      * - 12 bytes: Command string (null-padded)
      * - 4 bytes: Payload length
      * - 4 bytes: Checksum (first 4 bytes of double SHA256 of payload)
      * - Variable: Payload data
-     * 
+     *
      * @param {net.Socket} client - The TCP socket to parse messages from
      * @private
      */
@@ -282,7 +279,7 @@ const Peer = module.exports = function (options) {
          * Recursive function to continuously read and parse messages from the stream.
          * This function reads the 24-byte header first, validates it, then reads
          * the payload based on the length specified in the header.
-         * 
+         *
          * @param {Buffer|null} preRead - Any leftover data from previous message parsing
          */
         const beginReadingMessage = function (preRead) {
@@ -334,13 +331,12 @@ const Peer = module.exports = function (options) {
         beginReadingMessage(null);
     }
 
-
     /**
      * Handles inventory (inv) messages from peers.
      * Inventory messages announce available data (transactions, blocks) that the peer has.
      * This function parses the variable-length list of inventory vectors and emits
      * events for blocks (which are important for mining pool operations).
-     * 
+     *
      * @see https://en.bitcoin.it/wiki/Protocol_specification#inv
      * @param {Buffer} payload - The inv message payload containing inventory vectors
      * @private
@@ -390,7 +386,7 @@ const Peer = module.exports = function (options) {
      * Handles incoming protocol messages based on their command type.
      * This is the main message dispatcher that routes different message types
      * to appropriate handlers and emits relevant events.
-     * 
+     *
      * @param {string} command - The message command (e.g., 'inv', 'verack', 'ping')
      * @param {Buffer} payload - The message payload data
      * @private
@@ -418,31 +414,31 @@ const Peer = module.exports = function (options) {
             case commands.ping.toString():
                 /**
                  * Ping message handler - Critical for connection keepalive and peer health monitoring.
-                 * 
+                 *
                  * The ping/pong mechanism was introduced in Bitcoin protocol version 60000 (circa 2012)
                  * as part of BIP 31 to improve network connectivity and detect dead connections.
                  * This implements a standard network keepalive pattern similar to ICMP ping/pong
                  * but at the application layer within the Bitcoin P2P protocol.
-                 * 
+                 *
                  * RFC Context: While not defined in a specific RFC, this follows the same principles
                  * as RFC 792 (ICMP) from 1981, adapted for Bitcoin's peer-to-peer network.
                  * The implementation mirrors standard network keepalive mechanisms found in
                  * TCP (RFC 1122, 1989) and other networking protocols.
-                 * 
+                 *
                  * Importance of Ping/Pong:
                  * 1. Connection Liveness: Ensures the peer is still responsive and connected
                  * 2. Network Health: Helps detect network partitions or connection issues
                  * 3. Resource Management: Allows cleanup of dead connections to free resources
                  * 4. Latency Measurement: Can be used to measure round-trip times to peers
                  * 5. Protocol Compliance: Required by Bitcoin protocol specification for proper peer behavior
-                 * 
+                 *
                  * Without proper ping/pong handling, connections may appear active when they're
                  * actually dead, leading to:
                  * - Missed block announcements (critical for mining pools)
                  * - Resource leaks from zombie connections
                  * - Network topology issues
                  * - Reduced mining efficiency due to stale connections
-                 * 
+                 *
                  * The payload contains a nonce that must be echoed back in the pong response
                  * to prove the peer actually processed the ping message.
                  */
@@ -459,14 +455,14 @@ const Peer = module.exports = function (options) {
     /**
      * Sends a protocol message to the peer following Bitcoin's message structure.
      * Constructs a complete message with header and payload, then sends it over the socket.
-     * 
+     *
      * Message structure defined at: https://en.bitcoin.it/wiki/Protocol_specification#Message_structure
      * - 4 bytes: Magic number (network identifier)
      * - 12 bytes: Command string (null-padded)
      * - 4 bytes: Payload length (little-endian)
      * - 4 bytes: Checksum (first 4 bytes of double SHA256 of payload)
      * - Variable: Payload data
-     * 
+     *
      * @param {Buffer} command - The 12-byte command buffer (e.g., from commandStringBuffer())
      * @param {Buffer} payload - The message payload data
      * @private
@@ -492,7 +488,7 @@ const Peer = module.exports = function (options) {
      * Sends the version message to initiate the Bitcoin protocol handshake.
      * This is the first message sent when connecting to a peer and contains
      * information about our client capabilities and network configuration.
-     * 
+     *
      * The version message structure includes:
      * - Protocol version number
      * - Services we support (NODE_NETWORK)
@@ -502,7 +498,7 @@ const Peer = module.exports = function (options) {
      * - User agent string identifying our software
      * - Starting block height for sync purposes
      * - Transaction relay preference flag
-     * 
+     *
      * @private
      */
     function SendVersion() {

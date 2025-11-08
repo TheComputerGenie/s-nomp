@@ -10,7 +10,6 @@ const networks = require('./networks');
 const types = require('./types');
 const { typeforce } = require('./utxoUtils');
 
-
 // Native Base58Check implementation
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE58_MAP = {};
@@ -119,8 +118,6 @@ function fromBase58Check(address) {
 
     return { version: version, hash: hash };
 }
-
-
 
 function toBase58Check(hash, version) {
     typeforce(types.tuple(types.Hash160bit, types.UInt16), arguments);

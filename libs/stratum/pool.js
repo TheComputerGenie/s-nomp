@@ -19,14 +19,14 @@ const util = require('../utils/util.js');
  * @fileoverview Pool class for managing cryptocurrency mining pool operations.
  * This is the core component that orchestrates daemon communication, stratum server,
  * job management, peer-to-peer networking, and block processing for mining pools.
- * 
+ *
  * @author S-NOMP Community
  * @version 1.0.0
  */
 
 /**
  * Pool class - Main mining pool orchestrator
- * 
+ *
  * This class manages all aspects of a cryptocurrency mining pool including:
  * - Communication with cryptocurrency daemons (coin nodes)
  * - Stratum mining protocol server for miners
@@ -35,7 +35,7 @@ const util = require('../utils/util.js');
  * - Variable difficulty adjustment
  * - Peer-to-peer networking for block notifications
  * - Payment processing coordination
- * 
+ *
  * @class Pool
  * @extends {EventEmitter}
  * @param {Object} options - Pool configuration options
@@ -48,12 +48,12 @@ const util = require('../utils/util.js');
  * @param {Object} [options.logger] - Logger configuration
  * @param {number} [options.blockRefreshInterval] - Block polling interval in ms
  * @param {Function} authorizeFn - Worker authorization callback function
- * 
+ *
  * @fires Pool#started - When pool is fully initialized and ready
  * @fires Pool#share - When a share is submitted (valid or invalid)
  * @fires Pool#difficultyUpdate - When worker difficulty is adjusted
  * @fires Pool#banIP - When an IP should be banned for malicious behavior
- * 
+ *
  * @example
  * const pool = new Pool({
  *   coin: { name: 'Bitcoin', symbol: 'BTC', algorithm: 'sha256' },
@@ -111,7 +111,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * 9. Block polling setup
      * 10. P2P peer setup
      * 11. Stratum server startup
-     * 
+     *
      * @method start
      * @memberof Pool
      * @fires Pool#started - When all initialization is complete
@@ -161,7 +161,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * Gets the first job template and validates port difficulty settings.
      * This function ensures the pool can generate work and warns about
      * port difficulties that are higher than the current network difficulty.
-     * 
+     *
      * @function GetFirstJob
      * @private
      * @param {Function} finishedCallback - Callback to execute when first job is ready
@@ -209,7 +209,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * Displays startup information including network status, block info,
      * difficulty, hash rate, and configuration details. Only the main
      * thread (forkId 0) displays this information to avoid log flooding.
-     * 
+     *
      * @function OutputPoolInfo
      * @private
      */
@@ -258,7 +258,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * Waits for the blockchain to be fully synchronized before proceeding.
      * Continuously checks if the daemon is synced by attempting to get a block template.
      * Shows sync progress by comparing local block count with peers' highest block.
-     * 
+     *
      * @function OnBlockchainSynced
      * @private
      * @param {Function} syncedCallback - Callback to execute when blockchain is synced
@@ -300,7 +300,6 @@ const pool = module.exports = function pool(options, authorizeFn) {
             }
         });
 
-
         // Inner function to display blockchain sync progress
         function generateProgress() {
             // Get current block count from daemon
@@ -335,7 +334,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * The API provides endpoints for pool statistics, worker information,
      * and administrative functions. This is optional and only starts if
      * an API object with a start method is provided in options.
-     * 
+     *
      * @function SetupApi
      * @private
      */
@@ -351,7 +350,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * P2P allows the pool to receive block notifications directly from
      * the network instead of relying solely on polling. This reduces
      * latency and improves pool responsiveness to new blocks.
-     * 
+     *
      * @function SetupPeer
      * @private
      */
@@ -391,7 +390,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * Variable difficulty automatically adjusts mining difficulty for
      * individual miners based on their hash rate to maintain optimal
      * share submission frequency (typically every 10-15 seconds).
-     * 
+     *
      * @function SetupVarDiff
      * @private
      */
@@ -415,7 +414,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * Sets up the addresses and percentages for pool fees, which are
      * deducted from block rewards before distributing to miners.
      * Recipients typically include pool operator fees, development funds, etc.
-     * 
+     *
      * @function SetupRecipients
      * @private
      */
@@ -461,13 +460,13 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * - Processing submitted shares
      * - Validating solutions
      * - Managing job updates and broadcasts
-     * 
+     *
      * Sets up event handlers for:
      * - newBlock: When a new block template is received
      * - updatedBlock: When an existing template is updated
      * - share: When a miner submits a share
      * - log: For job manager logging
-     * 
+     *
      * @function SetupJobManager
      * @private
      */
@@ -561,7 +560,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * The daemon interface handles all RPC communication with coin daemons,
      * including block templates, share validation, and network information.
      * Supports multiple daemon instances for redundancy and load balancing.
-     * 
+     *
      * @function SetupDaemonInterface
      * @private
      * @param {Function} finishedCallback - Callback when daemon connection is established
@@ -599,10 +598,10 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * - Blockchain info (height, connections, protocol version)
      * - Block submission method detection
      * - Reward type detection (POW vs POS)
-     * 
+     *
      * For POS coins, validates that the address is owned by the wallet
      * (required for pubkey inclusion in coinbase transactions).
-     * 
+     *
      * @function DetectCoinData
      * @private
      * @param {Function} finishedCallback - Callback when coin data detection is complete
@@ -707,13 +706,13 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * - Share submission processing
      * - Difficulty adjustments
      * - Connection management and banning
-     * 
+     *
      * Sets up extensive event handlers for:
      * - Server lifecycle events (started, broadcastTimeout)
      * - Client connection events
      * - Mining protocol events (subscription, share submission)
      * - Error and security events (malformed messages, flooding, bans)
-     * 
+     *
      * @function StartStratumServer
      * @private
      * @param {Function} finishedCallback - Callback when stratum server is ready
@@ -912,9 +911,9 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * Block polling is a fallback mechanism to ensure the pool receives
      * new block notifications even if P2P notifications fail. The polling
      * interval should be balanced between responsiveness and daemon load.
-     * 
+     *
      * Polling can be disabled by setting blockRefreshInterval to 0 or negative.
-     * 
+     *
      * @function SetupBlockPolling
      * @private
      */
@@ -941,19 +940,19 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
     /**
      * Processes block notifications from external sources.
-     * 
+     *
      * This method is called when a new block is discovered by the daemon
      * or received via P2P networking. It triggers a new block template
      * request to update all miners with fresh work.
-     * 
+     *
      * Block notifications can come from:
      * - Block notify scripts (external process calling this method)
      * - P2P peer connections
      * - Manual triggers
-     * 
+     *
      * For Verus-based coins, the same block hash might be received multiple
      * times due to PBaaS chain updates, so template regeneration is always performed.
-     * 
+     *
      * @method processBlockNotify
      * @memberof Pool
      * @param {string} blockHash - Hash of the newly discovered block
@@ -988,23 +987,23 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
     /**
      * Relinquishes (transfers) miners from this pool instance to another.
-     * 
+     *
      * This method is used in multi-process pool setups where miners need
      * to be moved between pool instances for load balancing or failover.
      * The filter function determines which miners should be transferred.
-     * 
+     *
      * Process:
      * 1. Get all current stratum clients
      * 2. Filter clients based on provided criteria
      * 3. Remove event listeners from selected clients
      * 4. Remove clients from this pool's stratum server
      * 5. Return client objects for attachment to another pool
-     * 
+     *
      * @method relinquishMiners
      * @memberof Pool
      * @param {Function} filterFn - Function to determine which clients to transfer
      * @param {Function} resultCback - Callback that receives array of relinquished clients
-     * 
+     *
      * @example
      * pool.relinquishMiners((client, callback) => {
      *   // Transfer miners from a specific port
@@ -1022,7 +1021,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
         const stratumClients = [];
         Object.keys(origStratumClients).forEach((subId) => {
             stratumClients.push({
-                subId: subId,                    // Subscription identifier 
+                subId: subId,                    // Subscription identifier
                 client: origStratumClients[subId] // Client connection object
             });
         });
@@ -1058,15 +1057,15 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
     /**
      * Attaches miners (stratum clients) to this pool instance.
-     * 
+     *
      * This method is the counterpart to relinquishMiners, used to receive
      * miners that were transferred from another pool instance. After attachment,
      * all miners are immediately sent the current mining job.
-     * 
+     *
      * @method attachMiners
      * @memberof Pool
      * @param {Array} miners - Array of stratum client objects to attach
-     * 
+     *
      * @example
      * pool.attachMiners(transferredClients);
      */
@@ -1085,11 +1084,11 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
     /**
      * Gets the stratum server instance.
-     * 
+     *
      * Provides access to the underlying stratum server for external
      * components that need direct access to server functionality,
      * such as statistics collection or administrative operations.
-     * 
+     *
      * @method getStratumServer
      * @memberof Pool
      * @returns {StratumServer} The stratum server instance
@@ -1100,16 +1099,16 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
     /**
      * Sets up or updates variable difficulty for a specific port.
-     * 
+     *
      * Variable difficulty automatically adjusts mining difficulty for individual
      * miners to maintain optimal share submission rates. This method can be used
      * to reconfigure difficulty settings during runtime.
-     * 
+     *
      * When a new difficulty is calculated:
      * - The new difficulty is queued for the next job (clean jobs)
      * - Miners receive updated difficulty with the next mining job
      * - This ensures smooth transitions without work interruption
-     * 
+     *
      * @method setVarDiff
      * @memberof Pool
      * @param {number} port - Port number to configure variable difficulty for
@@ -1119,7 +1118,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
      * @param {number} varDiffConfig.targetTime - Target time between shares (seconds)
      * @param {number} varDiffConfig.retargetTime - How often to adjust difficulty (seconds)
      * @param {number} varDiffConfig.variancePercent - Allowed variance before adjustment
-     * 
+     *
      * @example
      * pool.setVarDiff(3333, {
      *   minDiff: 1,
@@ -1151,9 +1150,9 @@ const pool = module.exports = function pool(options, authorizeFn) {
              * 1. Send new difficulty to miner
              * 2. Resend current job with clean_jobs=false
              * 3. Miner continues current work at new difficulty
-             * 
+             *
              * This reduces latency but may cause more share variance
-             * 
+             *
              * if (options.varDiff.mode === 'fast'){
              *     client.sendDifficulty(newDiff);
              *     const job = _this.jobManager.currentJob.getJobParams();
@@ -1170,7 +1169,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
  * Set up inheritance from EventEmitter.
  * This allows the Pool class to emit and listen for events,
  * enabling loose coupling between components and reactive programming patterns.
- * 
+ *
  * Events emitted by Pool:
  * - 'started': Pool initialization complete
  * - 'share': Share submitted (valid or invalid)

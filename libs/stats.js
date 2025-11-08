@@ -1,20 +1,20 @@
 /**
  * @fileoverview Statistics Collection and Management Module for S-NOMP Mining Pool
- * 
+ *
  * This module provides comprehensive statistics collection, processing, and management
  * for cryptocurrency mining pools. It handles:
- * 
+ *
  * - Real-time hashrate calculations and worker statistics
  * - Balance tracking and payout history for miners
  * - Block discovery and confirmation status
  * - Historical data retention and analysis
  * - Multi-pool support with Redis-based data storage
  * - Network statistics and difficulty monitoring
- * 
+ *
  * The module uses Redis as the primary data store and supports multiple mining
  * algorithms through the algos configuration. It calculates worker statistics,
  * pool performance metrics, and provides APIs for web interface data display.
- * 
+ *
  * Key Redis Data Structures:
  * - {coin}:hashrate - Time-series hashrate data
  * - {coin}:stats - Pool statistics (blocks, shares, network info)
@@ -23,7 +23,7 @@
  * - {coin}:payouts - Payment history
  * - {coin}:immature - Pending/immature balances
  * - statHistory - Historical statistics for trending
- * 
+ *
  * @author S-NOMP Development Team
  * @requires redis - Redis client for data persistence
  * @requires async - Asynchronous flow control
@@ -107,11 +107,11 @@ function each(collection, iterator, done) {
 
 /**
  * Creates a Redis client with authentication support
- * 
+ *
  * This function creates a Redis client connection and handles authentication
  * if a password is provided. It serves as a helper to bypass Redis callback
  * ready check issues that can occur in some Redis configurations.
- * 
+ *
  * @param {number} port - Redis server port number
  * @param {string} host - Redis server hostname or IP address
  * @param {string} [pass] - Optional Redis authentication password
@@ -125,25 +125,24 @@ function rediscreateClient(port, host, pass) {
     return client;
 }
 
-
 /**
  * Sort object properties with flexible sorting options
- * 
+ *
  * This utility function converts an object into a sorted array of key-value pairs.
  * It supports both numeric and string sorting, with optional reverse ordering.
  * Special handling is provided for 'name' property sorting using natural sort
  * algorithm for better worker name ordering (e.g., worker1, worker2, worker10).
- * 
+ *
  * @param {Object} obj - Object to sort properties from
  * @param {string|number} [sortedBy=1] - Property name to sort by, or 1 for first element
  * @param {boolean} [isNumericSort=false] - True for numeric sorting, false for string sorting
  * @param {boolean} [reverse=false] - True to reverse the sort order
  * @returns {Array<Array>} Array of [key, value] pairs sorted according to criteria
- * 
+ *
  * @example
  * // Sort workers by hashrate (numeric, descending)
  * const sortedWorkers = sortProperties(workers, 'hashrate', true, true);
- * 
+ *
  * @example
  * // Sort by name using natural sorting
  * const sortedByName = sortProperties(items, 'name', false, false);
@@ -180,11 +179,11 @@ function sortProperties(obj, sortedBy, isNumericSort, reverse) {
 
     /**
      * Natural sort comparator for alphanumeric strings
-     * 
+     *
      * This function implements natural sorting, which handles numeric parts
-     * within strings intelligently. For example, it will sort "worker1", "worker2", 
+     * within strings intelligently. For example, it will sort "worker1", "worker2",
      * "worker10" in the correct order rather than lexicographic order.
-     * 
+     *
      * @param {string} a - First string to compare
      * @param {string} b - Second string to compare
      * @returns {number} Negative if a < b, positive if a > b, 0 if equal
@@ -214,15 +213,15 @@ function sortProperties(obj, sortedBy, isNumericSort, reverse) {
 
 /**
  * Statistics Management Module Constructor
- * 
+ *
  * Creates and initializes a comprehensive statistics management system for
  * cryptocurrency mining pools. This module handles real-time statistics
  * collection, historical data management, worker tracking, and balance
  * calculations across multiple pools and cryptocurrencies.
- * 
+ *
  * The module automatically sets up Redis connections for each configured
  * pool and begins collecting historical statistics data upon initialization.
- * 
+ *
  * @param {Object} logger - Logging system instance for error and info messages
  * @param {Object} portalConfig - Main portal configuration object containing:
  *   @param {Object} portalConfig.redis - Redis connection settings for stats storage
@@ -233,7 +232,7 @@ function sortProperties(obj, sortedBy, isNumericSort, reverse) {
  * @param {Object} poolConfigs - Configuration objects for each pool, keyed by coin name:
  *   @param {Object} poolConfigs[coin].redis - Redis connection settings for this pool
  *   @param {Object} poolConfigs[coin].coin - Coin-specific settings (symbol, algorithm, etc.)
- * 
+ *
  * @constructor
  * @example
  * const StatsModule = require('./libs/stats');
@@ -271,7 +270,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Initialize Redis clients for each pool configuration
-     * 
+     *
      * This section creates Redis client connections for each configured pool.
      * It optimizes connections by reusing clients that connect to the same
      * Redis instance (same host/port), grouping multiple coins under a
@@ -303,11 +302,11 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Initialize Redis client for statistics storage
-     * 
+     *
      * Sets up the main Redis connection used for storing historical statistics
      * and portal-wide data. This client is separate from pool-specific clients
      * and handles authentication on connection errors.
-     * 
+     *
      * @private
      */
     function setupStatsRedis() {
@@ -320,16 +319,16 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Retrieve all blocks (pending and confirmed) from all pools
-     * 
+     *
      * Aggregates block data from all configured pools, including both pending
      * and confirmed blocks. Each block is keyed by a combination of pool name
      * and block height for unique identification across pools.
-     * 
+     *
      * Block data format: "timestamp:blockHash:blockHeight:transactionHash:difficulty:sharesDiff"
-     * 
+     *
      * @param {Function} cback - Callback function to receive results
      * @param {Object} cback.allBlocks - Object containing all blocks keyed by "poolName-blockHeight"
-     * 
+     *
      * @example
      * stats.getBlocks((allBlocks) => {
      *   console.log(allBlocks);
@@ -364,12 +363,12 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Load historical statistics from Redis storage
-     * 
+     *
      * Retrieves historical statistics data within the configured retention period
      * and populates the statHistory array. Only statistics with active workers
      * are included to avoid empty data points. The data is sorted chronologically
      * and processed to build pool-specific historical data.
-     * 
+     *
      * @private
      */
     function gatherStatHistory() {
@@ -435,11 +434,11 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Add statistics to pool-specific historical data
-     * 
+     *
      * Extracts key pool metrics from full statistics and adds them to the
      * pool history for trending analysis. Only essential metrics are stored
      * to minimize memory usage while preserving trend data.
-     * 
+     *
      * @private
      * @param {Object} stats - Full statistics object
      */
@@ -463,7 +462,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Mathematical Constants and Utility Functions
-     * 
+     *
      * These functions handle cryptocurrency amount conversions and precision
      * calculations, following the standard satoshi (smallest unit) convention.
      */
@@ -478,11 +477,11 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Get list of configured coins/pools
-     * 
+     *
      * Returns the list of coin identifiers that are currently configured
      * and available for statistics collection. This is typically used by
      * the web interface to determine which pools to display.
-     * 
+     *
      * @param {Function} cback - Callback function
      */
     this.getCoins = function (cback) {
@@ -500,18 +499,18 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Get total shares for a specific miner address across all pools
-     * 
+     *
      * Retrieves the total number of shares contributed by a specific miner
      * address in the current mining round. This includes all workers associated
      * with the address (identified by the part before the first dot).
-     * 
+     *
      * Uses Redis HSCAN to efficiently search through large share datasets
      * with pattern matching for all workers belonging to the address.
-     * 
+     *
      * @param {string} address - Miner address (e.g., "tAddr1234.worker1")
      * @param {Function} cback - Callback function
      * @param {number} cback.totalShares - Total shares contributed by this address
-     * 
+     *
      * @example
      * stats.getTotalSharesByAddress('tAddr1234.worker1', (totalShares) => {
      *   console.log(`Address has contributed ${totalShares} shares this round`);
@@ -565,17 +564,17 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Get comprehensive balance information for a miner address
-     * 
+     *
      * Retrieves complete balance information for a miner including current
      * balances, payment history, and immature (pending) balances across all
      * pools. The function aggregates data from multiple Redis hash structures
      * and provides both individual worker details and totals.
-     * 
+     *
      * Redis Keys Used:
      * - {coin}:balances - Current confirmed balances ready for payout
      * - {coin}:payouts - Historical payout amounts
      * - {coin}:immature - Immature balances from recently found blocks
-     * 
+     *
      * @param {string} address - Miner address (e.g., "tAddr1234.worker1")
      * @param {Function} cback - Callback function
      * @param {Object} cback.result - Balance information object:
@@ -583,7 +582,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
      *   @param {number} cback.result.totalPaid - Total amount paid historically
      *   @param {number} cback.result.totalImmature - Total immature balance
      *   @param {Array<Object>} cback.result.balances - Per-worker balance details
-     * 
+     *
      * @example
      * stats.getBalanceByAddress('tAddr1234', (result) => {
      *   console.log(`Total balance: ${result.totalHeld} coins`);
@@ -758,7 +757,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Generate comprehensive global statistics for all pools
-     * 
+     *
      * This is the main statistics collection method that gathers real-time data
      * from all configured pools and generates comprehensive statistics including:
      * - Hashrate calculations and worker statistics
@@ -766,13 +765,13 @@ module.exports = function (logger, portalConfig, poolConfigs) {
      * - Payment history and share distribution
      * - Network statistics and mining luck calculations
      * - Historical data management and retention
-     * 
+     *
      * The method uses Redis pipelining for efficient data collection and
      * implements automatic data cleanup based on the configured hashrate window.
      * Results are stored both in memory and persisted to Redis for historical analysis.
-     * 
+     *
      * @param {Function} callback - Callback function called when statistics are complete
-     * 
+     *
      * @example
      * stats.getGlobalStats(() => {
      *   console.log('Statistics updated:', stats.stats);
@@ -795,7 +794,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                     /**
                      * Redis command templates for statistics collection
-                     * 
+                     *
                      * These commands are executed for each coin in a Redis pipeline:
                      * 1. Clean old hashrate data outside the window
                      * 2. Get current hashrate data within window
@@ -846,7 +845,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                         /**
                          * Construct comprehensive coin statistics object
-                         * 
+                         *
                          * This object contains all statistical data for a single cryptocurrency pool:
                          * - Basic pool information (name, symbol, algorithm)
                          * - Raw hashrate data for worker processing
@@ -880,7 +879,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                             // Block status counts
                             blocks: {
                                 pending: replies[i + 3],      // Count of pending blocks
-                                confirmed: replies[i + 4],    // Count of confirmed blocks  
+                                confirmed: replies[i + 4],    // Count of confirmed blocks
                                 orphaned: replies[i + 5]      // Count of orphaned blocks
                             },
 
@@ -932,13 +931,13 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                 /**
                  * Process worker and miner statistics for each coin
-                 * 
+                 *
                  * This section processes the raw hashrate data to calculate individual
                  * worker and miner statistics. The hashrate data format is:
                  * "shares:workerName:timestamp"
-                 * 
+                 *
                  * Key concepts:
-                 * - Worker: Individual mining connection (e.g., "tAddr123.rig1")  
+                 * - Worker: Individual mining connection (e.g., "tAddr123.rig1")
                  * - Miner: Base address that owns multiple workers (e.g., "tAddr123")
                  * - Shares: Proof-of-work submissions (positive = valid, negative = invalid)
                  * - Difficulty: Current mining difficulty for the worker
@@ -1059,15 +1058,15 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                     /**
                      * Hashrate Calculation Algorithm
-                     * 
+                     *
                      * Hashrate is calculated using the formula:
                      * hashrate = (shareMultiplier * totalShares) / timeWindow
-                     * 
+                     *
                      * Where:
                      * - shareMultiplier = 2^32 / algorithm_multiplier
                      * - totalShares = sum of all valid shares in time window
                      * - timeWindow = configured hashrate calculation window (seconds)
-                     * 
+                     *
                      * This gives us hashes per second for the pool.
                      */
                     const shareMultiplier = Math.pow(2, 32) / algos[coinStats.algorithm].multiplier;
@@ -1076,12 +1075,12 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                     /**
                      * Mining Luck Calculation
-                     * 
+                     *
                      * Calculates expected time to find a block based on:
                      * - Network hashrate vs pool hashrate ratio
                      * - Network block time (55 seconds for most chains)
                      * - Pool's percentage of total network hashrate
-                     * 
+                     *
                      * Formula: (networkHashrate / poolHashrate) * blockTime
                      */
                     const _blocktime = 55;  // Average block time in seconds
@@ -1110,7 +1109,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                     /**
                      * Current Round Statistics Processing
-                     * 
+                     *
                      * Process data for the current mining round (block being worked on):
                      * - Aggregate shares contributed by each worker/miner
                      * - Track timing data for round duration analysis
@@ -1160,7 +1159,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                     /**
                      * Calculate individual worker hashrates and mining luck
-                     * 
+                     *
                      * For each worker, calculate:
                      * - Individual hashrate based on shares contributed
                      * - Solo mining luck (time to find block alone)
@@ -1188,7 +1187,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                     /**
                      * Calculate miner hashrates and mining luck
-                     * 
+                     *
                      * For each miner (aggregated across all workers):
                      * - Combined hashrate of all workers
                      * - Solo mining luck based on combined hashrate
@@ -1217,7 +1216,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                 /**
                  * Finalize algorithm-specific statistics
-                 * 
+                 *
                  * Generate human-readable hashrate strings for each algorithm's
                  * combined statistics across all pools using that algorithm.
                  */
@@ -1231,7 +1230,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                 /**
                  * Historical Data Management
-                 * 
+                 *
                  * Save statistics to history if there are active workers, but only
                  * save essential data to minimize storage requirements. Remove
                  * detailed worker information and temporary round data.
@@ -1242,7 +1241,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
                     Object.keys(saveStats.pools).forEach((pool) => {
                         // Remove large, non-essential data for historical storage
                         delete saveStats.pools[pool].pending;           // Detailed pending blocks
-                        delete saveStats.pools[pool].confirmed;         // Detailed confirmed blocks  
+                        delete saveStats.pools[pool].confirmed;         // Detailed confirmed blocks
                         delete saveStats.pools[pool].currentRoundShares; // Current round share data
                         delete saveStats.pools[pool].currentRoundTimes;  // Current round timing data
                         delete saveStats.pools[pool].payments;          // Payment history
@@ -1258,7 +1257,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
                     /**
                      * Historical Data Retention
-                     * 
+                     *
                      * Automatically clean up old historical data based on the
                      * configured retention period to prevent unlimited growth.
                      */
@@ -1302,7 +1301,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Sort pools alphabetically by name
-     * 
+     *
      * @private
      * @param {Object} objects - Pool objects to sort
      * @returns {Object} New object with pools sorted by name
@@ -1320,13 +1319,13 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Sort blocks by height (descending - newest first)
-     * 
+     *
      * Block format: "timestamp:blockHash:blockHeight:transactionHash:difficulty:sharesDiff"
      * Extracts block height (index 2) and sorts in descending order.
-     * 
+     *
      * @private
      * @param {string} a - First block string
-     * @param {string} b - Second block string  
+     * @param {string} b - Second block string
      * @returns {number} Sort comparison result
      */
     function sortBlocks(a, b) {
@@ -1343,7 +1342,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Sort workers alphabetically by name using natural sorting
-     * 
+     *
      * @private
      * @param {Object} objects - Worker objects to sort
      * @returns {Object} New object with workers sorted by name
@@ -1361,9 +1360,9 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Sort miners by hashrate (descending - highest first)
-     * 
+     *
      * Uses share count as a proxy for hashrate during sorting phase.
-     * 
+     *
      * @private
      * @param {Object} objects - Miner objects to sort
      * @returns {Object} New object with miners sorted by hashrate
@@ -1381,7 +1380,7 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Compare function for sorting workers by hashrate
-     * 
+     *
      * @private
      * @param {Object} a - First worker object
      * @param {Object} b - Second worker object
@@ -1400,10 +1399,10 @@ module.exports = function (logger, portalConfig, poolConfigs) {
 
     /**
      * Convert network hashrate to human-readable string format
-     * 
+     *
      * Similar to getReadableHashRateString but specifically for network hashrate
      * with different scaling factors. Used for displaying network statistics.
-     * 
+     *
      * @private
      * @param {number} hashrate - Network hashrate value
      * @returns {string} Formatted network hashrate string

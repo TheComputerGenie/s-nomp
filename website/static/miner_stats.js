@@ -2,14 +2,14 @@
  * @fileoverview Miner Statistics Dashboard
  * This file manages the real-time display of mining statistics for individual miners
  * and their workers, including hashrate charts, performance metrics, and payment information.
- * 
+ *
  * The dashboard provides:
  * - Real-time hashrate monitoring with interactive charts
  * - Worker-specific statistics and performance metrics
  * - Payment tracking (balance, immature, paid amounts)
  * - Mining luck calculations and difficulty tracking
  * - Live updates via Server-Sent Events (SSE)
- * 
+ *
  * @author Mining Pool Software Team
  * @version 1.0
  */
@@ -101,10 +101,10 @@ let sseUpdateCounter = 0;
 
 /**
  * Formats a timestamp into a readable time-of-day string for chart display
- * 
+ *
  * @param {number} timestamp - Unix timestamp in milliseconds
  * @returns {string} Formatted time string in 12-hour format (e.g., "2:30 PM")
- * 
+ *
  * @example
  * timeOfDayFormat(1699123800000) // Returns "2:30 PM"
  * timeOfDayFormat(1699090800000) // Returns "5:20 AM"
@@ -123,10 +123,10 @@ function timeOfDayFormat(timestamp) {
 /**
  * Extracts the worker name from a full mining address
  * Mining addresses typically follow the format: "address.workername"
- * 
+ *
  * @param {string} w - Full worker address (e.g., "t1abc...xyz.worker1")
  * @returns {string} Worker name or "noname" if no worker name is specified
- * 
+ *
  * @example
  * getWorkerNameFromAddress("t1abc123.miner1") // Returns "miner1"
  * getWorkerNameFromAddress("t1abc123.")       // Returns "noname"
@@ -154,13 +154,13 @@ function getWorkerNameFromAddress(w) {
 /**
  * Builds the initial chart data structure from historical statistics
  * Processes worker history data and prepares it for NVD3 line chart visualization
- * 
+ *
  * This function:
  * - Groups historical data by worker name
  * - Converts timestamps to milliseconds for chart compatibility
  * - Determines which workers should be visible by default (first 4 workers)
  * - Updates the maximum history length if needed
- * 
+ *
  * @global {Object} statData - Contains historical data for all workers
  * @global {Array} workerHashrateData - Output array formatted for NVD3 charts
  * @global {number} workerHistoryMax - Maximum history points to maintain
@@ -205,9 +205,9 @@ function buildChartData() {
 /**
  * Updates existing chart data with new statistics from live updates
  * Maintains a rolling window of historical data and handles new workers
- * 
+ *
  * @returns {boolean} True if a new worker was added (requiring display rebuild), false otherwise
- * 
+ *
  * This function:
  * - Adds new data points to existing workers
  * - Maintains the history window by removing old data when limit is reached
@@ -275,10 +275,10 @@ function updateChartData() {
 
 /**
  * Calculates the average hashrate for a specific worker or all workers combined
- * 
+ *
  * @param {string|null} worker - Specific worker name to calculate average for, or null for all workers
  * @returns {number} Average hashrate value
- * 
+ *
  * @example
  * calculateAverageHashrate("worker1")  // Returns average for specific worker
  * calculateAverageHashrate(null)       // Returns overall average across all workers
@@ -316,7 +316,7 @@ function calculateAverageHashrate(worker) {
 /**
  * Triggers a visual update of the hashrate chart
  * Called after data changes to refresh the chart display
- * 
+ *
  * @global {Object} workerHashrateChart - NVD3 chart instance to update
  */
 function triggerChartUpdates() {
@@ -326,7 +326,7 @@ function triggerChartUpdates() {
 /**
  * Detects changes in the worker set by comparing current workers with previous state
  * This provides more accurate change detection than simple count comparison
- * 
+ *
  * @param {Object} workers - Current workers object from statData
  * @returns {Object} Object containing change detection results
  * @returns {boolean} returns.hasChanges - True if any workers were added or removed
@@ -358,7 +358,7 @@ function detectWorkerChanges(workers) {
 /**
  * Determines if a full data fetch (including history) is needed
  * Uses timing and update patterns to optimize data fetching frequency
- * 
+ *
  * @returns {boolean} True if full history data should be fetched
  */
 function shouldFetchFullData() {
@@ -385,13 +385,13 @@ function shouldFetchFullData() {
  *//**
 * Initializes and displays the NVD3 line chart for worker hashrates
 * Sets up chart configuration, axes formatting, and binds data to the DOM element
-* 
+*
 * Chart features:
 * - Interactive guidelines for precise data reading
 * - Time-formatted X-axis showing time of day
 * - Human-readable hashrate formatting on Y-axis
 * - Responsive margins for proper label display
-* 
+*
 * @global {Array} workerHashrateData - Chart data array formatted for NVD3
 * @global {Object} workerHashrateChart - Chart instance stored for future updates
 */
@@ -425,12 +425,12 @@ function displayCharts() {
 /**
  * Updates the main miner statistics display with current data
  * Calculates derived metrics like mining luck and updates all summary statistics
- * 
+ *
  * This function:
  * - Extracts totals from the latest statistics data
  * - Calculates expected time to find a block (luck days)
  * - Updates all DOM elements with formatted values
- * 
+ *
  * @global {Object} statData - Contains current statistics from API
  */
 function updateStats() {
@@ -461,13 +461,13 @@ function updateStats() {
 /**
  * Updates statistics for individual workers in their respective display boxes
  * Processes each worker's current performance metrics and updates DOM elements
- * 
+ *
  * For each worker, updates:
  * - Current and average hashrate
  * - Mining luck, payments, and balance
  * - Share count and difficulty
  * - Time since last submitted share
- * 
+ *
  * @global {Object} statData - Contains worker-specific statistics
  */
 function updateWorkerStats() {
@@ -501,7 +501,7 @@ function updateWorkerStats() {
 /**
  * Creates and adds a worker statistics display box to the DOM
  * Generates a complete HTML structure for displaying individual worker metrics
- * 
+ *
  * @param {string} name - Clean worker name for calculations
  * @param {string} htmlSafeName - HTML-safe worker name for DOM element IDs
  * @param {Object} workerObj - Worker statistics object containing all metrics
@@ -562,12 +562,12 @@ function addWorkerToDisplay(name, htmlSafeName, workerObj) {
 /**
  * Completely rebuilds the worker display area from scratch
  * Clears existing worker boxes and recreates them with current data
- * 
+ *
  * This function is called when:
  * - Initial page load after data is fetched
  * - New workers are detected that weren't in the original dataset
  * - Worker count changes significantly
- * 
+ *
  * @global {Object} statData - Contains current worker statistics
  */
 function rebuildWorkerDisplay() {
@@ -606,7 +606,7 @@ nv.utils.windowResize(triggerChartUpdates);
 /**
  * Initial data loading and dashboard setup
  * Fetches worker statistics from API and initializes all display components
- * 
+ *
  * Initialization sequence:
  * 1. Fetch initial statistics data
  * 2. Initialize worker tracking for change detection
@@ -638,12 +638,12 @@ $.getJSON(`/api/worker_stats?${_miner}`, (data) => {
 /**
  * Live statistics updates via Server-Sent Events (SSE)
  * Handles real-time updates with intelligent data fetching optimization
- * 
+ *
  * Optimization strategy:
  * - Full data (with history): Uses /api/worker_stats - every 30 seconds or every 10th update
  * - Lightweight updates: Uses /api/miner_live_stats - current stats only, no history data
  * - Force full fetch: When worker changes are detected
- * 
+ *
  * Update process:
  * 1. Receive SSE message trigger and increment counter
  * 2. Determine if full data fetch is needed based on timing/patterns
@@ -651,12 +651,12 @@ $.getJSON(`/api/worker_stats?${_miner}`, (data) => {
  * 4. Detect worker changes and handle accordingly
  * 5. Update charts (full fetch) or stats only (lightweight)
  * 6. Refresh summary and worker-specific statistics
- * 
+ *
  * Performance benefits:
  * - ~70% bandwidth reduction on routine updates
  * - Eliminates unnecessary historical data processing
  * - Maintains chart responsiveness with periodic full updates
- * 
+ *
  * @listens {MessageEvent} SSE message from statsSource
  */
 statsSource.addEventListener('message', (e) => {

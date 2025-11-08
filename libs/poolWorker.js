@@ -159,7 +159,6 @@ module.exports = function (logger) {
         }
     });
 
-
     // Iterate configured pools and create Stratum pool instances
     Object.keys(poolConfigs).forEach((coin) => {
 
@@ -248,7 +247,6 @@ module.exports = function (logger) {
             });
         };
 
-
         // Create the Stratum pool and wire up events we care about
         const pool = Stratum.createPool(poolOptions, authorizeFN, logger);
         pool.on('share', (isValidShare, isValidBlock, data) => {
@@ -309,7 +307,6 @@ module.exports = function (logger) {
         pools[poolOptions.coin.name] = pool;
     });
 
-
     // Setup proxy switching if configured in the portal config
     if (portalConfig.switching) {
 
@@ -347,7 +344,6 @@ module.exports = function (logger) {
                     return;
                 }
 
-
                 const initalPool = proxyState.hasOwnProperty(algorithm) ? proxyState[algorithm] : _this.getFirstPoolForAlgorithm(algorithm);
                 proxySwitch[switchName] = {
                     algorithm: algorithm,
@@ -355,7 +351,6 @@ module.exports = function (logger) {
                     currentPool: initalPool,
                     servers: []
                 };
-
 
                 Object.keys(proxySwitch[switchName].ports).forEach((port) => {
                     const f = net.createServer((socket) => {
@@ -426,7 +421,7 @@ module.exports = function (logger) {
                 return;
             }
 
-            // we know the switch configuration matches the pool's algo, so setup the diff and 
+            // we know the switch configuration matches the pool's algo, so setup the diff and
             // vardiff for each of the switch's ports
             for (const port in portalConfig.switching[switchName].ports) {
 

@@ -2,14 +2,14 @@ const events = require('events');
 
 /**
  * Variable Difficulty (VarDiff) module for stratum mining pools.
- * 
+ *
  * This module implements a variable difficulty adjustment system that automatically
  * adjusts the mining difficulty for individual clients based on their share submission
  * rate. The goal is to maintain a consistent target time between share submissions.
- * 
+ *
  * Ported from stratum-mining share-limiter:
  * https://github.com/ahmedbodi/stratum-mining/blob/master/mining/basic_share_limiter.py
- * 
+ *
  * @fileoverview Variable difficulty adjustment system for mining pool clients
  * @author Original Python implementation by ahmedbodi, ported to Node.js
  * @version 1.0.0
@@ -19,7 +19,7 @@ const events = require('events');
  * Ring Buffer implementation for storing time intervals between share submissions.
  * This circular buffer maintains a fixed-size collection of recent timing data
  * to calculate moving averages for difficulty adjustments.
- * 
+ *
  * @class RingBuffer
  * @param {number} maxSize - Maximum number of elements the buffer can hold
  */
@@ -34,7 +34,7 @@ function RingBuffer(maxSize) {
     /**
      * Appends a new value to the ring buffer.
      * When the buffer is full, it overwrites the oldest value.
-     * 
+     *
      * @param {number} x - The value to append to the buffer
      */
     this.append = function (x) {
@@ -53,7 +53,7 @@ function RingBuffer(maxSize) {
 
     /**
      * Calculates the average of all values currently in the buffer.
-     * 
+     *
      * @returns {number} The arithmetic mean of all values in the buffer
      */
     this.avg = function () {
@@ -65,7 +65,7 @@ function RingBuffer(maxSize) {
 
     /**
      * Returns the current number of elements in the buffer.
-     * 
+     *
      * @returns {number} The number of elements currently stored in the buffer
      */
     this.size = function () {
@@ -85,7 +85,7 @@ function RingBuffer(maxSize) {
 /**
  * Utility function to truncate a number to a fixed amount of decimal places.
  * This ensures consistent precision in difficulty calculations.
- * 
+ *
  * @param {number} num - The number to truncate
  * @param {number} len - The number of decimal places to keep
  * @returns {number} The number truncated to the specified decimal places
@@ -96,19 +96,19 @@ function toFixed(num, len) {
 
 /**
  * Variable Difficulty class that manages automatic difficulty adjustments for mining clients.
- * 
+ *
  * This class implements a sophisticated algorithm that monitors the time intervals between
  * share submissions from mining clients and automatically adjusts their difficulty to
  * maintain optimal share submission rates. The system aims to keep share submissions
  * within a target time range to balance network efficiency and miner experience.
- * 
+ *
  * Key features:
  * - Automatic difficulty scaling based on share submission timing
  * - Configurable target times and variance thresholds
  * - Support for minimum and maximum difficulty limits
  * - Optional x2 mode for more aggressive adjustments
  * - Ring buffer for moving average calculations
- * 
+ *
  * @class VarDiff
  * @extends EventEmitter
  * @param {number} port - The stratum port this VarDiff instance manages
@@ -119,7 +119,7 @@ function toFixed(num, len) {
  * @param {number} varDiffOptions.minDiff - Minimum allowed difficulty
  * @param {number} varDiffOptions.maxDiff - Maximum allowed difficulty
  * @param {boolean} [varDiffOptions.x2mode] - Enable aggressive 2x/0.5x adjustments
- * 
+ *
  * @fires VarDiff#newDifficulty
  */
 const varDiff = module.exports = function varDiff(port, varDiffOptions) {
@@ -141,19 +141,19 @@ const varDiff = module.exports = function varDiff(port, varDiffOptions) {
 
     /**
      * Manages difficulty adjustment for a specific mining client.
-     * 
+     *
      * This method sets up event listeners for the client's share submissions and
      * implements the core difficulty adjustment algorithm. It tracks timing between
      * shares and adjusts difficulty when the average timing falls outside the
      * acceptable range.
-     * 
+     *
      * Algorithm flow:
      * 1. Listen for 'submit' events from the client
      * 2. Track time intervals between submissions in a ring buffer
      * 3. Calculate moving average of submission times
      * 4. Adjust difficulty if average is outside target range
      * 5. Emit 'newDifficulty' event when adjustment is needed
-     * 
+     *
      * @param {Object} client - The mining client object
      * @param {Object} client.socket - The client's socket connection
      * @param {number} client.socket.localPort - The port the client is connected to
@@ -179,13 +179,13 @@ const varDiff = module.exports = function varDiff(port, varDiffOptions) {
 
         /**
          * Event handler for client share submissions.
-         * 
+         *
          * This handler is called every time the client submits a share. It:
          * 1. Records the current timestamp
          * 2. Calculates time since last submission
          * 3. Stores timing data in the ring buffer
          * 4. Triggers difficulty adjustment if conditions are met
-         * 
+         *
          * Difficulty adjustment occurs when:
          * - Enough time has passed since last retarget (retargetTime)
          * - The ring buffer contains timing data
@@ -254,7 +254,7 @@ const varDiff = module.exports = function varDiff(port, varDiffOptions) {
 
             /**
              * New difficulty event - emitted when a client's difficulty needs adjustment.
-             * 
+             *
              * @event VarDiff#newDifficulty
              * @param {Object} client - The mining client object
              * @param {number} newDiff - The new difficulty value for the client

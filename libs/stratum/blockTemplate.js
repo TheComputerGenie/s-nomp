@@ -2,14 +2,14 @@
  * @fileoverview BlockTemplate module for managing cryptocurrency mining block templates.
  * This module handles the creation, validation, and serialization of block templates
  * for stratum mining operations, with special support for Verus and PBaaS protocols.
- * 
+ *
  * @module blockTemplate
  * @requires bignum - For handling large number operations
  * @requires ./merkleTree - For merkle root calculations
  * @requires ./transactions - For transaction generation and fee calculation
  * @requires ./util - For various utility functions
  * @requires ../PoolLogger - For logging operations
- * 
+ *
  * @author s-nomp contributors
  * @since 1.0.0
  */
@@ -30,12 +30,11 @@ const PoolLogger = require('../PoolLogger.js');
 // Use shared lightweight BigNum factory from utils
 const bignum = util.bignum;
 
-
 /**
  * BlockTemplate class represents a single mining job and provides methods to validate
  * and submit blocks to the cryptocurrency daemon. It handles block header serialization,
  * coinbase transaction generation, and mining job parameter creation.
- * 
+ *
  * This class is specifically designed to work with stratum mining protocols and supports
  * various cryptocurrency features including:
  * - Standard block templates
@@ -44,7 +43,7 @@ const bignum = util.bignum;
  * - VerusHash algorithm with solution spaces
  * - Masternode payments
  * - Founder rewards
- * 
+ *
  * @class BlockTemplate
  * @param {string} jobId - Unique identifier for this mining job
  * @param {Object} rpcData - Block template data received from the cryptocurrency daemon
@@ -66,7 +65,7 @@ const bignum = util.bignum;
  * @param {Object} coin - Coin configuration object
  * @param {string} [coin.algorithm] - Mining algorithm (e.g., 'verushash')
  * @param {boolean} [coin.payFoundersReward] - Whether to pay founder rewards
- * 
+ *
  * @example
  * const blockTemplate = new BlockTemplate(
  *   'job123',
@@ -152,7 +151,6 @@ const BlockTemplate = module.exports = function BlockTemplate(
         this.merged_target = util.bignumFromBitsHex(this.rpcData.mergeminebits);
     }
 
-
     // === Block Reward and Payment Calculation ===
 
     /**
@@ -168,7 +166,7 @@ const BlockTemplate = module.exports = function BlockTemplate(
         } else {
             // Calculate total block reward including all network participants
             // founders: Development team rewards
-            // securenodes: Secure node operator rewards  
+            // securenodes: Secure node operator rewards
             // supernodes: Super node operator rewards
             blockReward = (this.rpcData.miner + this.rpcData.founders + this.rpcData.securenodes + this.rpcData.supernodes) * 100000000;
         }
@@ -336,21 +334,21 @@ const BlockTemplate = module.exports = function BlockTemplate(
      * Generates parameters for the mining.notify stratum message.
      * This method creates the parameter array that gets sent to miners
      * to inform them about new mining jobs.
-     * 
+     *
      * Standard stratum mining.notify parameters:
      * 0. Job ID - Unique identifier for this mining job
      * 1. Version - Block version (4 bytes, little-endian)
-     * 2. Previous Hash - Hash of previous block (32 bytes, little-endian) 
+     * 2. Previous Hash - Hash of previous block (32 bytes, little-endian)
      * 3. Merkle Root - Transaction merkle root (32 bytes, little-endian)
      * 4. Final Sapling Root - Privacy coin root hash (32 bytes, little-endian)
      * 5. Timestamp - Current time (4 bytes, little-endian)
      * 6. Bits - Difficulty target (4 bytes, little-endian)
      * 7. Clean Jobs - Boolean indicating if previous jobs should be discarded
      * 8. Solution Space - VerusHash reserved solution space (optional)
-     * 
+     *
      * @method getJobParams
      * @returns {Array} Array of parameters for stratum mining.notify message
-     * 
+     *
      * @example
      * const jobParams = blockTemplate.getJobParams();
      * // Send to miner: ["mining.notify", jobParams]
@@ -402,7 +400,7 @@ const BlockTemplate = module.exports = function BlockTemplate(
     /**
      * Serializes the block header according to the blockchain protocol specification.
      * Block header format follows Zcash protocol: https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
-     * 
+     *
      * Block header structure (140 bytes total):
      * - Version (4 bytes): Block version number
      * - Previous Hash (32 bytes): Hash of previous block
@@ -411,12 +409,12 @@ const BlockTemplate = module.exports = function BlockTemplate(
      * - Timestamp (4 bytes): Block creation time
      * - Bits (4 bytes): Difficulty target in compact format
      * - Nonce (32 bytes): Mining nonce value
-     * 
+     *
      * @method serializeHeader
      * @param {string} nTime - Block timestamp in hexadecimal format
      * @param {string} nonce - Mining nonce in hexadecimal format (32 bytes)
      * @returns {Buffer} Serialized block header as a 140-byte buffer
-     * 
+     *
      * @example
      * const header = blockTemplate.serializeHeader('5f8a7b2c', '0000000000000000000000000000000000000000000000000000000012345678');
      */
@@ -471,19 +469,19 @@ const BlockTemplate = module.exports = function BlockTemplate(
     /**
      * Serializes the complete block by combining the header, solution, and all transactions.
      * This creates the final block data that can be submitted to the cryptocurrency network.
-     * 
+     *
      * Block structure:
      * - Block header (140 bytes)
      * - Solution (variable length, VerusHash specific)
      * - Transaction count (variable integer)
      * - Coinbase transaction (variable length)
      * - Additional transactions (variable length each)
-     * 
+     *
      * @method serializeBlock
      * @param {Buffer} header - Serialized block header (from serializeHeader)
      * @param {Buffer} soln - Proof-of-work solution (VerusHash solution)
      * @returns {Buffer} Complete serialized block ready for network submission
-     * 
+     *
      * @example
      * const header = blockTemplate.serializeHeader(timestamp, nonce);
      * const solution = Buffer.from(proofOfWorkSolution, 'hex');
@@ -549,12 +547,12 @@ const BlockTemplate = module.exports = function BlockTemplate(
      * Registers a block submission to prevent duplicate submissions.
      * This helps avoid wasted work and potential network spam by tracking
      * which header+solution combinations have already been submitted.
-     * 
+     *
      * @method registerSubmit
      * @param {string} header - Block header as hexadecimal string
      * @param {string} soln - Proof-of-work solution as hexadecimal string
      * @returns {boolean} true if this is a new submission, false if duplicate
-     * 
+     *
      * @example
      * const isNewSubmission = blockTemplate.registerSubmit(headerHex, solutionHex);
      * if (isNewSubmission) {

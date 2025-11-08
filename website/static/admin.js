@@ -2,7 +2,7 @@
  * @fileoverview Admin panel client-side functionality for s-nomp mining pool software.
  * This file handles authentication, cookie management, and UI interactions for the administrative interface.
  * It provides secure access to pool management functions through password-based authentication.
- * 
+ *
  * @author s-nomp Contributors
  * @version 1.0.0
  * @requires jQuery - For DOM manipulation and event handling
@@ -198,7 +198,7 @@ function displayMenu(pools) {
  * apiRequest('pools', {}, (response) => {
  *     console.log('Pools:', response.result);
  * });
- * 
+ *
  * // Send command with additional data
  * apiRequest('restart', { poolName: 'bitcoin' }, (response) => {
  *     console.log('Command result:', response);

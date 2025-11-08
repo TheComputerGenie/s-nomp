@@ -10,7 +10,6 @@ exports.daemon = require('./daemon.js');
 exports.varDiff = require('./varDiff.js');
 exports.util = require('../utils/util.js');
 
-
 exports.createPool = function (poolOptions, authorizeFn) {
     const newPool = new pool(poolOptions, authorizeFn);
     return newPool;

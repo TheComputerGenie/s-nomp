@@ -4,7 +4,7 @@
  * including support for founders rewards, treasury rewards, masternode payments,
  * and pool fee distributions. It supports multiple coin types including Zcash-based
  * coins with Overwinter and Sapling protocol upgrades.
- * 
+ *
  * @author S-NOMP Pool Software
  * @version 1.0.0
  */
@@ -21,7 +21,7 @@ let txHash;
 
 /**
  * Gets the hash of the last generated coinbase transaction.
- * 
+ *
  * @returns {string} The hexadecimal string representation of the transaction hash
  * @example
  * const hash = txHash();
@@ -36,7 +36,7 @@ exports.txHash = () => txHash;
  * - Founders/Treasury rewards (for applicable coins)
  * - Masternode payments (for applicable coins)
  * - Fee recipient distributions
- * 
+ *
  * @param {number} blockHeight - The height of the block being mined
  * @param {number} blockReward - The base block reward in satoshis
  * @param {number} feeReward - Total transaction fees collected in satoshis
@@ -49,7 +49,7 @@ exports.txHash = () => txHash;
  * @param {boolean} [masternodePayment] - Whether masternode payment is enabled
  * @returns {string} The hexadecimal representation of the coinbase transaction
  * @throws {Error} When invalid addresses or coin parameters are provided
- * 
+ *
  * @example
  * const recipients = [
  *   { address: '1PoolFeeAddr...', percent: 1.0 },
@@ -61,7 +61,7 @@ exports.txHash = () => txHash;
  *   percentFoundersReward: 2.5
  * };
  * const txHex = createGeneration(
- *   100000, 1250000000, 50000, recipients, 
+ *   100000, 1250000000, 50000, recipients,
  *   '1PoolAddress...', null, coinConfig
  * );
  */
@@ -166,7 +166,7 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
                 const indexSN = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vSecureNodesRewardAddress.length));
                 const secureNodesAddrHash = bitcoin.address.fromBase58Check(coin.vSecureNodesRewardAddress[indexSN]).hash;
 
-                // Calculate Super Nodes reward address index  
+                // Calculate Super Nodes reward address index
                 // Super Nodes typically provide enhanced network services (masternodes, validators, etc.)
                 const indexXN = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vSuperNodesRewardAddress.length));
                 const superNodesAddrHash = bitcoin.address.fromBase58Check(coin.vSuperNodesRewardAddress[indexXN]).hash;
@@ -388,11 +388,11 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
  * Calculates the total transaction fees from an array of fee objects.
  * This utility function sums up all individual transaction fees to determine
  * the total fee reward that should be included in the coinbase transaction.
- * 
+ *
  * @param {Array<Object>} feeArray - Array of transaction objects containing fee information
  * @param {number} feeArray[].fee - The fee amount for each transaction in satoshis
  * @returns {number} The total sum of all transaction fees in satoshis
- * 
+ *
  * @example
  * const transactions = [
  *   { fee: 1000 },

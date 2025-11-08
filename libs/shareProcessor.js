@@ -14,17 +14,17 @@ const CreateRedisClient = require('./createRedisClient.js');
 
 /**
  * @fileoverview Share Processor Module
- * 
+ *
  * This module handles share processing for cryptocurrency mining pools in internal payment processing mode.
  * It manages the storage and tracking of mining shares, block discoveries, and worker statistics using Redis.
- * 
+ *
  * The module stores data with the following Redis structure:
  * - Shares: {coin}:shares:roundCurrent and {coin}:shares:round{height}
  * - Statistics: {coin}:stats (validShares, invalidShares, validBlocks, invalidBlocks)
  * - Hashrate data: {coin}:hashrate (sorted set with timestamp scores)
  * - Worker activity: {coin}:lastSeen
  * - Pending blocks: {coin}:blocksPending and {coin}:pbaasPending
- * 
+ *
  * @author Mining Pool Software
  * @version 1.0.0
  */

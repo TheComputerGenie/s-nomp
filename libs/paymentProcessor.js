@@ -13,7 +13,7 @@ const writeFileAsync = promisify(fs.writeFile);
  * PaymentProcessor handles cryptocurrency mining pool payments with advanced features
  * including shielded transactions, PPLNT (Pay Per Last N Time) payment schemes,
  * duplicate block handling, and comprehensive Redis-based state management.
- * 
+ *
  * Key Features:
  * - Multi-pool support with independent processing
  * - Shielded transaction support for privacy coins (Zcash family)
@@ -23,7 +23,7 @@ const writeFileAsync = promisify(fs.writeFile);
  * - Orphaned block share redistribution
  * - Network statistics caching
  * - Comprehensive error handling and logging
- * 
+ *
  * Payment Processing Flow:
  * 1. Data Retrieval - Fetch worker balances and pending blocks from Redis
  * 2. Block Validation - Verify block transactions and categorize them
@@ -160,7 +160,7 @@ class PaymentProcessor {
     /**
      * Main payment processing method - executes the 5-step payment flow
      * This is called periodically based on paymentIntervalSecs configuration
-     * 
+     *
      * Processing Steps:
      * 1. Data Retrieval - Fetch worker balances and pending blocks from Redis
      * 2. Block Validation - Verify block transactions and handle duplicates/bad blocks
@@ -202,7 +202,7 @@ class PaymentProcessor {
     /**
      * Step 1: Retrieve worker balances and pending blocks from Redis
      * Also handles duplicate block detection and resolution
-     * 
+     *
      * @returns {Object} Object containing workers and rounds data
      * @returns {Object} workers - Worker addresses mapped to their balances
      * @returns {Array} rounds - Array of pending block objects sorted by height
@@ -275,13 +275,13 @@ class PaymentProcessor {
     /**
      * Step 2: Validate blocks by querying transaction details from daemon
      * Implements bad block retry mechanism and categorizes blocks for processing
-     * 
+     *
      * Block Categories:
      * - 'generate': Confirmed blocks ready for payment
      * - 'immature': Blocks awaiting sufficient confirmations
      * - 'orphan': Blocks that became orphaned (shares redistributed)
      * - 'kicked': Invalid blocks to be removed
-     * 
+     *
      * @param {Array} rounds - Array of round objects to validate
      * @returns {Array} Filtered array of valid rounds
      */
@@ -368,12 +368,12 @@ class PaymentProcessor {
     /**
      * Step 3: Calculate rewards for workers based on their shares
      * Implements PPLNT (Pay Per Last N Time) if enabled and validates pool balance
-     * 
+     *
      * PPLNT Logic:
      * - Only counts shares submitted within the qualifying time period
      * - Qualifying time = block_time * pplntTimeQualify (default 51%)
      * - Prevents pool hopping by requiring recent activity
-     * 
+     *
      * @param {Object} workers - Worker data with balances
      * @param {Array} rounds - Validated rounds array
      * @returns {Object} Object with updated workers and rounds
@@ -467,7 +467,7 @@ class PaymentProcessor {
     /**
      * Step 4: Execute payments to miners using daemon's sendmany RPC
      * Aggregates payments by address, validates addresses, and creates payment records
-     * 
+     *
      * @param {Object} workers - Worker data with calculated rewards
      * @returns {Object} Object with updated workers and Redis commands for payment records
      * @returns {Object} workersWithPayments - Updated worker data with payment status
@@ -551,12 +551,12 @@ class PaymentProcessor {
     /**
      * Step 5: Update Redis with payment results and block status changes
      * Handles orphaned block share redistribution and critical error recovery
-     * 
+     *
      * Block Status Transitions:
      * - 'kicked'/'orphan' → moved to blocksKicked set
      * - 'generate' → moved to blocksConfirmed set, shares deleted
      * - 'immature' → confirmation count updated
-     * 
+     *
      * @param {Object} workers - Worker data with payment results
      * @param {Array} rounds - Processed rounds with final categories
      * @param {Array} paymentsUpdate - Additional Redis commands for payments
@@ -637,7 +637,6 @@ class PaymentProcessor {
         }
     }
 
-
     /**
      * Cache current network statistics in Redis for website display
      * Retrieves blockchain and network data for pool statistics page
@@ -665,7 +664,7 @@ class PaymentProcessor {
     /**
      * List unspent transaction outputs and calculate balance
      * Used for determining available funds in transparent addresses
-     * 
+     *
      * @param {String} address - Specific address to check (optional)
      * @param {String} notAddress - Address to exclude from balance calculation
      * @param {Number} minConf - Minimum confirmations required
@@ -688,13 +687,11 @@ class PaymentProcessor {
         return util.coinsToSatoshis(balance, this.magnitude);
     }
 
-
-
     /**
      * Validate miner address and return proper address for payments
      * Handles address validation and fallback to pool address for invalid addresses
      * Supports Verus address validation and mining key extraction
-     * 
+     *
      * @param {String} address - Worker address to validate (may include mining key)
      * @returns {String} Valid address for payments
      */
@@ -710,9 +707,9 @@ class PaymentProcessor {
     /**
      * Execute single daemon RPC command with promise wrapper
      * Converts callback-based daemon interface to async/await compatible promises
-     * 
+     *
      * @param {String} command - RPC command name
-     * @param {Array} params - Command parameters  
+     * @param {Array} params - Command parameters
      * @returns {Promise} Command result or rejection on error
      */
     cmd(command, params) {
@@ -730,7 +727,7 @@ class PaymentProcessor {
     /**
      * Execute multiple daemon RPC commands in a single batch
      * Optimizes performance by reducing network round trips for bulk operations
-     * 
+     *
      * @param {Array} batch - Array of RPC command objects
      * @returns {Promise} Array of command results or rejection on error
      */

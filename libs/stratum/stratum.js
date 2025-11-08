@@ -29,7 +29,6 @@ const fs = require('fs');
 const EventEmitter = require('events');
 const util = require('../utils/util.js');
 
-
 /**
  * Creates a subscription counter that generates unique subscription IDs for Stratum clients.
  * Each ID is based on a fixed base string combined with the pool ID and an incrementing counter.

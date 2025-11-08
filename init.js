@@ -208,7 +208,6 @@ const portalConfig = JSON.parse(JSON.minify(fs.readFileSync('config.json', { enc
  */
 let poolConfigs;
 
-
 /**
  * Application logger instance. Wraps console and provides leveled logging.
  * Configured from `portalConfig`.
@@ -223,7 +222,7 @@ const logger = new PoolLogger({
  * Optional New Relic APM integration for application performance monitoring.
  * This is a best-effort initialization - if the newrelic module is not installed
  * or configured, the application will continue without monitoring.
- * 
+ *
  * @see {@link https://newrelic.com/} New Relic APM documentation
  */
 try {
@@ -235,22 +234,21 @@ try {
     // Silently ignore - New Relic is optional
 }
 
-
 /**
  * System resource optimization: attempt to increase file descriptor limits
  * to handle up to 100,000 concurrent connections. This is critical for mining
  * pools that need to support thousands of miners simultaneously.
- * 
+ *
  * The process involves:
  * 1. Loading the POSIX module (if available)
  * 2. Setting soft and hard limits for file descriptors ('nofile')
  * 3. Dropping root privileges if started with sudo
- * 
+ *
  * This is a best-effort optimization and gracefully degrades if:
  * - The POSIX module is not installed
  * - The process lacks sufficient privileges
  * - The system doesn't support the requested limits
- * 
+ *
  * @see {@link https://nodejs.org/api/process.html#process_process_setuid_id} Process setuid documentation
  */
 try {
@@ -278,7 +276,7 @@ try {
 
 /**
  * Worker Process Initialization
- * 
+ *
  * When this file is executed in a clustered worker process (via cluster.fork),
  * the `process.env.workerType` environment variable defines which specific
  * worker logic should be executed. The master process spawns different types
@@ -288,17 +286,17 @@ try {
  * - 'pool': Handles stratum protocol connections, miner authentication,
  *   job distribution, and share validation. Multiple pool workers can run
  *   in parallel to handle high connection loads.
- * 
+ *
  * - 'paymentProcessor': Dedicated worker for calculating miner payouts,
  *   processing payment transactions, and updating balances. Runs as a
  *   single background process.
- * 
+ *
  * - 'website': Serves the web interface, API endpoints, and real-time
  *   statistics. Handles HTTP requests from miners and administrators.
- * 
+ *
  * Each worker type runs independently and communicates with the master
  * process and other workers through Redis and IPC messaging.
- * 
+ *
  * @see {@link https://nodejs.org/api/cluster.html} Node.js Cluster documentation
  */
 if (cluster.isWorker) {
@@ -319,7 +317,6 @@ if (cluster.isWorker) {
     // Worker should not execute master orchestration code below.
     return;
 }
-
 
 /**
  * Read all pool configuration JSON files under `pool_configs/`, validate them,
@@ -346,13 +343,13 @@ const buildPoolConfigs = function () {
 
     /**
      * Phase 1: Discovery and Initial Validation
-     * 
+     *
      * Scan the pool_configs directory for JSON configuration files and perform
      * initial filtering. Only files that:
      * - Have a .json extension
      * - Actually exist on the filesystem
      * - Contain valid JSON with an 'enabled: true' property
-     * 
+     *
      * Are loaded into the poolConfigFiles array for further processing.
      */
     fs.readdirSync(configDir).forEach((file) => {
@@ -367,18 +364,17 @@ const buildPoolConfigs = function () {
         poolConfigFiles.push(poolOptions);
     });
 
-
     /**
      * Phase 2: Port Conflict Detection
-     * 
+     *
      * Validate that no two pool configurations attempt to use the same port.
      * This is critical because multiple pools cannot bind to the same network
      * port simultaneously. The validation performs an O(n²) comparison of all
      * port configurations across all enabled pools.
-     * 
+     *
      * If a conflict is detected, the application terminates immediately with
      * an error message indicating which pools have conflicting ports.
-     * 
+     *
      * @throws {Error} Terminates process if port conflicts are found
      */
     for (let i = 0; i < poolConfigFiles.length; i++) {
@@ -398,16 +394,15 @@ const buildPoolConfigs = function () {
         }
     }
 
-
     /**
      * Phase 3: Pool Configuration Processing and Validation
-     * 
+     *
      * For each enabled pool configuration file, this phase:
      * 1. Attaches coin-specific constants and normalizes the coin name
      * 2. Validates that no two pools target the same coin
      * 3. Merges in default configurations from the portal config
      * 4. Validates that the coin's algorithm is supported
-     * 
+     *
      * The processing creates a unified configuration object that combines
      * pool-specific settings with global defaults and coin constants.
      */
@@ -524,11 +519,11 @@ const spawnPoolWorkers = function () {
 
     /**
      * Pre-flight Validation and Redis Setup
-     * 
+     *
      * Before spawning worker processes, validate that each pool has at least
      * one daemon configured for blockchain communication. Pools without daemons
      * cannot function and are removed from the configuration.
-     * 
+     *
      * Additionally, establish a Redis connection for cross-process communication
      * and PPLNT (Pay Per Last N Time) share tracking. Redis is essential for
      * coordinating state between multiple pool worker processes.
@@ -558,23 +553,22 @@ const spawnPoolWorkers = function () {
         return;
     }
 
-
     const serializedConfigs = JSON.stringify(poolConfigs);
 
     /**
      * Dynamic Fork Count Calculation
-     * 
+     *
      * Determine the optimal number of pool worker processes to spawn based on
      * the clustering configuration. The logic supports several modes:
-     * 
+     *
      * - Clustering disabled: Single process mode (numForks = 1)
      * - Auto mode: One worker per CPU core for optimal resource utilization
      * - Manual mode: Use the explicitly configured fork count
      * - Invalid config: Fallback to single process mode
-     * 
+     *
      * More worker processes can handle higher connection loads but also
      * increase memory usage and IPC overhead.
-     * 
+     *
      * @returns {number} Number of pool worker processes to spawn
      */
     const numForks = (function () {
@@ -594,20 +588,20 @@ const spawnPoolWorkers = function () {
 
     /**
      * Pool Worker Creation and Management
-     * 
+     *
      * Creates a new pool worker process with the specified fork ID and sets up
      * event handlers for process lifecycle management and inter-process communication.
-     * 
+     *
      * The worker process receives:
      * - workerType: 'pool' to identify its role
      * - forkId: Unique identifier for this worker instance
      * - pools: Serialized pool configurations
      * - portalConfig: Serialized portal configuration
-     * 
+     *
      * Event Handlers:
      * - 'exit': Automatically respawn failed workers after a 2-second delay
      * - 'message': Handle IPC messages from the worker (banIP, shareTrack, etc.)
-     * 
+     *
      * @param {number} forkId - Unique identifier for this worker process
      */
     const createPoolWorker = function (forkId) {
@@ -628,7 +622,7 @@ const spawnPoolWorkers = function () {
         }).on('message', (msg) => {
             /**
              * Inter-Process Communication Message Handler
-             * 
+             *
              * Processes messages sent from pool worker processes to coordinate
              * actions across the entire pool infrastructure.
              */
@@ -698,12 +692,12 @@ const spawnPoolWorkers = function () {
 
                         /**
                          * Loyalty Detection and Time Tracking
-                         * 
+                         *
                          * Determine if the worker has been continuously mining (loyal)
                          * or if they disconnected and reconnected. The 15-minute threshold
                          * (900 seconds) distinguishes between temporary network issues
                          * and actual disconnections.
-                         * 
+                         *
                          * For loyal miners, accumulate their mining time in Redis for
                          * PPLNT payout calculations. For miners who reconnected after
                          * a long absence, reset their start time for the new session.
@@ -762,33 +756,32 @@ const spawnPoolWorkers = function () {
 
 };
 
-
 /**
  * Administrative CLI Listener
- * 
+ *
  * Starts a TCP server that listens for administrative commands, allowing
  * runtime control of the mining pool without requiring process restarts.
  * This is essential for production deployments where uptime is critical.
- * 
+ *
  * Supported Commands:
- * 
+ *
  * - blocknotify <coin> <hash>
  *   Forwards block notifications from the coin daemon to all pool workers.
  *   Typically called by daemon's blocknotify script when new blocks are found.
- * 
+ *
  * - coinswitch <coin> [switchKey]
  *   Initiates a coin switch operation for profit optimization. Can specify
  *   a particular switch configuration or let the system auto-select based
  *   on algorithm compatibility.
- * 
+ *
  * - reloadpool <coin>
  *   Instructs pool workers to reload configuration for a specific coin
  *   without requiring a full restart. Useful for updating daemon connections
  *   or pool-specific settings.
- * 
+ *
  * Security Note: The CLI listener only binds to the configured server address
  * (default: 127.0.0.1) and should not be exposed to untrusted networks.
- * 
+ *
  * @see {@link CliListener} For detailed command protocol and usage
  */
 const startCliListener = function () {
@@ -824,25 +817,24 @@ const startCliListener = function () {
     }).start();
 };
 
-
 /**
  * Coin Switch Command Processor
- * 
+ *
  * Handles the 'coinswitch' CLI command by validating parameters and
  * coordinating the switch across all pool worker processes. This function
  * serves as a validation and routing layer - the actual mining target
  * switch logic is implemented within individual pool worker processes.
- * 
+ *
  * Command Validation:
  * - Ensures required coin name is provided
  * - Validates switch key exists in portal configuration (if specified)
  * - Verifies algorithm compatibility between current pools and target coin
  * - Confirms target coin is actually configured and enabled
- * 
+ *
  * Switch Modes:
  * 1. Explicit Switch Key: Use a pre-configured switch profile by name
  * 2. Algorithm-based: Auto-select switch profiles matching the algorithm
- * 
+ *
  * The switch message is broadcast to all pool workers, which will then
  * coordinate the actual mining target change, difficulty adjustments,
  * and miner notifications.
@@ -859,7 +851,7 @@ const processCoinSwitchCommand = function (params, options, reply) {
     /**
      * Unified error handling for CLI responses.
      * Sends error message to CLI client and logs it for debugging.
-     * 
+     *
      * @param {string} msg - Error message to send and log
      */
     const replyError = function (msg) {
@@ -911,7 +903,6 @@ const processCoinSwitchCommand = function (params, options, reply) {
         return;
     }
 
-
     /**
      * Switch Profile Selection
      * Determine which switch profiles to activate based on the command mode:
@@ -959,29 +950,27 @@ const processCoinSwitchCommand = function (params, options, reply) {
 
 };
 
-
-
 /**
  * Payment Processor Worker Management
- * 
+ *
  * Spawns a dedicated payment processor worker if any pool has payment
  * processing enabled. The payment processor is responsible for:
- * 
+ *
  * - Calculating miner payouts based on share contributions and PPLNT data
- * - Generating and sending cryptocurrency transactions to miner wallets  
+ * - Generating and sending cryptocurrency transactions to miner wallets
  * - Managing payment thresholds and scheduling
  * - Handling payment failures and retry logic
  * - Updating balance records and payment history
- * 
+ *
  * The payment processor runs as a single background worker to ensure
  * transaction consistency and avoid double-payments. It periodically
  * processes payouts according to the configured schedule.
- * 
+ *
  * Process Lifecycle:
  * - Only spawns if at least one pool has payment processing enabled
  * - Automatically respawns if the worker process crashes
  * - Receives serialized pool configurations for payment settings
- * 
+ *
  * @see {@link PaymentProcessor} For detailed payment processing logic
  */
 const startPaymentProcessor = function () {
@@ -1021,28 +1010,27 @@ const startPaymentProcessor = function () {
     });
 };
 
-
 /**
  * Website Worker Management
- * 
+ *
  * Spawns the web interface worker when website functionality is enabled
  * in the portal configuration. The website worker provides:
- * 
+ *
  * - Public-facing web interface for miners and administrators
  * - RESTful API endpoints for pool statistics and miner data
  * - Real-time WebSocket connections for live updates
  * - Administrative dashboard for pool management
  * - Mobile-responsive interface for monitoring on-the-go
- * 
+ *
  * The website worker runs independently from pool workers to ensure
  * web interface availability even during high mining loads or pool
  * worker restarts.
- * 
+ *
  * Configuration:
  * - Receives both pool configurations and portal settings
  * - Website-specific settings (ports, SSL, etc.) from portalConfig
  * - Pool data for statistics and monitoring displays
- * 
+ *
  * @see {@link Website} For web server implementation details
  */
 const startWebsite = function () {
@@ -1071,40 +1059,40 @@ const startWebsite = function () {
 
 /**
  * Application Bootstrap and Initialization
- * 
+ *
  * Main entry point that orchestrates the complete mining pool startup sequence.
  * This IIFE (Immediately Invoked Function Expression) executes the initialization
  * in a carefully ordered sequence to ensure proper system startup.
- * 
+ *
  * Initialization Sequence:
- * 
+ *
  * 1. **Pool Configuration Loading** (`buildPoolConfigs`)
  *    - Scans pool_configs/ directory for enabled pool definitions
- *    - Validates port conflicts and coin name uniqueness  
+ *    - Validates port conflicts and coin name uniqueness
  *    - Merges pool-specific settings with portal defaults
  *    - Filters out pools with unsupported algorithms
- * 
+ *
  * 2. **Pool Worker Spawning** (`spawnPoolWorkers`)
  *    - Establishes Redis connection for cross-process communication
  *    - Calculates optimal worker count based on clustering configuration
  *    - Spawns multiple pool worker processes to handle miner connections
  *    - Sets up IPC handlers for worker coordination (bans, share tracking)
- * 
+ *
  * 3. **Background Service Startup**
  *    - Payment Processor: Handles automated miner payouts (if enabled)
- *    - Website: Serves web interface and API endpoints (if enabled)  
+ *    - Website: Serves web interface and API endpoints (if enabled)
  *    - Profit Switcher: Automated profit optimization (if enabled)
- * 
+ *
  * 4. **CLI Listener** (`startCliListener`)
  *    - Enables runtime administration via TCP commands
  *    - Supports block notifications, coin switching, pool reloading
- * 
+ *
  * This initialization approach ensures:
  * - Dependencies are available before dependent services start
  * - Core mining functionality is prioritized over auxiliary features
  * - Failed initialization steps prevent potentially problematic partial startup
  * - All worker processes have access to validated configurations
- * 
+ *
  * @see {@link buildPoolConfigs} Pool configuration validation and loading
  * @see {@link spawnPoolWorkers} Worker process management and IPC setup
  */

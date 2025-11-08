@@ -41,7 +41,6 @@ function extractChunks(type, chunks, script) {
             signatures = chunks.slice(0, 1);
             break;
 
-
     }
 
     return {
@@ -213,8 +212,6 @@ function expandOutput(script, scriptType, ourPubKey) {
         case scriptTypes.P2PK:
             pubKeys = scriptChunks.slice(0, 1);
             break;
-
-
 
         default: return { scriptType: scriptType };
     }

@@ -3,33 +3,36 @@ export default [
     files: ['**/*.js'],
     ignores: ['website/static/scripts/*.js'],
     languageOptions: {
-      'ecmaVersion': 2022,
-      'sourceType': 'commonjs',
+      'ecmaVersion': 2025,
       'globals': {
-        'console': 'readonly',
-        'process': 'readonly',
-        'Buffer': 'readonly',
         '__dirname': 'readonly',
         '__filename': 'readonly',
-        'require': 'readonly',
-        'module': 'readonly',
-        'exports': 'readonly',
+        'algos': 'readonly',
         'BigInt': 'readonly',
-        'algos': 'readonly'
+        'Buffer': 'readonly',
+        'console': 'readonly',
+        'exports': 'readonly',
+        'module': 'readonly',
+        'process': 'readonly',
+        'require': 'readonly'
       },
+      'sourceType': 'commonjs'
     },
     'rules': {
       'brace-style': ['error', '1tbs'],
       'curly': ['error', 'all'],
+      "eol-last": 1,
       'indent': ['error', 4, { 'SwitchCase': 1 }],
-      'no-var': 'error',
-      'prefer-const': 'error',
-      'quotes': ['error', 'single', { 'allowTemplateLiterals': true }],
-      'prefer-template': 'error',
-      'prefer-arrow-callback': 'error',
-      'semi': ['error', 'always'],
+      'no-multiple-empty-lines': ['error', { 'max': 1 }],
+      'no-prototype-builtins': 'off',
       'no-throw-literal': 'off',
-      'no-prototype-builtins': 'off'
+      'no-trailing-spaces': 1,
+      'no-var': 'error',
+      'prefer-arrow-callback': 'error',
+      'prefer-const': 'error',
+      'prefer-template': 'error',
+      'quotes': ['error', 'single', { 'allowTemplateLiterals': true }],
+      'semi': ['error', 'always']
     },
   },
 ];

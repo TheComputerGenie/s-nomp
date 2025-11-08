@@ -298,7 +298,7 @@ class Website {
                 let bodyRaw = '';
                 req.setEncoding('utf8');
                 req.on('data', (c) => {
-                    bodyRaw += c; 
+                    bodyRaw += c;
                 });
                 req.on('end', () => {
                     let parsed = {};

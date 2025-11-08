@@ -25,12 +25,12 @@ const os = require('os');
  */
 /**
  * GET /stats endpoint - Returns comprehensive pool statistics
- * 
+ *
  * This endpoint provides real-time statistics about the mining pool's current state,
  * including active client connections, cumulative performance counters, and timestamps
  * of recent events. This data is typically consumed by monitoring dashboards,
  * administrative interfaces, or automated alerting systems.
- * 
+ *
  * @route GET /stats
  * @returns {Object} JSON response containing pool statistics
  * @returns {number} returns.clients - Number of currently connected mining clients
@@ -42,7 +42,7 @@ const os = require('os');
  * @returns {number} returns.lastEvents.lastValidShare - Last valid share timestamp
  * @returns {number} returns.lastEvents.lastValidBlock - Last valid block timestamp
  * @returns {number} returns.lastEvents.lastInvalidShare - Last invalid share timestamp
- * 
+ *
  * @example
  * // Example response:
  * {
@@ -113,15 +113,14 @@ class WorkerAPI {
         };
     }
 
-
     /**
      * Initializes and starts the Worker API HTTP server
-     * 
+     *
      * This method establishes the connection between the Worker API and the main pool object,
      * sets up event listeners for share processing, and starts the HTTP server once the pool
      * is ready. The API server will begin accepting requests and tracking statistics after
      * the pool emits the 'started' event.
-     * 
+     *
     * @param {Object} poolObj - Pool object (EventEmitter) that emits 'started' and 'share'
     * @param {Object} poolObj.stratumServer - Stratum server instance for client management
     * @param {Function} poolObj.stratumServer.getStratumClients - Returns active client connections
@@ -175,11 +174,11 @@ class WorkerAPI {
 
 /**
  * Export the WorkerAPI constructor function
- * 
+ *
  * This module exports the workerapi constructor function which can be used to create
  * new instances of the Worker API server. Each instance manages its own HTTP server
  * and statistics tracking for a specific pool.
- * 
+ *
  * @module WorkerAPI
  * @exports {Function} workerapi - Constructor function for creating Worker API instances
  */

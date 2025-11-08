@@ -1,19 +1,19 @@
 /**
  * @fileoverview Job Manager for Stratum Mining Pool
- * 
+ *
  * This module manages mining jobs for a stratum mining pool, handling:
  * - Job creation and distribution to miners
  * - Share validation and processing
  * - Block template management
  * - Duplicate submission detection
  * - Support for various mining algorithms (particularly VerusHash and Equihash)
- * 
+ *
  * The JobManager is responsible for:
  * 1. Creating unique jobs from blockchain templates
  * 2. Validating miner submissions
  * 3. Detecting valid blocks
  * 4. Managing job lifecycle and cleanup
- * 
+ *
  * @author Pool Development Team
  * @version 1.0.0
  */
@@ -32,12 +32,12 @@ const vh = require('../verushash/build/Release/verushash.node');
 /**
  * Equihash parameter mapping for different algorithm configurations.
  * Maps algorithm parameters (N_K format) to solution properties.
- * 
+ *
  * @constant {Object} EH_PARAMS_MAP
  * @property {Object} 144_5 - Parameters for N=144, K=5
  * @property {number} 144_5.SOLUTION_LENGTH - Expected solution length in bytes
  * @property {number} 144_5.SOLUTION_SLICE - Starting position for solution data
- * @property {Object} 192_7 - Parameters for N=192, K=7  
+ * @property {Object} 192_7 - Parameters for N=192, K=7
  * @property {Object} 200_9 - Parameters for N=200, K=9 (Zcash standard)
  */
 const EH_PARAMS_MAP = {
@@ -57,11 +57,11 @@ const EH_PARAMS_MAP = {
 
 /**
  * Generates unique extra nonce values for each mining subscriber.
- * 
+ *
  * The extra nonce is used to ensure each miner has a unique search space,
  * preventing duplicate work across miners. Uses instance ID and counter
  * to guarantee uniqueness across pool restarts.
- * 
+ *
  * @class ExtraNonceCounter
  * @param {number} [configInstanceId] - Optional instance ID for the pool
  */
@@ -74,7 +74,7 @@ const ExtraNonceCounter = function (configInstanceId) {
 
     /**
      * Generates the next unique extra nonce value.
-     * 
+     *
      * @method next
      * @returns {string} Hex-encoded extra nonce (8 characters)
      */
@@ -89,11 +89,11 @@ const ExtraNonceCounter = function (configInstanceId) {
 
 /**
  * Generates unique job identifiers for each block template.
- * 
+ *
  * Each mining job needs a unique identifier so miners can reference
  * their work when submitting shares. The counter wraps around to prevent
  * overflow and ensure continued operation.
- * 
+ *
  * @class JobCounter
  */
 const JobCounter = function () {
@@ -102,7 +102,7 @@ const JobCounter = function () {
 
     /**
      * Generates the next unique job ID and increments counter.
-     * 
+     *
      * @method next
      * @returns {string} Hex-encoded job ID
      */
@@ -117,7 +117,7 @@ const JobCounter = function () {
 
     /**
      * Returns the current job ID without incrementing.
-     * 
+     *
      * @method cur
      * @returns {string} Current hex-encoded job ID
      */
@@ -127,7 +127,7 @@ const JobCounter = function () {
 };
 /**
  * Validates if a string contains only valid hexadecimal characters.
- * 
+ *
  * @function isHexString
  * @param {string} s - String to validate
  * @returns {boolean} True if string is valid hex, false otherwise
@@ -152,7 +152,7 @@ function isHexString(s) {
 
 /**
  * Validates if a 2-character string is valid hexadecimal.
- * 
+ *
  * @function isHex
  * @param {string} c - 2-character string to validate
  * @returns {boolean} True if valid hex pair, false otherwise
@@ -175,17 +175,17 @@ function isHex(c) {
 
 /**
  * Main JobManager class that handles mining job creation, distribution, and share validation.
- * 
+ *
  * The JobManager is the core component responsible for:
  * - Creating mining jobs from blockchain templates
  * - Distributing jobs to connected miners
  * - Validating submitted shares
  * - Detecting and processing found blocks
  * - Managing job lifecycle and cleanup
- * 
+ *
  * @class JobManager
  * @extends EventEmitter
- * 
+ *
  * @param {Object} options - Configuration options for the job manager
  * @param {Object} options.coin - Coin configuration including algorithm settings
  * @param {string} options.coin.algorithm - Mining algorithm (e.g., 'verushash', 'equihash')
@@ -197,11 +197,11 @@ function isHex(c) {
  * @param {boolean} [options.acceptOldJobShares=false] - Whether to accept shares for expired jobs
  * @param {boolean} [options.acceptLowDiffShares=false] - Whether to accept low-difficulty shares
  * @param {boolean} [options.emitInvalidBlockHashes=false] - Whether to emit hashes for invalid blocks
- * 
+ *
  * @fires JobManager#newBlock - Emitted when a new block template is received
- * @fires JobManager#updatedBlock - Emitted when an existing block template is updated  
+ * @fires JobManager#updatedBlock - Emitted when an existing block template is updated
  * @fires JobManager#share - Emitted when a worker submits a share (valid or invalid)
- * 
+ *
  * @example
  * const jobManager = new JobManager({
  *   coin: { algorithm: 'verushash', parameters: { N: 200, K: 9 } },
@@ -226,12 +226,12 @@ const JobManager = module.exports = function JobManager(options) {
 
     // Public members
 
-    /** 
+    /**
      * @public {ExtraNonceCounter} extraNonceCounter - Generates unique extra nonces for miners
      */
     this.extraNonceCounter = new ExtraNonceCounter(options.instanceId);
 
-    /** 
+    /**
      * @public {Object} currentJob - Currently active block template job
      * @property {string} jobId - Unique identifier for this job
      * @property {Object} rpcData - Raw data from blockchain RPC
@@ -239,12 +239,12 @@ const JobManager = module.exports = function JobManager(options) {
      */
     this.currentJob;
 
-    /** 
+    /**
      * @public {Object.<string, Object>} validJobs - Map of active job IDs to job objects
      */
     this.validJobs = {};
 
-    /** 
+    /**
      * @public {number} lastCleanJob - Timestamp of last clean job sent to miners
      */
     this.lastCleanJob = Date.now();
@@ -257,7 +257,7 @@ const JobManager = module.exports = function JobManager(options) {
     /**
      * Cache for recently processed getblocktemplate keys to dedupe RPC responses.
      * Maps "previousblockhash_curtime" -> timestamp to avoid processing identical templates.
-     * 
+     *
      * @private {Map<string, number>} processedGbtKeys
      */
     const processedGbtKeys = new Map();
@@ -267,10 +267,10 @@ const JobManager = module.exports = function JobManager(options) {
 
     /**
      * Checks if RPC data has already been processed recently.
-     * 
+     *
      * This prevents duplicate processing of identical block templates
      * that may be received from multiple RPC calls or daemon notifications.
-     * 
+     *
      * @method isRpcDataProcessed
      * @param {Object} rpcData - Block template data from RPC call
      * @param {string} rpcData.previousblockhash - Hash of previous block
@@ -301,8 +301,8 @@ const JobManager = module.exports = function JobManager(options) {
 
     /**
      * Marks RPC data as processed to prevent duplicate handling.
-     * 
-     * @method markRpcDataProcessed  
+     *
+     * @method markRpcDataProcessed
      * @param {Object} rpcData - Block template data from RPC call
      * @param {string} rpcData.previousblockhash - Hash of previous block
      * @param {number} rpcData.curtime - Current blockchain time
@@ -316,7 +316,7 @@ const JobManager = module.exports = function JobManager(options) {
         processedGbtKeys.set(key, Date.now());
     };
 
-    /** 
+    /**
      * @private {Function} hashDigest - Algorithm-specific hash validation function
      */
     const hashDigest = algos[options.coin.algorithm].hash(options.coin);
@@ -324,7 +324,7 @@ const JobManager = module.exports = function JobManager(options) {
     /**
      * Algorithm-specific coinbase transaction hasher.
      * Most algorithms use double SHA256 for coinbase hashing.
-     * 
+     *
      * @private {Function} coinbaseHasher - Function to hash coinbase transactions
      */
     const coinbaseHasher = (function () {
@@ -337,7 +337,7 @@ const JobManager = module.exports = function JobManager(options) {
     /**
      * Algorithm-specific block header hasher.
      * Different algorithms may require different hashing approaches.
-     * 
+     *
      * @private {Function} blockHasher - Function to hash block headers
      */
     const blockHasher = (function () {
@@ -357,11 +357,11 @@ const JobManager = module.exports = function JobManager(options) {
 
     /**
      * Updates the current job with new RPC data without full reprocessing.
-     * 
+     *
      * This method creates a new block template and applies it as an update,
      * which is more efficient than full template processing when only
      * minor changes have occurred.
-     * 
+     *
      * @method updateCurrentJob
      * @param {Object} rpcData - New block template data from blockchain RPC
      * @param {string} rpcData.previousblockhash - Hash of previous block
@@ -387,18 +387,18 @@ const JobManager = module.exports = function JobManager(options) {
 
     /**
      * Helper function to apply an update using a prepared BlockTemplate instance.
-     * 
+     *
      * This function determines whether a clean job is needed based on changes
      * in critical block template data. Clean jobs force miners to restart their
      * work, so they should only be sent when necessary.
-     * 
+     *
      * A clean job is required when:
      * - Previous block hash changes (new block found)
      * - Merkle root changes (transactions updated)
      * - Sapling root hash changes (shielded transactions)
      * - Difficulty target changes
      * - Solution version changes (protocol updates)
-     * 
+     *
      * @private
      * @function applyUpdateFromTemplate
      * @param {Object} tmpBlockTemplate - Prepared block template to apply
@@ -445,17 +445,17 @@ const JobManager = module.exports = function JobManager(options) {
 
     /**
      * Processes a new block template from the blockchain daemon.
-     * 
+     *
      * This is the main entry point for handling new block templates. It determines
      * whether the template represents a new block, an update to existing block,
      * or should be ignored. The function handles deduplication and manages the
      * job lifecycle appropriately.
-     * 
+     *
      * @method processTemplate
      * @param {Object} rpcData - Block template data from getblocktemplate RPC call
      * @param {number} rpcData.height - Block height
      * @param {string} rpcData.previousblockhash - Hash of previous block
-     * @param {number} rpcData.curtime - Current blockchain time  
+     * @param {number} rpcData.curtime - Current blockchain time
      * @param {string} rpcData.bits - Difficulty target in compact format
      * @param {Array} rpcData.transactions - List of transactions to include
      * @param {string} [rpcData.solution] - Solution format version for Zcash-based coins
@@ -536,7 +536,7 @@ const JobManager = module.exports = function JobManager(options) {
 
     /**
      * Processes and validates a submitted share from a miner.
-     * 
+     *
      * This is the core share validation function that:
      * 1. Validates the submission format and parameters
      * 2. Checks for duplicate submissions
@@ -544,7 +544,7 @@ const JobManager = module.exports = function JobManager(options) {
      * 4. Determines if the share qualifies as a block
      * 5. Calculates share difficulty and rewards
      * 6. Emits appropriate events for logging and processing
-     * 
+     *
      * @method processShare
      * @param {string} jobId - Unique identifier for the mining job
      * @param {number} previousDifficulty - Previous difficulty (for vardiff transitions)
@@ -566,7 +566,7 @@ const JobManager = module.exports = function JobManager(options) {
         /**
          * Helper function to handle share errors consistently.
          * Emits share event with error details and returns standardized error response.
-         * 
+         *
          * @private
          * @function shareError
          * @param {Array} error - Error array containing [code, message]
@@ -648,7 +648,7 @@ const JobManager = module.exports = function JobManager(options) {
         if (!parameters) {
             parameters = {
                 N: 200,    // Memory parameter
-                K: 9,      // Time parameter  
+                K: 9,      // Time parameter
                 personalization: 'ZcashPoW'
             };
         }
@@ -862,7 +862,7 @@ const JobManager = module.exports = function JobManager(options) {
         // This event is consumed by statistics, payment processors, and logging systems
         _this.emit('share', {
             job: jobId,                                    // Job identifier
-            ip: ipAddress,                                 // Miner IP address  
+            ip: ipAddress,                                 // Miner IP address
             port: port,                                    // Connection port
             worker: workerName,                            // Worker/miner name
             height: job.rpcData.height,                    // Block height
@@ -884,7 +884,7 @@ const JobManager = module.exports = function JobManager(options) {
 /**
  * Set up JobManager to inherit from EventEmitter.
  * This allows the JobManager to emit events that other components can listen to.
- * 
+ *
  * Events emitted:
  * - 'newBlock': When a completely new block template is received
  * - 'updatedBlock': When an existing block template is updated

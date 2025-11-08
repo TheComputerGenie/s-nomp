@@ -1,7 +1,6 @@
 // var cluster = require('cluster');
 const vh = require('./index.js');
 
-
 const reverseHex = function (hex) {
     return Buffer.from(hex, 'hex').reverse().toString('hex');
 };

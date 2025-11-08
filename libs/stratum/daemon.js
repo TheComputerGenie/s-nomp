@@ -4,15 +4,15 @@ const events = require('events');
 
 /**
  * @fileoverview Daemon Interface for cryptocurrency RPC communication
- * 
+ *
  * This module provides a comprehensive interface for communicating with cryptocurrency
  * daemons via JSON-RPC protocol. It supports multiple daemon instances for redundancy
  * and load balancing, handles connection failures gracefully, and provides both
  * individual and batch RPC command execution.
- * 
+ *
  * The interface extends EventEmitter to provide event-driven communication patterns
  * for connection status changes and daemon state monitoring.
- * 
+ *
  * @author NOMP Pool Software
  * @version 1.0.0
  */
@@ -24,17 +24,17 @@ const events = require('events');
  * The daemon interface interacts with cryptocurrency daemons using the JSON-RPC interface.
  * It manages multiple daemon connections for redundancy, handles authentication,
  * and provides methods for executing both single and batch RPC commands.
- * 
+ *
  * @param {Array<Object>} daemons - Array of daemon configuration objects
  * @param {string} daemons[].host - Hostname where the daemon is running (defaults to '127.0.0.1')
  * @param {number} daemons[].port - Port where the daemon accepts RPC connections
  * @param {string} daemons[].user - Username for RPC authentication
  * @param {string} daemons[].password - Password for RPC authentication
  * @param {Function} [logger] - Optional logging function for debugging and error reporting
- * 
+ *
  * @fires DaemonInterface#online - Emitted when all daemons come online
  * @fires DaemonInterface#connectionFailed - Emitted when daemon connection fails
- * 
+ *
  * @example
  * const daemons = [{
  *   host: 'localhost',
@@ -42,10 +42,10 @@ const events = require('events');
  *   user: 'rpcuser',
  *   password: 'rpcpass'
  * }];
- * 
+ *
  * const daemonInterface = new DaemonInterface(daemons, console.log);
  * daemonInterface.init();
- * 
+ *
  * daemonInterface.on('online', () => {
  *   console.log('All daemons are online');
  * });
@@ -92,9 +92,9 @@ function DaemonInterface(daemons, logger) {
      * Emits an 'online' event if all daemons are successfully connected and responsive.
      * This method should be called after creating a DaemonInterface instance to establish
      * initial connection status.
-     * 
+     *
      * @fires DaemonInterface#online - When all daemons are online and responsive
-     * 
+     *
      * @example
      * const daemonInterface = new DaemonInterface(daemons);
      * daemonInterface.init();
@@ -115,12 +115,12 @@ function DaemonInterface(daemons, logger) {
      * Checks if all configured daemon instances are online and responsive by sending
      * a 'getinfo' RPC command to each daemon. This is a health check mechanism to
      * verify daemon connectivity and responsiveness.
-     * 
+     *
      * @param {Function} callback - Callback function to handle the online status result
      * @param {boolean} callback.online - True if all daemons are online, false otherwise
-     * 
+     *
      * @fires DaemonInterface#connectionFailed - When one or more daemons fail to respond
-     * 
+     *
      * @example
      * daemonInterface.isOnline((online) => {
      *   if (online) {
@@ -155,7 +155,7 @@ function DaemonInterface(daemons, logger) {
      * Performs an HTTP POST request to a specific daemon instance using JSON-RPC protocol.
      * Handles authentication, timeout management, error parsing, and response processing.
      * This is the core communication method for all RPC interactions with daemons.
-     * 
+     *
      * @param {Object} instance - Daemon instance configuration object
      * @param {string} instance.host - Daemon hostname or IP address
      * @param {number} instance.port - Daemon RPC port number
@@ -168,14 +168,14 @@ function DaemonInterface(daemons, logger) {
      * @param {Object} callback.result - Parsed JSON response from daemon
      * @param {string} callback.data - Raw response data string
      * @param {number} [timeout=60] - Request timeout in seconds
-     * 
+     *
      * @example
      * const jsonRequest = JSON.stringify({
      *   method: 'getinfo',
      *   params: [],
      *   id: 1
      * });
-     * 
+     *
      * performHttpRequest(instance, jsonRequest, (error, result, data) => {
      *   if (error) {
      *     console.error('RPC request failed:', error);
@@ -211,7 +211,7 @@ function DaemonInterface(daemons, logger) {
          * Parses the JSON response from the daemon and handles various error conditions.
          * Includes special handling for NaN values that some daemons may return and
          * comprehensive error logging for debugging purposes.
-         * 
+         *
          * @param {http.IncomingMessage} res - HTTP response object
          * @param {string} data - Raw response data from daemon
          */
@@ -298,24 +298,24 @@ function DaemonInterface(daemons, logger) {
      * Performs a batch JSON-RPC command execution using only the first configured daemon.
      * This method allows multiple RPC commands to be sent in a single HTTP request,
      * which is more efficient than individual requests for multiple operations.
-     * 
+     *
      * **Note:** This method only uses the first daemon instance (instances[0]) for
      * batch operations, unlike the regular cmd() method which uses all instances.
-     * 
+     *
      * @param {Array<Array>} cmdArray - Array of command arrays in format:
      *   [[methodName, [params]], [methodName, [params]], ...]
      * @param {Function} callback - Callback function to handle the batch response
      * @param {Object|null} callback.error - Error object if batch request failed
      * @param {Array|Object} callback.result - Array of results corresponding to each command
      * @param {number} [timeout] - Request timeout in seconds (defaults to 60)
-     * 
+     *
      * @example
      * const commands = [
      *   ['getinfo', []],
      *   ['getblockcount', []],
      *   ['getmininginfo', []]
      * ];
-     * 
+     *
      * daemonInterface.batchCmd(commands, (error, results) => {
      *   if (error) {
      *     console.error('Batch command failed:', error);
@@ -355,10 +355,10 @@ function DaemonInterface(daemons, logger) {
      * Sends a JSON-RPC command to every configured daemon instance. This method provides
      * redundancy and load distribution by executing the same command across multiple daemons.
      * Supports both batch result collection and streaming results for real-time processing.
-     * 
+     *
      * The method follows the JSON-RPC 2.0 specification (http://json-rpc.org/wiki/specification)
      * and handles response aggregation from multiple daemon instances.
-     * 
+     *
      * @param {string} method - The RPC method name to execute (e.g., 'getinfo', 'getblockcount')
      * @param {Array} params - Array of parameters to pass to the RPC method
      * @param {Function} callback - Callback function to handle results
@@ -369,7 +369,7 @@ function DaemonInterface(daemons, logger) {
      * @param {string} [callback.results[].data] - Raw response data (if returnRawData is true)
      * @param {boolean} [streamResults=false] - If true, callback is called for each daemon response individually
      * @param {boolean} [returnRawData=false] - If true, includes raw response data in the result object
-     * 
+     *
      * @example
      * // Basic usage - get info from all daemons
      * daemonInterface.cmd('getinfo', [], (results) => {
@@ -381,13 +381,13 @@ function DaemonInterface(daemons, logger) {
      *     }
      *   });
      * });
-     * 
+     *
      * @example
      * // Streaming results - process each daemon response as it arrives
      * daemonInterface.cmd('getblockcount', [], (result) => {
      *   console.log(`Block count from daemon ${result.instance.index}:`, result.response);
      * }, true);
-     * 
+     *
      * @example
      * // With raw data - useful for debugging or custom parsing
      * daemonInterface.cmd('getmininginfo', [], (results) => {
@@ -410,7 +410,7 @@ function DaemonInterface(daemons, logger) {
              * Handles the completion of a single daemon request. Formats the response
              * object and either streams it immediately or adds it to the results array.
              * Uses a closure pattern to prevent multiple callbacks on the same request.
-             * 
+             *
              * @param {Object|null} error - Error object from the daemon request
              * @param {Object} result - Parsed JSON-RPC response object
              * @param {string} data - Raw response data string
@@ -508,7 +508,7 @@ function DaemonInterface(daemons, logger) {
  * Extend DaemonInterface with EventEmitter capabilities to support event-driven architecture.
  * This allows the daemon interface to emit events for connection status changes and other
  * important state transitions that applications can listen for and respond to appropriately.
- * 
+ *
  * Available events:
  * - 'online': Emitted when all daemons come online during initialization
  * - 'connectionFailed': Emitted when daemon connectivity check fails
@@ -521,17 +521,17 @@ DaemonInterface.prototype.__proto__ = events.EventEmitter.prototype;
  * Export the DaemonInterface class as the main interface for this module.
  * Applications should use this class to create instances for communicating with
  * cryptocurrency daemons via JSON-RPC protocol.
- * 
+ *
  * @example
  * const { interface: DaemonInterface } = require('./daemon');
- * 
+ *
  * const daemons = [{
  *   host: 'localhost',
  *   port: 8332,
  *   user: 'rpcuser',
  *   password: 'rpcpass'
  * }];
- * 
+ *
  * const daemonInterface = new DaemonInterface(daemons);
  * daemonInterface.init();
  */
