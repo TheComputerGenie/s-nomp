@@ -1,0 +1,79 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #28292b;
+    color: #343a40;
+}
+
+main.container {
+    background-color: #807b7b;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    min-height: 80vh;
+}
+
+a {
+    color: #007bff;
+}
+
+a:hover {
+    color: #0056b3;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+footer a {
+    color: #007bff;
+}
+
+/* Home Page */
+#boxWelcome {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    padding: 3rem;
+    margin-bottom: 2rem;
+    border-radius: 0.5rem;
+}
+
+#logoImg {
+    max-width: 150px;
+    height: auto;
+}
+
+#welcomeText {
+    font-size: 2.5rem;
+    font-weight: 300;
+}
+
+#welcomeItems {
+    list-style-type: none;
+    padding: 0;
+    font-size: 1.25rem;
+}
+
+#welcomeItems li {
+    margin-bottom: 0.5rem;
+}
+
+#boxesLower .card {
+    height: 100%;
+}
+
+.boxLowerHeader {
+    font-size: 1.25rem;
+    font-weight: 500;
+}
+
+.boxStatsList {
+    font-size: 1rem;
+}
+
+.boxStatsList i.fa, .boxStatsList i.fas {
+    margin-right: 0.5rem;
+}
+
+.table {
+    background-color: #fff;
+}
