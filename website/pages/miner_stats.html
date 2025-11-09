@@ -25,6 +25,15 @@
     #boxesWorkers {
         margin: 0 9px;
     }
+    /* Ensure the workers container lays out boxes in rows and allows
+       items to shrink when their contents are long. This keeps a
+       consistent 4-up horizontal grid and prevents a single long
+       field from forcing a box to grow and break the row layout. */
+    #boxesWorkers {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+    }
     #boxesWorkers > div {
         display: flex;
     }
@@ -34,6 +43,34 @@
         padding: 10px;
         display: flex;
         flex-direction: column;
+    }
+    /* Target the actual box element used by the JS (class .boxStats).
+       Force a 4-column layout using flex-basis and allow truncation of
+       long inline fields. Use min-width:0 to allow shrinking of flex
+       items (prevents overflow that causes uneven wrapping). We use
+       box-sizing so width calculations include padding/border. */
+    .boxStats {
+        box-sizing: border-box;
+        flex: 0 0 calc(25% - 18px); /* 4 boxes per row with margins */
+        max-width: calc(25% - 18px);
+        min-width: 0 !important; /* override inline styles that may set min-width */
+        overflow: hidden;
+        margin: 9px;
+        padding: 10px;
+    }
+
+    /* Ensure the inner containers can shrink and truncate long values
+       instead of expanding the parent box. Keep the existing vertical
+       layout by preventing line-wrapping for the inline values and
+       using ellipsis where needed. */
+    .boxStats .boxStatsList,
+    .boxStats .boxStatsList > div {
+        min-width: 0;
+    }
+    .boxStats .boxStatsList > div {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap; /* preserve single-line vertical layout */
     }
     .boxLowerHeader{
         font-size: 1.3em;
@@ -111,6 +148,7 @@
     .poolInfo span:not(:first-child) {
         color: #000000;
     }
+    /* main border-radius removed (managed in site CSS) */
 
 </style>
 

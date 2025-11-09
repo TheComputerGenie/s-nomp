@@ -47,6 +47,7 @@ header > .home-menu > ul > li > a:hover, header > .home-menu > ul > li.pure-menu
 main{
     background-color: #ebf4fa;
     position: relative;
+    border-radius: 5px;
 }
 
 footer{
@@ -65,4 +66,17 @@ footer a{
 
 footer iframe{
     vertical-align: middle;
+}
+
+.boxStats {
+    border-radius: 5px;
+}
+/* Override Pure's default table behavior (pure-min.css) which may prevent rounded corners.
+   Use more specific selectors so we don't edit the third-party file. */
+.pure-table,
+table.pure-table {
+    border-radius: 5px !important;
+    /* Pure sets border-collapse: collapse; that prevents rounding from clipping. Force separate here. */
+    border-collapse: separate !important;
+    overflow: hidden !important;
 }
