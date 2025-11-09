@@ -20,9 +20,7 @@
         text-align: center;
         padding: 4px;
     }
-    .chartHolder{
-
-    }
+    .chartHolder{ min-height: 1px; }
 
     #boxesWorkers {
         margin: 0 9px;
@@ -123,7 +121,7 @@
             <div style="float:left; margin-right: 9px;">{{=String(it.stats.address).split(".")[0]}}</div>
             <div style="float:right; padding-left: 18px;"><small><i class="fa fa-tachometer"></i> <span id="statsHashrateAvg">...</span> (Avg)</small></div>
             <div style="float:right; padding-left: 18px;"><small><i class="fa fa-tachometer"></i> <span id="statsHashrate">...</span> (Now)</small></div>
-            <div style="float:right; padding-left: 18px;"><small><i class="fa fa-gavel"></i> Luck <span id="statsLuckDays">...</span> Days</small></div>
+            <div style="float:right; padding-left: 18px;"><small><i class="fa fa-gavel"></i> Luck <span id="statsLuckDays">...</span> <span id="statsLuckUnit">Days</span></small></div>
         </div>
         <div class="chartHolder"><svg id="workerHashrate" /></div>
         <div>

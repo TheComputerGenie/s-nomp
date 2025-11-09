@@ -17,9 +17,7 @@
         text-align: center;
         padding: 4px;
     }
-    .chartHolder{
-
-    }
+    .chartHolder{ min-height: 1px; }
 
     #boxesLower {
         margin: 0 9px;
@@ -106,7 +104,7 @@
                     <div><i class="fa fa-rocket"></i><span id="statsWorkers{{=pool}}">{{=it.stats.pools[pool].workerCount}}</span> Workers</div>
                     <div><i class="fa fa-tachometer"></i><span id="statsHashrate{{=pool}}">{{=it.stats.pools[pool].hashrateString}}</span> (Now)</div>
                     <div><i class="fa fa-tachometer"></i><span id="statsHashrateAvg{{=pool}}">...</span> (Avg)</div>
-                    <div><i class="fa fa-gavel"></i>Luck <span id="statsLuckDays{{=pool}}">{{=it.stats.pools[pool].luckDays}}</span> Days</div>
+                    <div><i class="fa fa-gavel"></i>Luck <span id="statsLuckDays{{=pool}}">{{=it.stats.pools[pool].luckDays < 1 ? it.stats.pools[pool].luckHours : it.stats.pools[pool].luckDays}}</span> <span id="statsLuckUnit{{=pool}}">{{=it.stats.pools[pool].luckDays < 1 ? 'Hours' : 'Days'}}</span></div>
                 </div>
             </div>
         </div>
@@ -325,7 +323,15 @@ legend.append('text')
                 $('#statsWorkers' + pool).text(stats.pools[pool].workerCount);
                 $('#statsHashrate' + pool).text(stats.pools[pool].hashrateString);
                 $('#statsHashrateAvg' + pool).text(getReadableHashRateString(calculateAverageHashrate(pool)));
-                $('#statsLuckDays' + pool).text(stats.pools[pool].luckDays);
+                // Display luck in Hours when less than 1 day
+                if (typeof stats.pools[pool].luckDays !== 'undefined' && parseFloat(stats.pools[pool].luckDays) < 1) {
+                    const hours = (typeof stats.pools[pool].luckHours !== 'undefined') ? parseFloat(stats.pools[pool].luckHours) : (parseFloat(stats.pools[pool].luckDays) * 24);
+                    $('#statsLuckDays' + pool).text(hours.toFixed(3));
+                    $('#statsLuckUnit' + pool).text('Hours');
+                } else {
+                    $('#statsLuckDays' + pool).text(stats.pools[pool].luckDays);
+                    $('#statsLuckUnit' + pool).text('Days');
+                }
                 $('#statsValidBlocks' + pool).text(stats.pools[pool].poolStats.validBlocks);
                 $('#statsTotalPaid' + pool).text((parseFloat(stats.pools[pool].poolStats.totalPaid)).toFixed(8));
                 $('#statsNetworkBlocks' + pool).text(stats.pools[pool].poolStats.networkBlocks);

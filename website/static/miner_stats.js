@@ -446,13 +446,24 @@ function updateStats() {
     const _networkHashRate = parseFloat(statData.networkSols) * 1.2;  // Network hashrate with adjustment factor
     const _myHashRate = (totalHash / 1000000) * 2;              // Convert to MH/s and apply multiplier
 
-    // Calculate expected time to find a block in days
-    const luckDays = ((_networkHashRate / _myHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
+    // Calculate expected time to find a block in days and hours (fallback)
+    const luckDaysCalc = ((_networkHashRate / _myHashRate * _blocktime) / (24 * 60 * 60));
+    const luckHoursCalc = ((_networkHashRate / _myHashRate * _blocktime) / (60 * 60));
+
+    // Prefer server-provided fields if present; otherwise use calculated values
+    const luckDays = (typeof statData.luckDays !== 'undefined') ? parseFloat(statData.luckDays) : parseFloat(luckDaysCalc.toFixed(3));
+    const luckHours = (typeof statData.luckHours !== 'undefined') ? parseFloat(statData.luckHours) : parseFloat(luckHoursCalc.toFixed(3));
 
     // Update DOM elements with formatted statistics
     $('#statsHashrate').text(getReadableHashRateString(totalHash));                    // Current hashrate
     $('#statsHashrateAvg').text(getReadableHashRateString(calculateAverageHashrate(null))); // Average hashrate
-    $('#statsLuckDays').text(luckDays);                                               // Expected days to block
+    if (luckDays < 1) {
+        $('#statsLuckDays').text(luckHours.toFixed(3));
+        $('#statsLuckUnit').text('Hours');
+    } else {
+        $('#statsLuckDays').text(luckDays.toFixed(3));
+        $('#statsLuckUnit').text('Days');
+    }
     $('#statsTotalImmature').text(totalImmature);                                     // Unconfirmed balance
     $('#statsTotalBal').text(totalBal);                                               // Confirmed balance
     $('#statsTotalPaid').text(totalPaid);                                             // Total paid out
@@ -487,7 +498,21 @@ function updateWorkerStats() {
         // Update all worker-specific DOM elements with current statistics
         $(`#statsHashrate${htmlSafeWorkerName}`).text(getReadableHashRateString(statData.workers[w].hashrate));
         $(`#statsHashrateAvg${htmlSafeWorkerName}`).text(getReadableHashRateString(calculateAverageHashrate(saneWorkerName)));
-        $(`#statsLuckDays${htmlSafeWorkerName}`).text(statData.workers[w].luckDays);
+        // Worker luck: if less than 1 day, show hours instead
+        const workerLuckDays = (typeof statData.workers[w].luckDays !== 'undefined') ? parseFloat(statData.workers[w].luckDays) : null;
+        const workerLuckHours = (typeof statData.workers[w].luckHours !== 'undefined') ? parseFloat(statData.workers[w].luckHours) : null;
+        if (workerLuckDays !== null && workerLuckDays < 1) {
+            // prefer server-provided hours when available
+            const displayHours = (workerLuckHours !== null) ? workerLuckHours : (workerLuckDays * 24);
+            $(`#statsLuckDays${htmlSafeWorkerName}`).text(displayHours.toFixed(3));
+            $(`#statsLuckUnit${htmlSafeWorkerName}`).text('Hours');
+        } else if (workerLuckDays !== null) {
+            $(`#statsLuckDays${htmlSafeWorkerName}`).text(workerLuckDays.toFixed(3));
+            $(`#statsLuckUnit${htmlSafeWorkerName}`).text('Days');
+        } else {
+            $(`#statsLuckDays${htmlSafeWorkerName}`).text('N/A');
+            $(`#statsLuckUnit${htmlSafeWorkerName}`).text('');
+        }
         $(`#statsPaid${htmlSafeWorkerName}`).text(statData.workers[w].paid);
         $(`#statsBalance${htmlSafeWorkerName}`).text(statData.workers[w].balance);
         $(`#statsShares${htmlSafeWorkerName}`).text((typeof statData.workers[w].currRoundShares === 'number' && !isNaN(statData.workers[w].currRoundShares)) ? Math.floor(statData.workers[w].currRoundShares) : 0);
@@ -539,8 +564,23 @@ function addWorkerToDisplay(name, htmlSafeName, workerObj) {
     // Current round shares with cog icon
     htmlToAdd += `<div><i class="fa fa-cog"></i> <small>Shares:</small> <span id="statsShares${htmlSafeName}">${(typeof workerObj.currRoundShares === 'number' && !isNaN(workerObj.currRoundShares)) ? Math.floor(workerObj.currRoundShares) : 0}</span></div>`;
 
-    // Mining luck (days to block) with gavel icon
-    htmlToAdd += `<div><i class="fa fa-gavel"></i> <small>Luck <span id="statsLuckDays${htmlSafeName}">${workerObj.luckDays}</span> Days</small></div>`;
+    // Mining luck (days or hours) with gavel icon
+    // Add a unit span so we can switch between Days/Hours dynamically
+    const workerLuckDaysInit = (typeof workerObj.luckDays !== 'undefined') ? parseFloat(workerObj.luckDays) : null;
+    const workerLuckHoursInit = (typeof workerObj.luckHours !== 'undefined') ? parseFloat(workerObj.luckHours) : null;
+    let luckDisplay = 'N/A';
+    let luckUnit = '';
+    if (workerLuckDaysInit !== null) {
+        if (workerLuckDaysInit < 1) {
+            const displayHours = (workerLuckHoursInit !== null) ? workerLuckHoursInit : (workerLuckDaysInit * 24);
+            luckDisplay = displayHours.toFixed(3);
+            luckUnit = 'Hours';
+        } else {
+            luckDisplay = workerLuckDaysInit.toFixed(3);
+            luckUnit = 'Days';
+        }
+    }
+    htmlToAdd += `<div><i class="fa fa-gavel"></i> <small>Luck <span id="statsLuckDays${htmlSafeName}">${luckDisplay}</span> <span id="statsLuckUnit${htmlSafeName}">${luckUnit}</span></small></div>`;
 
     // Current balance with money icon
     htmlToAdd += `<div><i class="fa fa-money"></i> <small>Bal: <span id="statsBalance${htmlSafeName}">${workerObj.balance}</span></small></div>`;
