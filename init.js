@@ -209,6 +209,12 @@ const portalConfig = JSON.parse(JSON.minify(fs.readFileSync('config.json', { enc
 let poolConfigs;
 
 /**
+ * Reference to the website worker process for hot-swapping website directory
+ * @type {cluster.Worker|null}
+ */
+let websiteWorker = null;
+
+/**
  * Application logger instance. Wraps console and provides leveled logging.
  * Configured from `portalConfig`.
  * @type {PoolLogger}
@@ -838,6 +844,34 @@ const startCliListener = function () {
                 });
                 reply(`reloaded pool ${params[0]}`);
                 break;
+            case 'websiteswitch':
+                const newDir = params[0];
+                if (!newDir) {
+                    reply('Missing directory parameter for websiteswitch');
+                    break;
+                }
+                const candidate = path.join(__dirname, newDir);
+                const defaultDir = path.join(__dirname, 'website');
+                let replyMessage;
+                if (!fs.existsSync(candidate)) {
+                    if (fs.existsSync(defaultDir)) {
+                        replyMessage = `Website directory switched to ${newDir} (not found, falling back to 'website')`;
+                    } else {
+                        replyMessage = `Website directory switched to ${newDir} (not found, and default 'website' directory also missing)`;
+                    }
+                } else {
+                    replyMessage = `Website directory switched to ${newDir}`;
+                }
+                portalConfig.website.directory = newDir;
+                if (websiteWorker) {
+                    // Remove the exit handler to prevent auto-restart with old config
+                    websiteWorker.removeAllListeners('exit');
+                    websiteWorker.kill();
+                    websiteWorker = null;
+                }
+                startWebsite();
+                reply(replyMessage);
+                break;
             default:
                 reply(`unrecognized command "${command}"`);
                 break;
@@ -1072,6 +1106,8 @@ const startWebsite = function () {
         pools: JSON.stringify(poolConfigs),
         portalConfig: JSON.stringify(portalConfig)
     });
+
+    websiteWorker = worker;
 
     /**
      * Website worker crash recovery: automatically respawn the web server

@@ -1,188 +1,211 @@
 /**
- * @fileoverview NOMP (Node Open Mining Portal) Command Line Interface Client
+ * @fileoverview NOMP CLI Client - Command Line Interface for NOMP Mining Pool
  *
- * This script provides a command-line interface for communicating with a running NOMP
- * mining pool instance. It establishes a TCP socket connection to send commands and
- * receive responses from the pool server.
+ * A modern command-line client for interacting with a running NOMP (Node Open Mining Portal)
+ * instance. This script establishes TCP connections to the pool's CLI listener and executes
+ * administrative commands for pool management, statistics, and configuration changes.
  *
- * The CLI supports various command-line arguments and options:
- * - Commands: Basic operations to execute on the pool
- * - Parameters: Arguments for the commands
- * - Options: Configuration flags in the format -key=value
+ * Features:
+ * - Send commands to control pool operations (reload, switch coins, notify blocks)
+ * - Hot-swap website directories without restarting the pool
+ * - Query pool statistics and status
+ * - Configurable connection settings via command-line options or environment variables
  *
  * Usage Examples:
- *   node cli.js status
- *   node cli.js restart -pool=vrsc
- *   node cli.js stats -host=192.168.1.100 -port=17118
+ *   node cli.js help
+ *   node cli.js reloadpool vrsc
+ *   node cli.js websiteswitch custom_website
+ *   node cli.js blocknotify vrsc abc123def456
+ *   node cli.js --host=192.168.1.100 --port=17118 coinswitch -coin=vrsc
  *
- * @author NOMP Development Team
- * @version 1.0.0
- * @since 2024
+ * @author ComputerGenieCo
+ * @version 21.7.3
+ * @copyright 2025
  */
 
 const net = require('net');
 
 /**
- * Default TCP port for connecting to the NOMP instance
- * This port should match the CLI listener port configured in the main pool
- * @constant {number}
- * @default 17117
+ * Default configuration values for CLI connections
+ * These can be overridden by command-line options or environment variables
+ * @constant {Object}
  */
-const defaultPort = 17117;
+const DEFAULT_CONFIG = {
+    host: process.env.NOMP_CLI_HOST || '127.0.0.1',
+    port: parseInt(process.env.NOMP_CLI_PORT) || 17117,
+    timeout: 5000  // Connection timeout in milliseconds
+};
 
 /**
- * Default host address for connecting to the NOMP instance
- * Typically localhost when running CLI on the same machine as the pool
- * @constant {string}
- * @default '127.0.0.1'
+ * Available CLI commands and their descriptions
+ * Used for help display and command validation
+ * @constant {Object.<string, string>}
  */
-const defaultHost = '127.0.0.1';
+const COMMANDS = {
+    'blocknotify': 'Notify pool workers of a new block (params: coin, blockhash)',
+    'coinswitch': 'Switch pool to a different coin configuration (params: coin)',
+    'reloadpool': 'Reload pool configuration for a specific coin (params: coin)',
+    'websiteswitch': 'Hot-swap the website directory (params: directory)',
+    'help': 'Display this help message'
+};
 
 /**
- * Command line arguments excluding node executable and script name
- * process.argv contains: [node_path, script_path, ...user_args]
- * We slice(2) to get only the user-provided arguments
- * @type {string[]}
- */
-const args = process.argv.slice(2);
-
-/**
- * Array to store command parameters (non-option arguments)
- * These are positional arguments that don't start with '-'
- * Example: For "node cli.js restart pool1", params will contain ["restart", "pool1"]
- * @type {string[]}
- */
-const params = [];
-
-/**
- * Object to store command-line options in key-value format
- * Options are arguments that start with '-' and contain '='
- * Example: For "-host=192.168.1.100 -port=17118", options will be:
- * { host: "192.168.1.100", port: "17118" }
- * @type {Object.<string, string>}
- */
-const options = {};
-
-/**
- * Parse command-line arguments into parameters and options
+ * Parse command-line arguments into configuration, command, and parameters
  *
- * This loop processes each argument and categorizes it as either:
- * 1. Option: Arguments starting with '-' and containing '=' (e.g., -host=localhost)
- * 2. Parameter: All other arguments (commands, values, etc.)
+ * Supports the following argument formats:
+ * - Options: --host=127.0.0.1, --port=17117
+ * - Command: First non-option argument
+ * - Parameters: Remaining arguments after command
  *
- * The parsing logic:
- * - Options are split at '=' and stored as key-value pairs in the options object
- * - Parameters are stored in order in the params array
- *
- * @example
- * Input: ["status", "-host=192.168.1.100", "-port=17118", "pool1"]
- * Result:
- *   params = ["status", "pool1"]
- *   options = { host: "192.168.1.100", port: "17118" }
+ * @param {string[]} args - Command-line arguments (excluding node and script path)
+ * @returns {Object} Parsed arguments containing config, command, and params
+ * @returns {Object} returns.config - Connection configuration overrides
+ * @returns {string} returns.command - The command to execute
+ * @returns {string[]} returns.params - Parameters for the command
  */
-for (let i = 0; i < args.length; i++) {
-    // Check if argument is an option (starts with '-' and contains '=')
-    if (args[i].indexOf('-') === 0 && args[i].indexOf('=') !== -1) {
-        // Split option into key-value pair, removing the leading '-'
-        const s = args[i].substr(1).split('=');
-        options[s[0]] = s[1];
-    } else {
-        // Regular parameter - add to params array
-        params.push(args[i]);
+function parseArguments(args) {
+    const config = { ...DEFAULT_CONFIG };
+    let command = null;
+    const params = [];
+
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+
+        // Check for long options (--key=value)
+        if (arg.startsWith('--')) {
+            const [key, value] = arg.slice(2).split('=', 2);
+            if (key in config) {
+                if (key === 'port') {
+                    config[key] = parseInt(value);
+                } else {
+                    config[key] = value;
+                }
+            } else {
+                console.error(`Unknown option: --${key}`);
+                process.exit(1);
+            }
+        } else if (!command) {
+            command = arg;
+        } else {
+            params.push(arg);
+        }
     }
+
+    return { config, command, params };
 }
 
 /**
- * Extract the first parameter as the command to execute
- * shift() removes and returns the first element from the params array
+ * Display help information and usage examples
  *
- * After this operation:
- * - command contains the main operation to perform (e.g., "status", "restart")
- * - params contains any remaining arguments for the command
- *
- * @type {string|undefined} The command to execute, or undefined if no parameters provided
+ * Shows available commands, options, and examples for using the CLI client
  */
-const command = params.shift();
+function showHelp() {
+    console.log(`
+NOMP CLI Client v21.7.3
+Command-line interface for NOMP mining pool administration
+
+USAGE:
+    node cli.js [options] <command> [parameters...]
+
+OPTIONS:
+    --host=HOST        Pool host address (default: ${DEFAULT_CONFIG.host})
+    --port=PORT        CLI listener port (default: ${DEFAULT_CONFIG.port})
+
+COMMANDS:`);
+
+    Object.entries(COMMANDS).forEach(([cmd, desc]) => {
+        console.log(`    ${cmd.padEnd(14)} ${desc}`);
+    });
+
+    console.log(`
+EXAMPLES:
+    node cli.js help
+    node cli.js reloadpool vrsc
+    node cli.js websiteswitch custom_theme
+    node cli.js blocknotify vrsc 0000000000000000000abc123def456
+    node cli.js --host=192.168.1.100 coinswitch vrsc
+    node cli.js --port=17118 websiteswitch website_backup
+
+ENVIRONMENT VARIABLES:
+    NOMP_CLI_HOST      Default host address
+    NOMP_CLI_PORT      Default CLI port
+
+For more information, see the NOMP documentation.
+`);
+}
 
 /**
- * Create and configure TCP client connection to the NOMP instance
+ * Send a command to the NOMP CLI listener
  *
- * This establishes a socket connection to the pool's CLI listener service.
- * The connection uses either user-specified host/port options or defaults.
+ * Establishes a TCP connection to the pool's CLI port, sends the command
+ * as JSON, and displays the response.
  *
- * Connection flow:
- * 1. Attempt to connect to the specified/default host and port
- * 2. On successful connection, send the command payload as JSON
- * 3. Listen for response data and error events
- * 4. Handle connection cleanup on close
- *
- * @type {net.Socket} TCP socket client for pool communication
+ * @param {Object} config - Connection configuration
+ * @param {string} command - Command to execute
+ * @param {string[]} params - Command parameters
  */
-const client = net.connect(options.port || defaultPort, options.host || defaultHost, () => {
-    /**
-     * Connection established successfully - send command payload
-     *
-     * The payload is a JSON object containing:
-     * - command: The main operation to execute
-     * - params: Additional parameters for the command
-     * - options: Configuration options (host, port, etc.)
-     *
-     * The message is terminated with a newline character as expected
-     * by the NOMP CLI listener protocol.
-     */
-    client.write(`${JSON.stringify({
-        command: command,
-        params: params,
-        options: options
-    })}\n`);
-}).on('error', (error) => {
-    /**
-     * Handle socket connection and communication errors
-     *
-     * Common error scenarios:
-     * - ECONNREFUSED: Pool instance is not running or CLI listener is disabled
-     * - Network errors: Firewall, routing, or connectivity issues
-     * - Protocol errors: Malformed messages or unexpected responses
-     *
-     * @param {Error} error - The error object containing details about the failure
-     */
-    if (error.code === 'ECONNREFUSED') {
-        // Pool is not running or not accepting CLI connections
-        console.log(`Could not connect to NOMP instance at ${defaultHost}:${defaultPort}`);
-    } else {
-        // Other socket-related errors (network, protocol, etc.)
-        console.log(`Socket error ${JSON.stringify(error)}`);
+function sendCommand(config, command, params) {
+    const client = net.connect(config.port, config.host);
+
+    // Set connection timeout
+    client.setTimeout(config.timeout);
+
+    client.on('connect', () => {
+        // Send command as JSON with newline terminator
+        const message = JSON.stringify({
+            command: command,
+            params: params,
+            options: {}
+        });
+        client.write(`${message}\n`);
+    });
+
+    client.on('data', (data) => {
+        console.log(data.toString().trim());
+        client.end();
+    });
+
+    client.on('timeout', () => {
+        console.error(`Connection timeout after ${config.timeout}ms`);
+        client.destroy();
+        process.exit(1);
+    });
+
+    client.on('error', (error) => {
+        if (error.code === 'ECONNREFUSED') {
+            console.error(`Cannot connect to NOMP instance at ${config.host}:${config.port}`);
+            console.error('Make sure the pool is running and CLI listener is enabled.');
+        } else {
+            console.error(`Connection error: ${error.message}`);
+        }
+        process.exit(1);
+    });
+}
+
+/**
+ * Main CLI execution function
+ *
+ * Parses arguments, validates input, and executes the appropriate action
+ */
+function main() {
+    const { config, command, params } = parseArguments(process.argv.slice(2));
+
+    // Show help if no command provided or help requested
+    if (!command || command === 'help') {
+        showHelp();
+        return;
     }
-}).on('data', (data) => {
-    /**
-     * Handle incoming data from the NOMP instance
-     *
-     * The pool server sends response data which typically contains:
-     * - Command execution results
-     * - Status information
-     * - Error messages
-     * - Confirmation messages
-     *
-     * Data is received as a Buffer, so we convert it to string for display.
-     * The response format depends on the command executed and may be:
-     * - Plain text messages
-     * - JSON formatted data
-     * - Multi-line status reports
-     *
-     * @param {Buffer} data - Raw response data from the pool server
-     */
-    console.log(data.toString());
-}).on('close', () => {
-    /**
-     * Handle socket connection closure
-     *
-     * This event fires when the connection is closed, either:
-     * - Normally after command completion
-     * - Due to server-side disconnection
-     * - After an error condition
-     *
-     * In most cases, the CLI script will exit naturally after this event.
-     * No explicit cleanup is needed as the socket resources are automatically released.
-     */
-    // Connection closed - script will exit naturally
-});
+
+    // Validate command
+    if (!(command in COMMANDS)) {
+        console.error(`Unknown command: ${command}`);
+        console.error('Use "help" to see available commands.');
+        process.exit(1);
+    }
+
+    // Send command to pool
+    sendCommand(config, command, params);
+}
+
+// Execute main function
+main();

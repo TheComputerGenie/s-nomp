@@ -58,8 +58,8 @@ const COIN_CONSTANTS = {
         txfee: 0.0001,
         burnFees: false,
         explorer: {
-            txURL: null,
-            blockURL: null
+            txURL: 'https://explorer.chips.cash/tx/',
+            blockURL: 'https://explorer.chips.cash/block/'
         }
     }
 };
