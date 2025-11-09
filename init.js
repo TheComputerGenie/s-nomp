@@ -80,7 +80,7 @@ const algos = require('./libs/stratum/algoProperties.js');
  * assumes Verus-specific constants but copies are made per-pool so that the
  * global constant file is not mutated.
  */
-const COIN_CONSTANTS = require('./libs/coinConstants.js');
+const coinConstants = require('./libs/coinConstants.js');
 
 /**
  * JSON minify utility for removing comments and whitespace from JSON strings.
@@ -361,6 +361,21 @@ const buildPoolConfigs = function () {
             return;
         }
         poolOptions.fileName = file;
+        // Canonical coin identifier: prefer an explicit value in the pool JSON
+        // (fields `coin` or `coinName`), otherwise derive from the filename
+        // (e.g. `vrsc.json` -> `vrsc`). This prevents arbitrary filenames from
+        // changing the coin semantics.
+        if (typeof poolOptions.coin === 'string' && poolOptions.coin.length > 0) {
+            poolOptions.coinName = poolOptions.coin.toLowerCase();
+        } else if (typeof poolOptions.coinName === 'string' && poolOptions.coinName.length > 0) {
+            poolOptions.coinName = poolOptions.coinName.toLowerCase();
+        } else {
+            try {
+                poolOptions.coinName = path.parse(file).name.toLowerCase();
+            } catch (e) {
+                poolOptions.coinName = null;
+            }
+        }
         poolConfigFiles.push(poolOptions);
     });
 
@@ -410,13 +425,26 @@ const buildPoolConfigs = function () {
 
         /**
          * Coin Profile Assignment
-         * Since this pool implementation currently focuses on Verus Coin,
-         * we use hardcoded constants but create a copy to avoid mutations
-         * affecting other pool instances.
+         * Select a coin profile from the coinConstants module. We attempt to
+         * detect the coin name from the pool config file (e.g. `vrsc.json`) or
+         * from an explicit `coinName` field in the pool options. If detection
+         * fails we treat it as an error.
          */
-        const coinProfile = { ...COIN_CONSTANTS }; // Make a copy to avoid modifying constants
+        // Derive coin name preference: explicit poolOptions.coinName, then
+        // pool filename without extension, then fall back to 'verus'.
+        const inferredCoinName = (poolOptions.coinName) ? poolOptions.coinName : (poolOptions.fileName ? path.parse(poolOptions.fileName).name : null);
+        const coinProfileRaw = coinConstants.get(inferredCoinName);
+        if (!coinProfileRaw) {
+            logger.error('Master', poolOptions.fileName || '<unknown>', `Unsupported or unknown coin profile for "${inferredCoinName}"`);
+            process.exit(1);
+            return;
+        }
+        // Make a shallow copy so per-pool mutations won't change the shared profiles
+        const coinProfile = { ...coinProfileRaw };
         poolOptions.coin = coinProfile;
+        // Explicit canonical coin identifier for other parts of the app
         poolOptions.coin.name = poolOptions.coin.name.toLowerCase();
+        poolOptions.coinName = poolOptions.coin.name;
         poolOptions.redis = portalConfig.redis;
 
         /**
@@ -932,7 +960,7 @@ const processCoinSwitchCommand = function (params, options, reply) {
     switchNames.forEach((name) => {
         if (poolConfigs[newCoin].coin.algorithm !== portalConfig.switching[name].algorithm) {
             replyError(`Cannot switch a ${portalConfig.switching[name].algorithm
-            } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
+                } algo pool to coin ${newCoin} with ${poolConfigs[newCoin].coin.algorithm} algo`);
             return;
         }
 
