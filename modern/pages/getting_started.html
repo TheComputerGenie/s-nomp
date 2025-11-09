@@ -1,0 +1,29 @@
+<div class="container mt-4">
+    <div class="row">
+        {{ for(var pool in it.poolsConfigs) {
+            var coin = it.poolsConfigs[pool].coin;
+            var algo = coin.algorithm;
+            var ports = it.poolsConfigs[pool].ports;
+            var host = it.portalConfig.website.stratumHost || 'your_stratum_host';
+        }}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0 text-capitalize">{{=pool}} Configuration</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item"><strong>Algorithm:</strong> {{=algo}}</li>
+                        <li class="list-group-item"><strong>Username:</strong> your {{=coin.name}} wallet address</li>
+                        <li class="list-group-item"><strong>Password:</strong> anything</li>
+                        {{ for(var port in ports) { }}
+                        <li class="list-group-item"><strong>URL (difficulty {{=ports[port].diff}}):</strong> stratum+tcp://{{=host}}:{{=port}}</li>
+                        {{ } }}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {{ } }}
+    </div>
+</div>
+

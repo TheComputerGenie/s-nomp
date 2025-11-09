@@ -1,0 +1,58 @@
+<div class="jumbotron" id="boxWelcome">
+    <div class="row">
+        <div class="col-md-4 text-center">
+            <img id="logoImg" src="/static/main.jpg" class="img-fluid rounded-circle">
+        </div>
+        <div class="col-md-8">
+            <h1 class="display-4" id="welcomeText">Welcome to the future of mining</h1>
+            <ul id="welcomeItems">
+                <li><i class="fas fa-dollar-sign"></i> Low fees</li>
+                <li><i class="fas fa-tachometer-alt"></i> High performance Node.js backend</li>
+                <li><i class="fas fa-user-friends"></i> User friendly mining client</li>
+                <li><i class="fas fa-coins"></i> Multi-coin / multi-pool</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="row" id="boxesLower">
+    <div class="col-md-6 mb-4">
+        <div class="card text-white bg-success h-100">
+            <div class="card-header boxLowerHeader">Global Stats</div>
+            <div class="card-body boxStatsList">
+                {{ for(var algo in it.stats.algos) { }}
+                <p><i class="fa fa-flask"></i> {{=algo}}: <span id="statsMiners{{=algo}}">{{=it.stats.algos[algo].workers}}</span> Workers | <i class="fas fa-tachometer-alt"></i> <span id="statsHashrate{{=algo}}">{{=it.stats.algos[algo].hashrateString}}</span></p>
+                {{ } }}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card text-white bg-warning h-100">
+            <div class="card-header boxLowerHeader">Pools / Coins</div>
+            <div class="card-body boxStatsList">
+                {{ for(var pool in it.stats.pools) { }}
+                <p><i class="fa fa-dot-circle"></i> {{=pool}}: <span id="statsMiners{{=pool}}">{{=it.stats.pools[pool].workerCount}}</span> Workers | <i class="fas fa-tachometer-alt"></i> <span id="statsHashrate{{=pool}}">{{=it.stats.pools[pool].hashrateString}}</span></p>
+                {{ } }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(function() {
+        if (typeof statsSource !== 'undefined') {
+            statsSource.addEventListener('message', function (e) {
+                var stats = JSON.parse(e.data);
+                for (var algo in stats.algos) {
+                    $('#statsMiners' + algo).text(stats.algos[algo].workers);
+                    $('#statsHashrate' + algo).text(stats.algos[algo].hashrateString);
+                }
+                for (var pool in stats.pools) {
+                    $('#statsMiners' + pool).text(stats.pools[pool].workerCount);
+                    $('#statsHashrate' + pool).text(stats.pools[pool].hashrateString);
+                }
+            });
+        }
+    });
+</script>

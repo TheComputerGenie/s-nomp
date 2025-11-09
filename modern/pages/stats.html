@@ -1,0 +1,171 @@
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header">Pool Historical Hashrate</div>
+                <div class="card-body">
+                    <div id="poolHashrate" style="height: 280px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{ function capitalizeFirstLetter(t){return t.charAt(0).toUpperCase()+t.slice(1)} }}
+    <div class="row">
+        {{ for(var pool in it.stats.pools) { }}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">{{=capitalizeFirstLetter(it.stats.pools[pool].name)}} Pool Stats</div>
+                <div class="card-body">
+                    <p><i class="fa fa-users"></i> <span id="statsMiners{{=pool}}">{{=it.stats.pools[pool].minerCount}}</span> Miners</p>
+                    <p><i class="fa fa-rocket"></i> <span id="statsWorkers{{=pool}}">{{=it.stats.pools[pool].workerCount}}</span> Workers</p>
+                    <p><i class="fa fa-tachometer"></i> <span id="statsHashrate{{=pool}}">{{=it.stats.pools[pool].hashrateString}}</span> (Now)</p>
+                    <p><i class="fa fa-tachometer"></i> <span id="statsHashrateAvg{{=pool}}">...</span> (Avg)</p>
+                    <p><i class="fa fa-gavel"></i> Luck <span id="statsLuckDays{{=pool}}">{{=it.stats.pools[pool].luckDays < 1 ? it.stats.pools[pool].luckHours : it.stats.pools[pool].luckDays}}</span> <span id="statsLuckUnit{{=pool}}">{{=it.stats.pools[pool].luckDays < 1 ? 'Hours' : 'Days'}}</span></p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">{{=capitalizeFirstLetter(it.stats.pools[pool].name)}} Network Stats</div>
+                <div class="card-body">
+                    <p><i class="fa fa-bars" aria-hidden="true"></i> <small>Block Height:</small> <span id="statsNetworkBlocks{{=pool}}">{{=it.stats.pools[pool].poolStats.networkBlocks}}</span></p>
+                    <p><i class="fa fa-tachometer"></i> <small>Network Hash/s:</small> <span id="statsNetworkSols{{=pool}}">{{=it.stats.pools[pool].poolStats.networkSolsString}}</span></p>
+                    <p><i class="fa fa-unlock-alt" aria-hidden="true"></i> <small>Difficulty:</small> <span id="statsNetworkDiff{{=pool}}">{{=it.stats.pools[pool].poolStats.networkDiff}}</span></p>
+                    <p><i class="fa fa-users"></i> <small>Node Connections:</small> <span id="statsNetworkConnections{{=pool}}">{{=it.stats.pools[pool].poolStats.networkConnections}}</span></p>
+                </div>
+            </div>
+        </div>
+        {{ } }}
+    </div>
+
+    {{ for(var pool in it.stats.pools) { }}
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    {{=capitalizeFirstLetter(it.stats.pools[pool].name)}} Blocks Found
+                    <span class="float-right">
+                        <small>
+                            <i class="fa fa-bars"></i> <span id="statsValidBlocks{{=pool}}">{{=it.stats.pools[pool].poolStats.validBlocks}}</span> Blocks &nbsp;&nbsp;
+                            <i class="fa fa-money"></i> Paid: <span id="statsTotalPaid{{=pool}}">{{=(parseFloat(it.stats.pools[pool].poolStats.totalPaid)).toFixed(8)}}</span> {{=it.stats.pools[pool].symbol}}
+                        </small>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {{ var blockscomb = []; }}
+                        {{ for(var b in it.stats.pools[pool].pending.blocks) { }}
+                            {{ var block = it.stats.pools[pool].pending.blocks[b].split(":"); blockscomb.push(block); }}
+                            <div class="list-group-item">
+                                <i class="fa fa-bars"></i>
+                                <small>Block:</small>
+                                {{ if (it.poolsConfigs[pool].coin.explorer && it.poolsConfigs[pool].coin.explorer.blockURL) { }}
+                                    <a href="{{=it.poolsConfigs[pool].coin.explorer.blockURL + block[0]}}" target="_blank">{{=block[2]}}</a>
+                                {{ } else { }}
+                                    {{=block[2]}}
+                                {{ } }}
+                                <small class="ml-3" id="time_{{=block[2]}}"></script>
+                                <script>document.getElementById("time_{{=block[2]}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(Number("{{=block[4]}}"));</script>
+                                <span class="float-right text-danger"><small>*PENDING*</small></span>
+                                <div><i class="fa fa-gavel"></i><small>Mined By:</small> <a href="/workers/{{=block[3].split('.')[0]}}">{{=block[3]}}</a></div>
+                            </div>
+                        {{ } }}
+                        {{ var i=0; for(var b in it.stats.pools[pool].confirmed.blocks) { }}
+                            {{ if (i < 8) { i++; }}
+                                {{ var block = it.stats.pools[pool].confirmed.blocks[b].split(":"); blockscomb.push(block); }}
+                                <div class="list-group-item">
+                                    <i class="fa fa-bars"></i>
+                                    <small>Block:</small>
+                                    {{ if (it.poolsConfigs[pool].coin.explorer && it.poolsConfigs[pool].coin.explorer.blockURL) { }}
+                                        <a href="{{=it.poolsConfigs[pool].coin.explorer.blockURL + block[0]}}" target="_blank">{{=block[2]}}</a>
+                                    {{ } else { }}
+                                        {{=block[2]}}
+                                    {{ } }}
+                                    <small class="ml-3" id="time_{{=block[2]}}"></script>
+                                    <script>document.getElementById("time_{{=block[2]}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(Number("{{=block[4]}}"));</script>
+                                    <span class="float-right text-success"><small>*CREDITED*</small></span>
+                                    <div><i class="fa fa-gavel"></i><small>Mined By:</small> <a href="/workers/{{=block[3].split('.')[0]}}">{{=block[3]}}</a></div>
+                                </div>
+                            {{ } }}
+                        {{ } }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">Finders of the last {{=blockscomb.length}} blocks</div>
+                <div class="card-body text-center">
+                    <div id="blocksPie{{=pool}}" style="height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+      var blockscomb = JSON.parse('{{=JSON.stringify(blockscomb)}}');
+      var data = [];
+      var groupedByFinder = {};
+      for (var i=0; i < blockscomb.length; i++) {
+          var finder=blockscomb[i][3];
+          if (!(finder in groupedByFinder)) groupedByFinder[finder] = [];
+          groupedByFinder[finder].push(blockscomb[i]);
+      }
+      Object.keys(groupedByFinder).forEach(function(i) {
+          data.push({ label: i, value: groupedByFinder[i].length });
+      });
+
+      nv.addGraph(function() {
+          var chart = nv.models.pieChart()
+              .x(function(d) { return d.label })
+              .y(function(d) { return d.value })
+              .showLabels(true)
+              .labelType("percent")
+              .donut(true)
+              .donutRatio(0.35);
+
+          d3.select("#blocksPie{{=pool}}")
+              .append('svg')
+              .datum(data)
+              .transition().duration(350)
+              .call(chart);
+
+          return chart;
+      });
+    </script>
+    {{ } }}
+</div>
+
+<script src="/static/stats.js"></script>
+
+<script>
+    window.statsSource = new EventSource("/api/live_stats");
+    $(function() {
+        statsSource.addEventListener('message', function (e) {
+            var stats = JSON.parse(e.data);
+            for (var pool in stats.pools) {
+                $('#statsMiners' + pool).text(stats.pools[pool].minerCount);
+                $('#statsWorkers' + pool).text(stats.pools[pool].workerCount);
+                $('#statsHashrate' + pool).text(stats.pools[pool].hashrateString);
+                $('#statsHashrateAvg' + pool).text(getReadableHashRateString(calculateAverageHashrate(pool)));
+                if (typeof stats.pools[pool].luckDays !== 'undefined' && parseFloat(stats.pools[pool].luckDays) < 1) {
+                    const hours = (typeof stats.pools[pool].luckHours !== 'undefined') ? parseFloat(stats.pools[pool].luckHours) : (parseFloat(stats.pools[pool].luckDays) * 24);
+                    $('#statsLuckDays' + pool).text(hours.toFixed(3));
+                    $('#statsLuckUnit' + pool).text('Hours');
+                } else {
+                    $('#statsLuckDays' + pool).text(stats.pools[pool].luckDays);
+                    $('#statsLuckUnit' + pool).text('Days');
+                }
+                $('#statsValidBlocks' + pool).text(stats.pools[pool].poolStats.validBlocks);
+                $('#statsTotalPaid' + pool).text((parseFloat(stats.pools[pool].poolStats.totalPaid)).toFixed(8));
+                $('#statsNetworkBlocks' + pool).text(stats.pools[pool].poolStats.networkBlocks);
+                $('#statsNetworkDiff' + pool).text(stats.pools[pool].poolStats.networkDiff);
+                $('#statsNetworkSols' + pool).text(getReadableNetworkHashRateString(stats.pools[pool].poolStats.networkSols));
+                $('#statsNetworkConnections' + pool).text(stats.pools[pool].poolStats.networkConnections);
+            }
+        });
+    });
+</script>

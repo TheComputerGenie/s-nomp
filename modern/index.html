@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>s-nomp</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png"/>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/nv.d3.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/scripts/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="/static/scripts/d3.v3.min.js"></script>
+    <script src="/static/scripts/nv.d3.js"></script>
+    <script src="/static/main.js"></script>
+    <script src="/static/js/utils.js"></script>
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+            <div class="container">
+                <a href="/" class="navbar-brand hot-swapper"><i class="fa fa-home"></i> s-nomp</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ml-auto">
+                        <li class="nav-item {{? it.selected === 'getting_started' }}active{{?}}">
+                            <a class="nav-link hot-swapper" href="/getting_started"><i class="fa fa-rocket"></i> Getting Started</a>
+                        </li>
+                        <li class="nav-item {{? it.selected === 'stats' }}active{{?}}">
+                            <a class="nav-link hot-swapper" href="/stats"><i class="fa fa-chart-bar"></i> Graph Stats</a>
+                        </li>
+                        <li class="nav-item {{? it.selected === 'tbs' }}active{{?}}">
+                            <a class="nav-link hot-swapper" href="/tbs"><i class="fa fa-table"></i> Tab Stats</a>
+                        </li>
+                        <li class="nav-item {{? it.selected === 'workers' }}active{{?}}">
+                            <a class="nav-link hot-swapper" href="/workers"><i class="fa fa-cogs"></i> Workers Stats</a>
+                        </li>
+                        <li class="nav-item {{? it.selected === 'api' }}active{{?}}">
+                            <a class="nav-link hot-swapper" href="/api"><i class="fa fa-code"></i> API</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mt-4">
+        {{=it.page}}
+    </main>
+
+    <footer class="bg-dark text-white text-center py-3 mt-4">
+        <div class="container">
+            <p>This site is powered by the open source <a target="_blank" href="https://github.com/TheComputerGenie/s-nomp/">s-nomp</a> and is licensed under the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html#license-text">GPL3 License</a>.</p>
+            <p><i class="fa fa-heart"></i> Support this project by donating VRSC: RCGxKMDxZcBGRZkxvgCRAXGpiQFt8wU7Wq</p>
+        </div>
+    </footer>
+</body>
+</html>
