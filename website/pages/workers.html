@@ -67,7 +67,7 @@ function searchKeyPress(e)
                 {{=capitalizeFirstLetter(it.stats.pools[pool].name)}} Top Miners &nbsp;&nbsp;
                 <small><i class="fa fa-users"></i> <span id="statsMiners{{=pool}}">{{=it.stats.pools[pool].minerCount}}</span> Miners &nbsp;&nbsp;
                 <i class="fa fa-rocket"></i> <span id="statsWorkers{{=pool}}">{{=it.stats.pools[pool].workerCount}}</span> Workers &nbsp;&nbsp;
-                <i class="fa fa-cog"></i> <span id="statsWorkers{{=pool}}">{{=it.stats.pools[pool].shareCount}}</span> Shares </small>
+                <i class="fa fa-cog"></i> <span id="statsWorkers{{=pool}}">{{? typeof it.stats.pools[pool].shareCount !== 'undefined' && it.stats.pools[pool].shareCount !== null}} {{=Math.floor(it.stats.pools[pool].shareCount)}} {{??}} 0 {{?}}</span> Shares </small>
             </div>
             <div class="poolMinerTable">
                 <table class="pure-table">
@@ -83,7 +83,7 @@ function searchKeyPress(e)
                     {{var workerstat = it.stats.pools[pool].miners[worker];}}
                         <tr class="pure-table-odd">
                             <td><a href="/workers/{{=worker.split('.')[0]}}">{{=worker}}</a></td> 
-                            <td>{{=Math.round(workerstat.currRoundShares * 100) / 100}}</td>
+                            <td>{{? typeof workerstat.currRoundShares !== 'undefined' && workerstat.currRoundShares !== null}} {{=Math.floor(workerstat.currRoundShares)}} {{??}} 0 {{?}}</td>
                             <td>{{? workerstat.shares > 0}} {{=Math.floor(10000 * workerstat.shares / (workerstat.shares + workerstat.invalidshares)) / 100}}% {{??}} 0% {{?}}</td>
                             <td>{{=workerstat.hashrateString}}</td>
                         </tr>

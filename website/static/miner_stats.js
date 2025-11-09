@@ -456,7 +456,7 @@ function updateStats() {
     $('#statsTotalImmature').text(totalImmature);                                     // Unconfirmed balance
     $('#statsTotalBal').text(totalBal);                                               // Confirmed balance
     $('#statsTotalPaid').text(totalPaid);                                             // Total paid out
-    $('#statsTotalShares').text(totalShares.toFixed(2));                              // Current round shares
+    $('#statsTotalShares').text((typeof totalShares === 'number' && !isNaN(totalShares)) ? Math.floor(totalShares) : 0);                              // Current round shares (truncated to whole number)
 }
 /**
  * Updates statistics for individual workers in their respective display boxes
@@ -490,7 +490,7 @@ function updateWorkerStats() {
         $(`#statsLuckDays${htmlSafeWorkerName}`).text(statData.workers[w].luckDays);
         $(`#statsPaid${htmlSafeWorkerName}`).text(statData.workers[w].paid);
         $(`#statsBalance${htmlSafeWorkerName}`).text(statData.workers[w].balance);
-        $(`#statsShares${htmlSafeWorkerName}`).text(Math.round(statData.workers[w].currRoundShares * 100) / 100);
+        $(`#statsShares${htmlSafeWorkerName}`).text((typeof statData.workers[w].currRoundShares === 'number' && !isNaN(statData.workers[w].currRoundShares)) ? Math.floor(statData.workers[w].currRoundShares) : 0);
         $(`#statsDiff${htmlSafeWorkerName}`).text(statData.workers[w].diff);
 
         // Calculate and display time since last share submission
@@ -537,7 +537,7 @@ function addWorkerToDisplay(name, htmlSafeName, workerObj) {
     htmlToAdd += `<div><i class="fa fa-shield"></i> <small>Diff:</small> <span id="statsDiff${htmlSafeName}">${workerObj.diff}</span></div>`;
 
     // Current round shares with cog icon
-    htmlToAdd += `<div><i class="fa fa-cog"></i> <small>Shares:</small> <span id="statsShares${htmlSafeName}">${Math.round(workerObj.currRoundShares * 100) / 100}</span></div>`;
+    htmlToAdd += `<div><i class="fa fa-cog"></i> <small>Shares:</small> <span id="statsShares${htmlSafeName}">${(typeof workerObj.currRoundShares === 'number' && !isNaN(workerObj.currRoundShares)) ? Math.floor(workerObj.currRoundShares) : 0}</span></div>`;
 
     // Mining luck (days to block) with gavel icon
     htmlToAdd += `<div><i class="fa fa-gavel"></i> <small>Luck <span id="statsLuckDays${htmlSafeName}">${workerObj.luckDays}</span> Days</small></div>`;
