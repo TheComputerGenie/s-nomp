@@ -41,6 +41,22 @@ dot.templateSettings.strip = false;
  */
 class Website {
     /**
+     * Checks if a directory contains the essential website files.
+     * @param {string} dir - Directory name relative to project root.
+     * @returns {boolean} True if essential files exist.
+     */
+    hasWebsiteFiles(dir) {
+        try {
+            const dirPath = path.join(__dirname, '..', dir);
+            const indexPath = path.join(dirPath, 'index.html');
+            const keyPath = path.join(dirPath, 'key.html');
+            return fs.existsSync(indexPath) && fs.existsSync(keyPath);
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
      * @constructor
      * @param {Object} logger - Logger instance.
      */
@@ -51,16 +67,16 @@ class Website {
         this.websiteConfig = this.portalConfig.website || {};
         // Directory name where website files live (allows theming by changing this)
         this.websiteDir = String(this.websiteConfig.directory || 'website');
-        // Resolve directory to an existing directory if possible; fallback to default 'website'
+        // Resolve directory to an existing directory with website files if possible; fallback to default 'website'
         try {
             const candidate = path.join(__dirname, '..', this.websiteDir);
             const defaultDir = path.join(__dirname, '..', 'website');
-            if (!fs.existsSync(candidate)) {
-                if (fs.existsSync(defaultDir)) {
-                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' not found; falling back to 'website'`);
+            if (!fs.existsSync(candidate) || !this.hasWebsiteFiles(this.websiteDir)) {
+                if (fs.existsSync(defaultDir) && this.hasWebsiteFiles('website')) {
+                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' does not contain required website files; falling back to 'website'`);
                     this.websiteDir = 'website';
                 } else {
-                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' not found and default 'website' directory also missing. Static/templates may fail until created.`);
+                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' does not contain required website files and default 'website' directory is also missing or incomplete. Static/templates may fail until created.`);
                 }
             }
         } catch (e) {

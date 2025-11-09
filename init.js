@@ -818,6 +818,23 @@ const spawnPoolWorkers = function () {
  *
  * @see {@link CliListener} For detailed command protocol and usage
  */
+
+/**
+ * Checks if a directory contains the essential website files.
+ * @param {string} dir - Directory name relative to project root.
+ * @returns {boolean} True if essential files exist.
+ */
+function hasWebsiteFiles(dir) {
+    try {
+        const dirPath = path.join(__dirname, dir);
+        const indexPath = path.join(dirPath, 'index.html');
+        const keyPath = path.join(dirPath, 'key.html');
+        return fs.existsSync(indexPath) && fs.existsSync(keyPath);
+    } catch (e) {
+        return false;
+    }
+}
+
 const startCliListener = function () {
 
     const cliPort = portalConfig.cliPort;
@@ -853,16 +870,18 @@ const startCliListener = function () {
                 const candidate = path.join(__dirname, newDir);
                 const defaultDir = path.join(__dirname, 'website');
                 let replyMessage;
-                if (!fs.existsSync(candidate)) {
-                    if (fs.existsSync(defaultDir)) {
-                        replyMessage = `Website directory switched to ${newDir} (not found, falling back to 'website')`;
+                if (!fs.existsSync(candidate) || !hasWebsiteFiles(newDir)) {
+                    if (fs.existsSync(defaultDir) && hasWebsiteFiles('website')) {
+                        replyMessage = `Website directory switched to ${newDir} (does not contain required website files, falling back to 'website')`;
+                        portalConfig.website.directory = 'website';
                     } else {
-                        replyMessage = `Website directory switched to ${newDir} (not found, and default 'website' directory also missing)`;
+                        replyMessage = `Website directory switched to ${newDir} (does not contain required website files, and default 'website' directory is also missing or incomplete)`;
+                        portalConfig.website.directory = newDir;
                     }
                 } else {
                     replyMessage = `Website directory switched to ${newDir}`;
+                    portalConfig.website.directory = newDir;
                 }
-                portalConfig.website.directory = newDir;
                 if (websiteWorker) {
                     // Remove the exit handler to prevent auto-restart with old config
                     websiteWorker.removeAllListeners('exit');
