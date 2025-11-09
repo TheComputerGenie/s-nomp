@@ -66,13 +66,23 @@ const COIN_CONSTANTS = {
 
 // Helper: return a coin profile by name. If no name provided, return verus.
 function getCoin(name) {
-    if (!name) return COIN_CONSTANTS.verus;
+    if (!name) {
+        return COIN_CONSTANTS.verus;
+    }
     const key = name.toString().toLowerCase();
     // Accept a few common aliases
-    if (key === 'vrsc' || key === 'verus') return COIN_CONSTANTS.verus;
-    if (key === 'vdex') return COIN_CONSTANTS.vdex;
-    if (key === 'varrr' || key === 'varr' || key === 'var') return COIN_CONSTANTS.varrr;
-    if (key === 'chips') return COIN_CONSTANTS.chips;
+    if (key === 'vrsc' || key === 'verus') {
+        return COIN_CONSTANTS.verus;
+    }
+    if (key === 'vdex') {
+        return COIN_CONSTANTS.vdex;
+    }
+    if (key === 'varrr' || key === 'varr' || key === 'var') {
+        return COIN_CONSTANTS.varrr;
+    }
+    if (key === 'chips') {
+        return COIN_CONSTANTS.chips;
+    }
     return null;
 }
 
