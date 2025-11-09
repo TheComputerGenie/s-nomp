@@ -49,6 +49,23 @@ class Website {
         this.logger = logger;
         this.poolConfigs = safeParseEnvJSON('pools') || {};
         this.websiteConfig = this.portalConfig.website || {};
+        // Directory name where website files live (allows theming by changing this)
+        this.websiteDir = String(this.websiteConfig.directory || 'website');
+        // Resolve directory to an existing directory if possible; fallback to default 'website'
+        try {
+            const candidate = path.join(__dirname, '..', this.websiteDir);
+            const defaultDir = path.join(__dirname, '..', 'website');
+            if (!fs.existsSync(candidate)) {
+                if (fs.existsSync(defaultDir)) {
+                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' not found; falling back to 'website'`);
+                    this.websiteDir = 'website';
+                } else {
+                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' not found and default 'website' directory also missing. Static/templates may fail until created.`);
+                }
+            }
+        } catch (e) {
+            // ignore filesystem errors here and proceed with configured value
+        }
         this.logSystem = 'Website';
 
         this.portalApi = new Api(this.logger, this.portalConfig, this.poolConfigs);
@@ -86,7 +103,8 @@ class Website {
 
         this.buildKeyScriptPage();
 
-        watchPaths(['website', 'website/pages'], (evtPath) => {
+        // pass logger so failures to watch an absent directory are reported via logger
+        watchPaths([this.websiteDir, `${this.websiteDir}/pages`], (evtPath) => {
             const basename = path.basename(evtPath);
             if (basename in this.pageFiles) {
                 this.readPageFiles([basename]);
@@ -109,7 +127,7 @@ class Website {
      */
     readPageFiles(files) {
         Promise.all(files.map(fileName => new Promise((resolve, reject) => {
-            const relPath = `website/${fileName === 'index.html' ? '' : 'pages/'}${fileName}`;
+            const relPath = `${this.websiteDir}/${fileName === 'index.html' ? '' : 'pages/'}${fileName}`;
             const filePath = path.join(__dirname, '..', relPath);
             fs.readFile(filePath, 'utf8', (err, data) => {
                 if (err) {
@@ -191,7 +209,7 @@ class Website {
                 });
             });
 
-            const keyPath = path.join(__dirname, '..', 'website', 'key.html');
+            const keyPath = path.join(__dirname, '..', this.websiteDir, 'key.html');
             this.keyScriptTemplate = dot.template(fs.readFileSync(keyPath, 'utf8'));
             this.keyScriptProcessed = this.keyScriptTemplate({ coins: coinBytes });
         } catch (e) {
@@ -267,7 +285,7 @@ class Website {
      */
     startServer() {
         const app = createMiniApp();
-        const staticRoot = path.join(__dirname, '..', 'website', 'static');
+        const staticRoot = path.join(__dirname, '..', this.websiteDir, 'static');
         app.use(serveStatic(staticRoot));
 
         app.get('/get_page', (req, res, next) => {
@@ -350,7 +368,7 @@ class Website {
         }
 
         this.server.listen(port, host, () => {
-            this.logger.debug(this.logSystem, 'Server', `Website started on ${host}:${port}${useTls ? ' with TLS' : ''}`);
+            this.logger.debug(this.logSystem, 'Server', `Website started on ${host}:${port} serving from '${this.websiteDir}'${useTls ? ' with TLS' : ''}`);
         });
     }
 }
