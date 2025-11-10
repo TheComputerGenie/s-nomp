@@ -9,16 +9,28 @@
 /* eslint-env browser */
 
 /**
- * Converts raw hashrate value to human-readable string with appropriate units
- * (browser-friendly port of the server util implementation).
+ * Client-side hashrate formatter synchronized with server implementation in libs/utils/misc.js
+ * Differences from earlier client version: restores original threshold logic and unit math so
+ * average (client) and current (server) values use identical scaling.
  *
- * @param {number} hashrate - Raw hashrate in H/s
- * @returns {string}
+ * @param {number} hashrate - Raw base hashrate (prior to display multiplier)
+ * @param {number|string} [multiplierOrAlgo=2] - Either a numeric displayMultiplier or an algorithm name
+ * @returns {string} Human readable string (e.g. "412.61 MH/s")
  */
-function getReadableHashRateString(hashrate) {
-    // same behavior as server-side utils: apply scaling multiplier
-    hashrate = (hashrate * 2);
+function getReadableHashRateString(hashrate, multiplierOrAlgo = 2) {
+    let displayMultiplier = 2;
+    if (typeof multiplierOrAlgo === 'number') {
+        displayMultiplier = multiplierOrAlgo;
+    } else if (typeof multiplierOrAlgo === 'string') {
+        // If algorithm name passed and a global map is available, use it; else fallback.
+        if (window && window.algoDisplayMultipliers && window.algoDisplayMultipliers[multiplierOrAlgo]) {
+            displayMultiplier = window.algoDisplayMultipliers[multiplierOrAlgo];
+        }
+    }
 
+    hashrate = hashrate * displayMultiplier;
+
+    // Mirror server logic: for small hashrates (< 1,000,000) compress to H/s using (hr/1e6)
     if (hashrate < 1000000) {
         return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)} H/s`;
     }

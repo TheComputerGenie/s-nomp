@@ -149,35 +149,7 @@
       });
     </script>
     {{ } }}
-</div>
-
-<script src="/static/stats.js"></script>
-
 <script>
-    window.statsSource = new EventSource("/api/live_stats");
-    $(function() {
-        statsSource.addEventListener('message', function (e) {
-            var stats = JSON.parse(e.data);
-            for (var pool in stats.pools) {
-                $('#statsMiners' + pool).text(stats.pools[pool].minerCount);
-                $('#statsWorkers' + pool).text(stats.pools[pool].workerCount);
-                $('#statsHashrate' + pool).text(stats.pools[pool].hashrateString);
-                $('#statsHashrateAvg' + pool).text(getReadableHashRateString(calculateAverageHashrate(pool)));
-                if (typeof stats.pools[pool].luckDays !== 'undefined' && parseFloat(stats.pools[pool].luckDays) < 1) {
-                    const hours = (typeof stats.pools[pool].luckHours !== 'undefined') ? parseFloat(stats.pools[pool].luckHours) : (parseFloat(stats.pools[pool].luckDays) * 24);
-                    $('#statsLuckDays' + pool).text(hours.toFixed(3));
-                    $('#statsLuckUnit' + pool).text('Hours');
-                } else {
-                    $('#statsLuckDays' + pool).text(stats.pools[pool].luckDays);
-                    $('#statsLuckUnit' + pool).text('Days');
-                }
-                $('#statsValidBlocks' + pool).text(stats.pools[pool].poolStats.validBlocks);
-                $('#statsTotalPaid' + pool).text((parseFloat(stats.pools[pool].poolStats.totalPaid)).toFixed(8));
-                $('#statsNetworkBlocks' + pool).text(stats.pools[pool].poolStats.networkBlocks);
-                $('#statsNetworkDiff' + pool).text(stats.pools[pool].poolStats.networkDiff);
-                $('#statsNetworkSols' + pool).text(getReadableNetworkHashRateString(stats.pools[pool].poolStats.networkSols));
-                $('#statsNetworkConnections' + pool).text(stats.pools[pool].poolStats.networkConnections);
-            }
-        });
-    });
+    window.statsSource = new EventSource('/api/live_stats');
 </script>
+<script src="/static/stats.js"></script>
