@@ -539,7 +539,7 @@ function updateWorkerStats() {
  * @param {number} workerObj.lastShare - Timestamp of last share submission
  */
 function addWorkerToDisplay(name, htmlSafeName, workerObj) {
-    let htmlToAdd = `
+    const htmlToAdd = `
         <div class="col-md-4 mb-4">
             <div class="card h-100">
                 <div class="card-header">${htmlSafeName.indexOf('_') >= 0 ? htmlSafeName.substr(htmlSafeName.indexOf('_') + 1) : 'noname'}</div>

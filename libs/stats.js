@@ -583,7 +583,9 @@ class Stats {
                                     let s = 0;
                                     Object.keys(jsonObj.paid).forEach(k => {
                                         const v = parseFloat(jsonObj.paid[k]);
-                                        if (!Number.isNaN(v)) s += v;
+                                        if (!Number.isNaN(v)) {
+                                            s += v;
+                                        }
                                     });
                                     normalized.amount = s;
                                 } else {

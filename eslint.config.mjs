@@ -1,7 +1,7 @@
 export default [
   {
     files: ['**/*.js'],
-    ignores: ['website/static/scripts/*.js'],
+    ignores: ['website/static/scripts/*.js','modern/static/scripts/*.js'],
     languageOptions: {
       'ecmaVersion': 2025,
       'globals': {

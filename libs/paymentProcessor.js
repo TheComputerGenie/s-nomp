@@ -521,7 +521,9 @@ class PaymentProcessor {
                 // reward is stored in satoshis; balanceChange expects satoshis
                 const change = worker.reward || 0;
                 worker.balanceChange = change;
-                if (change > 0) deferredCount++;
+                if (change > 0) {
+                    deferredCount++;
+                }
             });
 
             if (deferredCount > 0) {
