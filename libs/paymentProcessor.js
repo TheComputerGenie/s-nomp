@@ -175,7 +175,18 @@ class PaymentProcessor {
 
             const { workersWithRewards, finalRounds } = await this._calculateRewards(workers, validatedRounds);
 
-            const { workersWithPayments, paymentsUpdate } = await this._executePayments(workersWithRewards);
+            // Compute total net rewards (satoshis) available from the rounds
+            const feeSatoshis = util.coinsToSatoshis(this.fee, this.magnitude);
+            let sumNetRewardsSats = 0;
+            finalRounds.forEach(r => {
+                if (r.category === 'generate') {
+                    const blockRewardSatoshis = util.coinsToSatoshis(r.reward, this.magnitude);
+                    const net = Math.max(0, blockRewardSatoshis - feeSatoshis);
+                    sumNetRewardsSats += net;
+                }
+            });
+
+            const { workersWithPayments, paymentsUpdate } = await this._executePayments(workersWithRewards, sumNetRewardsSats);
 
             await this._updateRedis(workersWithPayments, finalRounds, paymentsUpdate);
 
@@ -207,7 +218,10 @@ class PaymentProcessor {
         const workers = {};
         if (balances) {
             Object.keys(balances).forEach(w => {
-                workers[w] = { balance: util.coinsToSatoshis(parseFloat(balances[w]), this.magnitude) };
+                // Ensure malformed or missing balances default to 0
+                const balFloat = parseFloat(balances[w]);
+                const balCoins = Number.isFinite(balFloat) ? balFloat : 0;
+                workers[w] = { balance: util.coinsToSatoshis(balCoins, this.magnitude) };
             });
         }
 
@@ -319,13 +333,22 @@ class PaymentProcessor {
                 round.category = 'kicked';
             }
 
-            if (round.category === 'generate') {
+            // If the daemon reports the output category as 'generate' or
+            // 'immature', treat the round as potentially payable once it has
+            // reached the required confirmation count. Some daemons report
+            // coinbase outputs as 'immature' even when confirmations have
+            // passed the pool's minConf, so we explicitly promote those.
+            if (round.category === 'generate' || round.category === 'immature') {
                 if (round.confirmations >= this.minConfPayout) {
+                    // mark as payable
+                    round.category = 'generate';
                     payingBlocks++;
                     if (payingBlocks > this.maxBlocksPerPayment) {
+                        // defer excess blocks to future runs
                         round.category = 'immature';
                     }
                 } else {
+                    // still immature
                     round.category = 'immature';
                 }
             }
@@ -364,8 +387,12 @@ class PaymentProcessor {
         ]);
 
         let totalOwed = Object.values(workers).reduce((sum, worker) => sum + (worker.balance || 0), 0);
+        // Precompute fee in satoshis once and use consistently per round
+        const feeSatoshis = util.coinsToSatoshis(this.fee, this.magnitude);
         payingRounds.forEach(r => {
-            totalOwed += util.coinsToSatoshis(r.reward, this.magnitude) - util.coinsToSatoshis(this.fee, this.magnitude);
+            const blockRewardSatoshis = util.coinsToSatoshis(r.reward, this.magnitude);
+            const netReward = Math.max(0, blockRewardSatoshis - feeSatoshis);
+            totalOwed += netReward;
         });
 
         const tBalance = await this.listUnspent(null, null, this.minConfPayout);
@@ -409,15 +436,45 @@ class PaymentProcessor {
 
             round.workerShares = workerShares;
 
-            const reward = util.coinsToSatoshis(round.reward, this.magnitude) - util.coinsToSatoshis(this.fee, this.magnitude);
+            const blockRewardSatoshis = util.coinsToSatoshis(round.reward, this.magnitude);
+            let netReward = blockRewardSatoshis - feeSatoshis;
+            if (netReward <= 0) {
+                this.logger.warn(this.logSystem, this.logComponent, `Block reward (${blockRewardSatoshis}) <= fee (${feeSatoshis}) for round ${round.height}; skipping reward distribution.`);
+                netReward = 0;
+            }
+
+            // Distribute netReward proportionally to workerShares. Use rounding
+            // and assign any small remainder to the worker with the largest share
+            // to ensure total distributed equals netReward.
+            const workerRewards = {};
+            let distributed = 0;
+            let largestWorker = null;
+            let largestShares = 0;
 
             for (const workerAddress in workerShares) {
-                const percent = parseFloat(workerShares[workerAddress]) / totalShares;
-                const workerReward = Math.round(reward * percent);
+                const shares = parseFloat(workerShares[workerAddress]);
+                const percent = shares / totalShares;
+                const workerReward = Math.round(netReward * percent);
+                workerRewards[workerAddress] = workerReward;
+                distributed += workerReward;
+                if (shares > largestShares) {
+                    largestShares = shares;
+                    largestWorker = workerAddress;
+                }
+            }
+
+            // Adjust for rounding remainder
+            const remainder = netReward - distributed;
+            if (remainder !== 0 && largestWorker) {
+                workerRewards[largestWorker] = (workerRewards[largestWorker] || 0) + remainder;
+                distributed += remainder;
+            }
+
+            for (const workerAddress in workerRewards) {
                 if (!workers[workerAddress]) {
                     workers[workerAddress] = { balance: 0 };
                 }
-                workers[workerAddress].reward = (workers[workerAddress].reward || 0) + workerReward;
+                workers[workerAddress].reward = (workers[workerAddress].reward || 0) + workerRewards[workerAddress];
             }
         });
 
@@ -434,39 +491,88 @@ class PaymentProcessor {
      * @returns {Promise<{workersWithPayments: Object, paymentsUpdate: Array}>}
      */
 
-    async _executePayments(workers) {
+    async _executePayments(workers, sumNetRewardsSats = 0) {
+        // Aggregate amounts by miner address (root address portion before any worker suffix)
         const addressAmounts = {};
-        let totalSent = 0;
+        const addressWorkers = {}; // map address -> array of worker keys
 
         Object.keys(workers).forEach(w => {
             const worker = workers[w];
-            const address = this.getProperAddress(w.split('.')[0]);
+            const addressRoot = String(w).split('.')[0];
+            const address = this.getProperAddress(addressRoot);
             worker.address = address;
             const toSend = (worker.balance || 0) + (worker.reward || 0);
 
-            if (toSend >= this.minPaymentSatoshis) {
-                addressAmounts[address] = (addressAmounts[address] || 0) + toSend;
-                totalSent += toSend;
-            }
+            addressAmounts[address] = (addressAmounts[address] || 0) + toSend;
+            addressWorkers[address] = addressWorkers[address] || [];
+            addressWorkers[address].push({ key: w, toSend });
         });
 
-        if (Object.keys(addressAmounts).length === 0) {
+        // Determine which addresses meet the minimum payment threshold
+        const payableAddresses = Object.keys(addressAmounts).filter(addr => addressAmounts[addr] >= this.minPaymentSatoshis);
+
+        if (payableAddresses.length === 0) {
+            // No payments to send this run. Only record earned rewards
+            // as balance changes if there are actual rewards to defer.
+            let deferredCount = 0;
+            Object.keys(workers).forEach(w => {
+                const worker = workers[w];
+                worker.sent = 0;
+                // reward is stored in satoshis; balanceChange expects satoshis
+                const change = worker.reward || 0;
+                worker.balanceChange = change;
+                if (change > 0) deferredCount++;
+            });
+
+            if (deferredCount > 0) {
+                this.logger.info(this.logSystem, this.logComponent, `Deferred payments recorded to balances for ${deferredCount} workers.`);
+            }
+
             return { workersWithPayments: workers, paymentsUpdate: [] };
         }
 
+        // Build final amounts for sendmany only for payable addresses
         const finalAddressAmounts = {};
-        Object.keys(addressAmounts).forEach(addr => {
+        let totalSent = 0;
+        payableAddresses.forEach(addr => {
             finalAddressAmounts[addr] = util.satoshisToCoins(addressAmounts[addr], this.magnitude, this.coinPrecision);
+            totalSent += addressAmounts[addr];
         });
+
+        // Compute sum of worker balances (satoshis) to determine total available
+        let sumWorkerBalancesSats = 0;
+        Object.keys(workers).forEach(w => {
+            const worker = workers[w];
+            sumWorkerBalancesSats += (worker.balance || 0);
+        });
+
+        const totalAvailable = (sumNetRewardsSats || 0) + sumWorkerBalancesSats;
+
+        // Safety: if computed total to send exceeds total available (shouldn't happen)
+        if (totalSent > (totalAvailable + 1)) { // 1 sat tolerance
+            this.logger.error(this.logSystem, this.logComponent, `CRITICAL: Computed totalSent (${totalSent} sat) > totalAvailable (${totalAvailable} sat). Aborting send to avoid overpayment.`);
+            // Defer payments: record rewards back to balances
+            Object.keys(workers).forEach(w => {
+                const worker = workers[w];
+                worker.sent = 0;
+                worker.balanceChange = worker.reward || 0;
+            });
+            return { workersWithPayments: workers, paymentsUpdate: [] };
+        }
 
         try {
             const txid = await this.cmd('sendmany', ['', finalAddressAmounts]);
             this.logger.info(this.logSystem, this.logComponent, `Payments sent in transaction: ${txid}`);
 
+            // Mark workers as paid or deferred based on whether their miner
+            // (address) was included in this payment run.
             Object.keys(workers).forEach(w => {
                 const worker = workers[w];
+                const addr = worker.address;
                 const toSend = (worker.balance || 0) + (worker.reward || 0);
-                if (toSend >= this.minPaymentSatoshis) {
+                if (payableAddresses.indexOf(addr) !== -1) {
+                    // This worker's miner was paid; mark worker as sent and
+                    // clear their balance (balanceChange is negative of prior balance)
                     worker.sent = util.satoshisToCoins(toSend, this.magnitude, this.coinPrecision);
                     worker.balanceChange = -worker.balance;
                 } else {
@@ -480,7 +586,7 @@ class PaymentProcessor {
                 txid: txid,
                 amount: util.satoshisToCoins(totalSent, this.magnitude, this.coinPrecision),
                 fee: this.fee,
-                workers: Object.keys(addressAmounts).length,
+                workers: payableAddresses.length,
                 paid: finalAddressAmounts
             };
 
@@ -548,6 +654,10 @@ class PaymentProcessor {
                     break;
 
                 case 'immature':
+                    // Store the real confirmation count so future payment runs can
+                    // re-evaluate the round's status. The UI will cap the displayed
+                    // value to the configured minConf to avoid showing numbers
+                    // greater than the threshold.
                     finalRedisCommands.push(['hset', `${this.coin}:blocksPendingConfirms`, r.blockHash, r.confirmations]);
                     break;
             }
