@@ -115,9 +115,6 @@ exports.getBlockTemplate = function (daemon, options, jobManager, logger, logSys
                 callback(result.error);
             } else {
                 result.response.miner = result.response.coinbasetxn.coinbasevalue / 100000000;
-                result.response.founders = 0;
-                result.response.securenodes = 0;
-                result.response.supernodes = 0;
 
                 const processedNewBlock = jobManager.processTemplate(result.response);
                 callback(null, result.response, processedNewBlock);

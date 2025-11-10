@@ -1,9 +1,8 @@
 /**
  * @fileoverview Transaction generation utilities for cryptocurrency mining pools.
  * This module handles the creation of coinbase transactions for various cryptocurrencies,
- * including support for founders rewards, treasury rewards, masternode payments,
- * and pool fee distributions. It supports multiple coin types including Zcash-based
- * coins with Overwinter and Sapling protocol upgrades.
+ * including support for pool fee distributions. It supports multiple coin types including
+ * Zcash-based coins with Overwinter and Sapling protocol upgrades.
  *
  * @author v-nomp Pool Software
  * @version 1.0.0
@@ -31,11 +30,7 @@ exports.txHash = () => txHash;
 
 /**
  * Creates a coinbase transaction for a new block in a cryptocurrency mining pool.
- * This is the primary function that handles reward distribution including:
- * - Pool rewards
- * - Founders/Treasury rewards (for applicable coins)
- * - Masternode payments (for applicable coins)
- * - Fee recipient distributions
+ * This handles reward distribution including pool rewards and fee recipient distributions.
  *
  * @param {number} blockHeight - The height of the block being mined
  * @param {number} blockReward - The base block reward in satoshis
@@ -44,9 +39,6 @@ exports.txHash = () => txHash;
  * @param {string} poolAddress - The pool's payout address
  * @param {string} [poolHex] - Custom hex string for coinbase (defaults to 'VRSC')
  * @param {Object} coin - Coin configuration object with network and reward parameters
- * @param {number} [masternodeReward] - Masternode reward amount in satoshis
- * @param {string} [masternodePayee] - Masternode payout address
- * @param {boolean} [masternodePayment] - Whether masternode payment is enabled
  * @returns {string} The hexadecimal representation of the coinbase transaction
  * @throws {Error} When invalid addresses or coin parameters are provided
  *
@@ -56,16 +48,14 @@ exports.txHash = () => txHash;
  *   { address: '1DevFeeAddr...', percent: 0.5 }
  * ];
  * const coinConfig = {
- *   symbol: 'VRSC',
- *   payFoundersReward: true,
- *   percentFoundersReward: 2.5
+ *   symbol: 'VRSC'
  * };
  * const txHex = createGeneration(
  *   100000, 1250000000, 50000, recipients,
  *   '1PoolAddress...', null, coinConfig
  * );
  */
-exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poolAddress, poolHex, coin, masternodeReward, masternodePayee, masternodePayment) => {
+exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poolAddress, poolHex, coin) => {
     // Extract the hash160 from the pool's Base58Check encoded address
     // This hash will be used in the P2PKH script for the pool's reward output
     const poolAddrHash = bitcoin.address.fromBase58Check(poolAddress).hash;
@@ -137,227 +127,19 @@ exports.createGeneration = (blockHeight, blockReward, feeReward, recipients, poo
     let feePercent = 0;
     recipients.forEach(recipient => feePercent += recipient.percent);
 
-    // Flag to track whether transaction fees have been included in pool reward calculation
-    // This prevents double-counting fees in certain reward distribution scenarios
-    let feesDivided = false;
-
-    // Handle reward distribution based on whether masternode payments are enabled
-    // The logic branches into two main paths: with and without masternode support
-    if (masternodePayment === false || masternodePayment === undefined) {
-        // Handle coins WITHOUT masternode payments (e.g., ZEN, Zcash-based coins)
-        // This section manages founders/treasury rewards for various coin types
-
-        // Check if this coin has founders/treasury rewards and if we're within the reward period
-        if (coin.payFoundersReward === true && (coin.maxFoundersRewardBlockHeight >= blockHeight || coin.treasuryRewardStartBlockHeight || coin.treasuryRewardUpdateStartBlockHeight)) {
-            // Determine which type of reward system is active based on block height
-            // Priority: Treasury Update > Treasury > Founders (in chronological order)
-
-            if (coin.treasuryRewardUpdateStartBlockHeight && blockHeight >= coin.treasuryRewardUpdateStartBlockHeight) {
-                // Treasury Update System: Advanced reward distribution with multiple node types
-                // This system rotates through different addresses at regular intervals
-
-                // Calculate treasury reward address index based on block height and change interval
-                // Uses modulo to cycle through the available addresses in the array
-                const indexCF = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vTreasuryRewardUpdateAddress.length));
-                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vTreasuryRewardUpdateAddress[indexCF]).hash;
-
-                // Calculate Secure Nodes reward address index
-                // Secure Nodes provide network security services and receive ongoing rewards
-                const indexSN = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vSecureNodesRewardAddress.length));
-                const secureNodesAddrHash = bitcoin.address.fromBase58Check(coin.vSecureNodesRewardAddress[indexSN]).hash;
-
-                // Calculate Super Nodes reward address index
-                // Super Nodes typically provide enhanced network services (masternodes, validators, etc.)
-                const indexXN = parseInt(Math.floor(((blockHeight - coin.treasuryRewardUpdateStartBlockHeight) / coin.treasuryRewardUpdateAddressChangeInterval) % coin.vSuperNodesRewardAddress.length));
-                const superNodesAddrHash = bitcoin.address.fromBase58Check(coin.vSuperNodesRewardAddress[indexXN]).hash;
-
-                // Debug logging (commented out for production)
-                // These logs help verify correct address rotation during development
-                // console.log(`treasuryIndex: ${indexCF}`)
-                // console.log(`treasuryAddr:  ${coin.vTreasuryRewardUpdateAddress[indexCF]}`)
-                // console.log(`secureNodesIndex: ${indexSN}`)
-                // console.log(`secureNodesAddr:  ${coin.vSecureNodesRewardAddress[indexSN]}`)
-                // console.log(`superNodesIndex: ${indexXN}`)
-                // console.log(`superNodesAddr:  ${coin.vSuperNodesRewardAddress[indexXN]}`)
-
-                // Add pool reward output (remaining amount after all other rewards)
-                // Pool gets: (100% - treasury% - secureNodes% - superNodes% - fees%) + transaction fees
-                txb.addOutput(
-                    util.scriptCompile(poolAddrHash),
-                    Math.round(blockReward * (1 - (coin.percentTreasuryUpdateReward + coin.percentSecureNodesReward + coin.percentSuperNodesReward + feePercent) / 100)) + feeReward
-                );
-
-                // Add treasury reward output (uses P2SH script for enhanced security)
-                txb.addOutput(
-                    util.scriptFoundersCompile(foundersAddrHash),
-                    Math.round(blockReward * (coin.percentTreasuryUpdateReward / 100))
-                );
-
-                // Add Secure Nodes reward output
-                txb.addOutput(
-                    util.scriptFoundersCompile(secureNodesAddrHash),
-                    Math.round(blockReward * (coin.percentSecureNodesReward / 100))
-                );
-
-                // Add Super Nodes reward output
-                txb.addOutput(
-                    util.scriptFoundersCompile(superNodesAddrHash),
-                    Math.round(blockReward * (coin.percentSuperNodesReward / 100))
-                );
-
-                // Treasury reward system (simpler than Treasury Update)
-            } else if (coin.treasuryRewardStartBlockHeight && blockHeight >= coin.treasuryRewardStartBlockHeight) {
-                // Standard Treasury System: Single treasury with rotating addresses
-                // Used by coins that have graduated from founders rewards to treasury system
-
-                // Calculate which treasury address to use based on block height
-                // Addresses rotate at regular intervals to distribute control
-                const index = parseInt(Math.floor(((blockHeight - coin.treasuryRewardStartBlockHeight) / coin.treasuryRewardAddressChangeInterval) % coin.vTreasuryRewardAddress.length));
-                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vTreasuryRewardAddress[index]).hash;
-
-                // Debug logging for treasury address rotation
-                // console.log(`treasuryIndex: ${index}`)
-                // console.log(`treasuryAddr:  ${coin.vTreasuryRewardAddress[index]}`)
-
-                // Add pool reward output (remaining after treasury and fees)
-                txb.addOutput(
-                    util.scriptCompile(poolAddrHash),
-                    Math.round(blockReward * (1 - (coin.percentTreasuryReward + feePercent) / 100)) + feeReward
-                );
-
-                // Add treasury reward output
-                txb.addOutput(
-                    util.scriptFoundersCompile(foundersAddrHash),
-                    Math.round(blockReward * (coin.percentTreasuryReward / 100))
-                );
-            } else {
-                // Original Founders Reward System
-                // Used in early stages of coin development to fund initial development
-                // Typically phases out after a certain block height
-
-                // Calculate founders address index - simpler rotation based on block height
-                // No start block offset, just divide by interval
-                const index = parseInt(Math.floor(blockHeight / coin.foundersRewardAddressChangeInterval));
-                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vFoundersRewardAddress[index]).hash;
-
-                // Debug logging for founders address rotation
-                // console.log(`foundersIndex: ${index}`)
-                // console.log(`foundersAddr:  ${coin.vFoundersRewardAddress[index]}`)
-
-                // Add pool reward output (remaining after founders reward and fees)
-                txb.addOutput(
-                    util.scriptCompile(poolAddrHash),
-                    Math.round(blockReward * (1 - (coin.percentFoundersReward + feePercent) / 100)) + feeReward
-                );
-
-                // Add founders reward output
-                txb.addOutput(
-                    util.scriptFoundersCompile(foundersAddrHash),
-                    Math.round(blockReward * (coin.percentFoundersReward / 100))
-                );
-            }
-        } else {
-            // No special rewards system - standard mining pool operation
-            // Pool receives full block reward minus fee recipients, plus all transaction fees
-            feesDivided = true; // Mark that fees are included in pool calculation
-            txb.addOutput(
-                util.scriptCompile(poolAddrHash),
-                Math.round((blockReward + feeReward) * (1 - (feePercent / 100)))
-            );
-        }
-    } else {
-        // Handle coins WITH masternode payments (e.g., SnowGem, Dash-based coins)
-        // Masternodes provide additional network services and receive regular payments
-
-        // Extract masternode address hash if payee is specified
-        // Masternode payments are mandatory when enabled, so this should always be present
-        const masternodeAddrHash = masternodePayee ? bitcoin.address.fromBase58Check(masternodePayee).hash : null;
-
-        // Check if this masternode-enabled coin also has founders/treasury rewards
-        if (coin.payFoundersReward === true && (coin.maxFoundersRewardBlockHeight >= blockHeight || coin.treasuryRewardStartBlockHeight)) {
-            // Masternode coins with treasury/founders rewards (complex reward distribution)
-
-            if (coin.treasuryRewardStartBlockHeight && blockHeight >= coin.treasuryRewardStartBlockHeight) {
-                // Treasury + Masternode reward system
-                // Pool reward is reduced by both treasury and masternode payments
-
-                const index = parseInt(Math.floor(((blockHeight - coin.treasuryRewardStartBlockHeight) / coin.treasuryRewardAddressChangeInterval) % coin.vTreasuryRewardAddress.length));
-                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vTreasuryRewardAddress[index]).hash;
-
-                // Debug logging for treasury rotation
-                // console.log(`treasuryIndex: ${index}`)
-                // console.log(`treasuryAddr:  ${coin.vTreasuryRewardAddress[index]}`)
-
-                // Add pool reward output (reduced by treasury percentage, fees, and masternode payment)
-                txb.addOutput(
-                    util.scriptCompile(poolAddrHash),
-                    Math.round(blockReward * (1 - (coin.percentTreasuryReward + feePercent) / 100)) + feeReward - masternodeReward
-                );
-
-                // Add treasury reward output
-                txb.addOutput(
-                    util.scriptFoundersCompile(foundersAddrHash),
-                    Math.round(blockReward * (coin.percentTreasuryReward / 100))
-                );
-
-                // Add masternode reward output (uses regular P2PKH script)
-                txb.addOutput(
-                    util.scriptCompile(masternodeAddrHash),
-                    Math.round(masternodeReward)
-                );
-            } else {
-                // Founders + Masternode reward system
-                // Used in early development phases of masternode-enabled coins
-
-                const index = parseInt(Math.floor(blockHeight / coin.foundersRewardAddressChangeInterval));
-                const foundersAddrHash = bitcoin.address.fromBase58Check(coin.vFoundersRewardAddress[index]).hash;
-
-                // Debug logging for founders rotation
-                // console.log(`foundersIndex: ${index}`)
-                // console.log(`foundersAddr:  ${coin.vFoundersRewardAddress[index]}`)
-
-                // Add pool reward output (reduced by founders percentage, fees, and masternode payment)
-                txb.addOutput(
-                    util.scriptCompile(poolAddrHash),
-                    Math.round(blockReward * (1 - (coin.percentFoundersReward + feePercent) / 100)) + feeReward - masternodeReward
-                );
-
-                // Add founders reward output
-                txb.addOutput(
-                    util.scriptFoundersCompile(foundersAddrHash),
-                    Math.round(blockReward * (coin.percentFoundersReward / 100))
-                );
-
-                // Add masternode reward output
-                txb.addOutput(
-                    util.scriptCompile(masternodeAddrHash),
-                    Math.round(masternodeReward)
-                );
-            }
-        } else {
-            // Simple masternode system without founders/treasury rewards
-            // Pool gets remaining block reward after masternode payment and fee deductions
-
-            // Add pool reward output (reduced by fees and masternode payment)
-            txb.addOutput(
-                util.scriptCompile(poolAddrHash),
-                Math.round(blockReward * (1 - (feePercent / 100))) + feeReward - masternodeReward
-            );
-
-            // Add masternode reward output
-            txb.addOutput(
-                util.scriptCompile(masternodeAddrHash),
-                Math.round(masternodeReward)
-            );
-        }
-    }
+    // Add pool reward output
+    // Pool receives full block reward minus fee recipients, plus all transaction fees
+    txb.addOutput(
+        util.scriptCompile(poolAddrHash),
+        Math.round((blockReward + feeReward) * (1 - (feePercent / 100)))
+    );
 
     // Add outputs for pool fee recipients (development, maintenance, etc.)
     // These recipients receive a percentage of the total reward based on their configured share
     recipients.forEach(recipient => {
         // Calculate recipient reward based on total available reward
-        // Include transaction fees only if they weren't already distributed to the pool
-        const recipientAmount = Math.round((blockReward + (feesDivided ? feeReward : 0)) * (recipient.percent / 100));
+        // Include transaction fees in the calculation
+        const recipientAmount = Math.round((blockReward + feeReward) * (recipient.percent / 100));
 
         txb.addOutput(
             util.scriptCompile(bitcoin.address.fromBase58Check(recipient.address).hash),

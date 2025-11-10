@@ -97,4 +97,3 @@ exports.miningKeyToScript = s.miningKeyToScript;
 exports.addressToScript = s.addressToScript;
 exports.pubkeyToScript = s.pubkeyToScript;
 exports.scriptCompile = s.scriptCompile;
-exports.scriptFoundersCompile = s.scriptFoundersCompile;

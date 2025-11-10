@@ -41,8 +41,6 @@ const bignum = util.bignum;
  * - Merged mining (auxiliary chains)
  * - PBaaS (Public Blockchains as a Service) protocol
  * - VerusHash algorithm with solution spaces
- * - Masternode payments
- * - Founder rewards
  *
  * @class BlockTemplate
  * @param {string} jobId - Unique identifier for this mining job
@@ -64,7 +62,6 @@ const bignum = util.bignum;
  * @param {string} poolHex - Pool address in hexadecimal format
  * @param {Object} coin - Coin configuration object
  * @param {string} [coin.algorithm] - Mining algorithm (e.g., 'verushash')
- * @param {boolean} [coin.payFoundersReward] - Whether to pay founder rewards
  *
  * @example
  * const blockTemplate = new BlockTemplate(
@@ -74,7 +71,7 @@ const bignum = util.bignum;
  *   poolRecipients,
  *   'RPoolAddress123...',
  *   '76a914...88ac',
- *   { algorithm: 'verushash', payFoundersReward: true }
+ *   { algorithm: 'verushash' }
  * );
  */
 const BlockTemplate = module.exports = function BlockTemplate(
@@ -157,38 +154,7 @@ const BlockTemplate = module.exports = function BlockTemplate(
      * Base block reward in satoshis (miner reward * 100000000)
      * @type {number}
      */
-    let blockReward = (this.rpcData.miner) * 100000000;
-
-    // Handle founder rewards for coins that support them (like Zcash forks)
-    if (coin.payFoundersReward === true) {
-        if (!this.rpcData.founders || this.rpcData.founders.length <= 0) {
-            console.log('Error, founders reward missing for block template!');
-        } else {
-            // Calculate total block reward including all network participants
-            // founders: Development team rewards
-            // securenodes: Secure node operator rewards
-            // supernodes: Super node operator rewards
-            blockReward = (this.rpcData.miner + this.rpcData.founders + this.rpcData.securenodes + this.rpcData.supernodes) * 100000000;
-        }
-    }
-
-    /**
-     * Masternode reward amount (if applicable)
-     * @type {number}
-     */
-    const masternodeReward = rpcData.payee_amount;
-
-    /**
-     * Masternode payee address
-     * @type {string}
-     */
-    const masternodePayee = rpcData.payee;
-
-    /**
-     * Whether masternode payments are enabled
-     * @type {boolean}
-     */
-    const masternodePayment = rpcData.masternode_payments;
+    const blockReward = (this.rpcData.miner) * 100000000;
 
     // === Transaction Fee Processing ===
 
@@ -262,10 +228,7 @@ const BlockTemplate = module.exports = function BlockTemplate(
             recipients,
             poolAddress,
             poolHex,
-            coin,
-            masternodeReward,
-            masternodePayee,
-            masternodePayment
+            coin
         ).toString('hex');
 
         /**

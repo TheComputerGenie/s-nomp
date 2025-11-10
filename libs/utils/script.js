@@ -60,13 +60,3 @@ exports.scriptCompile = addrHash => bitcoin.script.compile([
     bitcoin.opcodes.OP_CHECKSIG
 ]);
 
-/**
- * Compile a Pay-to-Script-Hash (P2SH) script from a 20-byte script hash.
- * @param {Buffer} address - 20-byte script hash
- * @returns {Buffer} compiled scriptPubKey for P2SH
- */
-exports.scriptFoundersCompile = address => bitcoin.script.compile([
-    bitcoin.opcodes.OP_HASH160,
-    address,
-    bitcoin.opcodes.OP_EQUAL
-]);
