@@ -1,322 +1,266 @@
 /**
- * @fileoverview BlockTemplate module for managing cryptocurrency mining block templates.
- * This module handles the creation, validation, and serialization of block templates
- * for stratum mining operations, with special support for Verus and PBaaS protocols.
+ * @fileoverview Block Template - Mining job and block serialization utilities
  *
- * @module blockTemplate
- * @requires bignum - For handling large number operations
- * @requires ./merkleTree - For merkle root calculations
- * @requires ./transactions - For transaction generation and fee calculation
- * @requires ./util - For various utility functions
- * @requires ../PoolLogger - For logging operations
+ * Provides the BlockTemplate class for handling cryptocurrency mining jobs,
+ * block header serialization, and submission validation for stratum mining protocols.
  *
- * @author v-nomp contributors
- * @since 1.0.0
+ * @author ComputerGenieCo
+ * @version 21.7.3
+ * @copyright 2025
  */
 
 'use strict';
 
 // Core requires
+const PoolLogger = require('../PoolLogger.js');
 const merkle = require('./merkleTree.js');
 const transactions = require('./transactions.js');
 const util = require('../utils/util.js');
-const PoolLogger = require('../PoolLogger.js');
 
-// Lightweight replacement for the `bignum` package using native BigInt (Node.js v21+).
-// We provide a minimal wrapper that matches the small API surface used in this file
-// (construction from hex, toNumber, toString, valueOf). This lets other code that
-// expects a "bignum-like" object continue to work without pulling the external
-// dependency.
 // Use shared lightweight BigNum factory from utils
 const bignum = util.bignum;
 
 /**
- * BlockTemplate class represents a single mining job and provides methods to validate
- * and submit blocks to the cryptocurrency daemon. It handles block header serialization,
- * coinbase transaction generation, and mining job parameter creation.
+ * BlockTemplate class for cryptocurrency mining jobs
  *
- * This class is specifically designed to work with stratum mining protocols and supports
- * various cryptocurrency features including:
- * - Standard block templates
- * - Merged mining (auxiliary chains)
- * - PBaaS (Public Blockchains as a Service) protocol
- * - VerusHash algorithm with solution spaces
+ * Represents a single mining job with methods to validate and submit blocks
+ * to the cryptocurrency daemon. Handles block header serialization, coinbase
+ * transaction generation, and mining job parameter creation.
  *
  * @class BlockTemplate
  * @param {string} jobId - Unique identifier for this mining job
- * @param {Object} rpcData - Block template data received from the cryptocurrency daemon
- * @param {string} rpcData.target - Mining target in hexadecimal format
- * @param {number} rpcData.height - Block height
- * @param {number} rpcData.version - Block version
- * @param {string} rpcData.previousblockhash - Previous block hash
- * @param {string} rpcData.bits - Difficulty bits in compact format
- * @param {number} rpcData.curtime - Current timestamp
- * @param {Array} rpcData.transactions - Array of transactions to include in block
- * @param {number} rpcData.miner - Miner reward amount
- * @param {string} [rpcData.finalsaplingroothash] - Sapling root hash for privacy coins
- * @param {string} [rpcData.solution] - Solution space for VerusHash (contains reserved space)
- * @param {Object} [rpcData.coinbasetxn] - Pre-built coinbase transaction from daemon (PBaaS)
- * @param {string} extraNoncePlaceholder - Placeholder for extra nonce in coinbase (unused)
- * @param {Array} recipients - Array of mining pool fee recipients
- * @param {string} poolAddress - Mining pool's primary address
- * @param {string} poolHex - Pool address in hexadecimal format
- * @param {Object} coin - Coin configuration object
- * @param {string} [coin.algorithm] - Mining algorithm (e.g., 'verushash')
- *
- * @example
- * const blockTemplate = new BlockTemplate(
- *   'job123',
- *   rpcBlockData,
- *   null,
- *   poolRecipients,
- *   'RPoolAddress123...',
- *   '76a914...88ac',
- *   { algorithm: 'verushash' }
- * );
+ * @param {Object} rpcData - Block template data from cryptocurrency daemon
+ * @param {string} extraNoncePlaceholder - Placeholder for extra nonce (unused)
+ * @param {Object} options - Configuration options
  */
-const BlockTemplate = module.exports = function BlockTemplate(
-    jobId,
-    rpcData,
-    extraNoncePlaceholder,
-    recipients,
-    poolAddress,
-    poolHex,
-    coin
-) {
+class BlockTemplate {
+    constructor(jobId, rpcData, extraNoncePlaceholder, options) {
 
-    /**
-     * Logger instance for debugging and tracing block template operations
-     * @private
-     * @type {PoolLogger}
-     */
-    const logger = new PoolLogger({
-        logLevel: `debug`,
-        logColors: `true`
-    });
+        // Extract configuration options
+        const recipients = options.recipients;
+        const poolAddress = options.address;
+        const poolHex = options.poolHex;
+        const coin = options.coin;
 
-    /**
-     * Array to track submitted block headers to prevent duplicate submissions
-     * @private
-     * @type {Array<string>}
-     */
-    const submits = [];
+        /** @type {Object} Pool configuration options */
+        this.options = options;
+        const poolConfig = JSON.parse(process.env.pools);
+        const portalConfig = JSON.parse(process.env.portalConfig);
 
-    // === Public Properties ===
+        /** @type {PoolLogger} Logger instance for pool operations */
+        const logger = new PoolLogger({
+            logLevel: portalConfig.logLevel,
+            logColors: portalConfig.logColors
+        });
 
-    /**
-     * Raw RPC data received from the cryptocurrency daemon
-     * @type {Object}
-     */
-    this.rpcData = rpcData;
+        /** @type {string} Log system identifier */
+        const logSystem = ' Blocks';
 
-    /**
-     * Unique identifier for this mining job
-     * @type {string}
-     */
-    this.jobId = jobId;
+        /** @type {string} Log component (coin name) */
+        const logComponent = options.coin.name;
 
-    // === Target and Difficulty Calculation ===
+        /** @type {string} Fork identifier for multi-process setups */
+        const forkId = process.env.forkId || '0';
 
-    /**
-     * Mining target as a big number (converted from hex string)
-     * Represents the maximum hash value that constitutes a valid block
-     * @type {bignum}
-     */
-    this.target = bignum(rpcData.target, 16);
+        /** @type {string} Log subcategory with thread number */
+        const logSubCat = `Thread ${parseInt(forkId) + 1}`;
 
-    /**
-     * Block difficulty calculated from the target
-     * Higher difficulty means lower target value (harder to mine)
-     * @type {number}
-     */
-    this.difficulty = parseFloat((diff1 / this.target.toNumber()).toFixed(9));
-
-    /**
-     * Target for merged mining operations (defaults to main target)
-     * Used for auxiliary chain mining in merged mining scenarios
-     * @type {bignum}
-     */
-    this.merged_target = this.target;
-
-    // Handle PBaaS minimal merged mining target configuration
-    // PBaaS (Public Blockchains as a Service) may specify different targets for merged mining
-    if (this.rpcData.merged_bits) {
-        // Use merged_bits if provided by daemon
-        this.merged_target = util.bignumFromBitsHex(this.rpcData.merged_bits);
-    } else if (this.rpcData.mergeminebits) {
-        // Fallback to mergeminebits for compatibility
-        this.merged_target = util.bignumFromBitsHex(this.rpcData.mergeminebits);
-    }
-
-    // === Block Reward and Payment Calculation ===
-
-    /**
-     * Base block reward in satoshis (miner reward * 100000000)
-     * @type {number}
-     */
-    const blockReward = (this.rpcData.miner) * 100000000;
-
-    // === Transaction Fee Processing ===
-
-    /**
-     * Array of transaction objects for fee calculation
-     * @type {Array}
-     */
-    const fees = [];
-    rpcData.transactions.forEach((value) => {
-        fees.push(value);
-    });
-
-    /**
-     * Total transaction fees collected from all transactions in the block
-     * @type {number}
-     */
-    this.rewardFees = transactions.getFees(fees);
-    rpcData.rewardFees = this.rewardFees;
-
-    /**
-     * Total transaction count including the coinbase transaction
-     * Used for block serialization and validation
-     * @type {number}
-     */
-    this.txCount = this.rpcData.transactions.length + 1; // add total txs and new coinbase
-
-    // === Coinbase Transaction Generation ===
-
-    // VerusCoin daemon performs all coinbase transaction calculations to include fees from the fee pool
-    // *Note: Verus daemon must be setup with -minerdistribution '{"address": 0.9, "address2":0.1}' option
-    //        or setup with -pubkey, -mineraddress, etc. for proper reward distribution
-
-    /**
-     * Extract solver version from solution space (first 2 hex characters)
-     * Used to determine PBaaS activation and coinbase handling method
-     * @type {number}
-     */
-    const solver = parseInt(this.rpcData.solution.substr(0, 2), 16);
-
-    // When PBaaS (Public Blockchains as a Service) activates (solver > 6), we must use
-    // the pre-built coinbase transaction from daemon to get proper fee pool calculations
-    if (coin.algorithm && coin.algorithm == 'verushash' && solver > 6 && this.rpcData.coinbasetxn) {
         /**
-         * Block reward amount from daemon's coinbase transaction (PBaaS mode)
+         * Array to track submitted block headers to prevent duplicate submissions
+         * @private
+         * @type {Array<string>}
+         */
+        this.submits = [];
+
+        // === Public Properties ===
+
+        /**
+         * Raw RPC data received from the cryptocurrency daemon
+         * @type {Object}
+         */
+        this.rpcData = rpcData;
+
+        /**
+         * Unique identifier for this mining job
+         * @type {string}
+         */
+        this.jobId = jobId;
+
+        // === Target and Difficulty Calculation ===
+
+        /**
+         * Mining target as a big number (converted from hex string)
+         * Represents the maximum hash value that constitutes a valid block
+         * @type {bignum}
+         */
+        this.target = bignum(rpcData.target, 16);
+
+        /**
+         * Block difficulty calculated from the target
+         * Higher difficulty means lower target value (harder to mine)
          * @type {number}
          */
-        this.blockReward = this.rpcData.coinbasetxn.coinbasevalue;
+        this.difficulty = parseFloat((diff1 / this.target.toNumber()).toFixed(9));
 
         /**
-         * Pre-built coinbase transaction data from daemon (hex string)
-         * @type {string}
+         * Target for merged mining operations (defaults to main target)
+         * Used for auxiliary chain mining in merged mining scenarios
+         * @type {bignum}
          */
-        this.genTx = this.rpcData.coinbasetxn.data;
+        this.merged_target = this.target;
+
+        // Handle PBaaS minimal merged mining target configuration
+        // PBaaS (Public Blockchains as a Service) may specify different targets for merged mining
+        if (this.rpcData.merged_bits) {
+            // Use merged_bits if provided by daemon
+            this.merged_target = util.bignumFromBitsHex(this.rpcData.merged_bits);
+        } else if (this.rpcData.mergeminebits) {
+            // Fallback to mergeminebits for compatibility
+            this.merged_target = util.bignumFromBitsHex(this.rpcData.mergeminebits);
+        }
+
+        // === Block Reward and Payment Calculation ===
 
         /**
-         * Coinbase transaction hash (reversed for little-endian format)
-         * @type {string}
+         * Base block reward in satoshis (miner reward * 100000000)
+         * @type {number}
          */
-        this.genTxHash = util.reverseBuffer(Buffer.from(this.rpcData.coinbasetxn.hash, 'hex')).toString('hex');
+        const blockReward = (this.rpcData.miner) * 100000000;
 
-    } else if (typeof this.genTx === 'undefined') {
-        // Generate coinbase transaction manually for non-PBaaS scenarios
-        /**
-         * Generated coinbase transaction in hexadecimal format
-         * @type {string}
-         */
-        this.genTx = transactions.createGeneration(
-            rpcData.height,
-            blockReward,
-            this.rewardFees,
-            recipients,
-            poolAddress,
-            poolHex,
-            coin
-        ).toString('hex');
+        // === Transaction Fee Processing ===
 
         /**
-         * Hash of the generated coinbase transaction
+         * Array of transaction objects for fee calculation
+         * @type {Array}
+         */
+        const fees = [];
+        rpcData.transactions.forEach((value) => {
+            fees.push(value);
+        });
+
+        /**
+         * Total transaction fees collected from all transactions in the block
+         * @type {number}
+         */
+        this.rewardFees = transactions.getFees(fees);
+        rpcData.rewardFees = this.rewardFees;
+
+        /**
+         * Total transaction count including the coinbase transaction
+         * Used for block serialization and validation
+         * @type {number}
+         */
+        this.txCount = this.rpcData.transactions.length + 1; // add total txs and new coinbase
+
+        // === Coinbase Transaction Generation ===
+
+        /**
+         * Extract solver version from solution space (first 2 hex characters)
+         * Used to determine PBaaS activation and coinbase handling method
+         * @type {number}
+         */
+        const solver = parseInt(this.rpcData.solution.substr(0, 2), 16);
+
+        // When PBaaS (Public Blockchains as a Service) activates (solver > 6), we must use
+        // the pre-built coinbase transaction from daemon to get proper fee pool calculations
+        if (coin.algorithm && coin.algorithm == 'verushash' && solver > 6 && this.rpcData.coinbasetxn) {
+            /**
+             * Block reward amount from daemon's coinbase transaction (PBaaS mode)
+             * @type {number}
+             */
+            this.blockReward = this.rpcData.coinbasetxn.coinbasevalue;
+
+            /**
+             * Pre-built coinbase transaction data from daemon (hex string)
+             * @type {string}
+             */
+            this.genTx = this.rpcData.coinbasetxn.data;
+
+            /**
+             * Coinbase transaction hash (reversed for little-endian format)
+             * @type {string}
+             */
+            this.genTxHash = util.reverseBuffer(Buffer.from(this.rpcData.coinbasetxn.hash, 'hex')).toString('hex');
+
+        } else if (typeof this.genTx === 'undefined') {
+            // Generate coinbase transaction manually for non-PBaaS scenarios
+            /**
+             * Generated coinbase transaction in hexadecimal format
+             * @type {string}
+             */
+            this.genTx = transactions.createGeneration(
+                rpcData.height,
+                blockReward,
+                this.rewardFees,
+                recipients,
+                poolAddress,
+                poolHex,
+                coin
+            ).toString('hex');
+
+            /**
+             * Hash of the generated coinbase transaction
+             * @type {string}
+             */
+            this.genTxHash = transactions.getTxHash();
+        }
+
+        // === Merkle Root and Block Header Preparation ===
+
+        /**
+         * Merkle root calculated from all transactions (including coinbase)
          * @type {string}
          */
-        this.genTxHash = transactions.txHash();
+        this.merkleRoot = merkle.getRoot(this.rpcData, this.genTxHash);
+
+        /**
+         * Previous block hash in little-endian format (reversed for block header)
+         * @type {string}
+         */
+        this.prevHashReversed = util.reverseBuffer(Buffer.from(rpcData.previousblockhash, 'hex')).toString('hex');
+
+        /**
+         * Final Sapling root hash in little-endian format
+         * Defaults to zero hash if not provided
+         * @type {string}
+         */
+        if (rpcData.finalsaplingroothash) {
+            this.finalSaplingRootHashReversed = util.reverseBuffer(Buffer.from(rpcData.finalsaplingroothash, 'hex')).toString('hex');
+        } else {
+            this.finalSaplingRootHashReversed = '0000000000000000000000000000000000000000000000000000000000000000'; //hashReserved
+        }
+
+        /**
+         * Merkle root in little-endian format (reversed for block header)
+         * @type {string}
+         */
+        this.merkleRootReversed = util.reverseBuffer(Buffer.from(this.merkleRoot, 'hex')).toString('hex');
+
+        // Block template is now ready for mining operations
+
+        // === Final Difficulty Calculation and Logging ===
+
+        /**
+         * Final difficulty calculation using utility function
+         * This may differ from the initial calculation and provides the authoritative difficulty
+         * @type {number}
+         */
+        this.difficulty = util.calculateDifficulty(this.rpcData.target);
+
+        // Log block template creation
+        if (forkId == '0') {
+            logger.trace(logSystem, logComponent, logSubCat, `block ${this.rpcData.height} diff is: ${this.difficulty}`);
+        }
     }
-
-    // === Merkle Root and Block Header Preparation ===
-
-    /**
-     * Merkle root calculated from all transactions (including coinbase)
-     * @type {string}
-     */
-    this.merkleRoot = merkle.getRoot(this.rpcData, this.genTxHash);
-
-    /*
-    console.log('this.genTxHash: ' + transactions.txHash());
-    console.log('this.merkleRoot: ' + merkle.getRoot(rpcData, this.genTxHash));
-    */
-
-    /**
-     * Previous block hash in little-endian format (reversed for block header)
-     * @type {string}
-     */
-    this.prevHashReversed = util.reverseBuffer(Buffer.from(rpcData.previousblockhash, 'hex')).toString('hex');
-
-    /**
-     * Final Sapling root hash in little-endian format
-     * Used by privacy coins (Zcash forks) for shielded transactions
-     * Defaults to zero hash if not provided
-     * @type {string}
-     */
-    if (rpcData.finalsaplingroothash) {
-        this.finalSaplingRootHashReversed = util.reverseBuffer(Buffer.from(rpcData.finalsaplingroothash, 'hex')).toString('hex');
-    } else {
-        this.finalSaplingRootHashReversed = '0000000000000000000000000000000000000000000000000000000000000000'; //hashReserved
-    }
-
-    /**
-     * Merkle root in little-endian format (reversed for block header)
-     * @type {string}
-     */
-    this.merkleRootReversed = util.reverseBuffer(Buffer.from(this.merkleRoot, 'hex')).toString('hex');
-
-    // Block template is now ready for mining operations
-
-    // === Final Difficulty Calculation and Logging ===
-
-    /**
-     * Final difficulty calculation using utility function
-     * This may differ from the initial calculation and provides the authoritative difficulty
-     * @type {number}
-     */
-    this.difficulty = util.calculateDifficulty(this.rpcData.target);
-
-    // Log block template creation (only from main thread to avoid spam)
-    if (!process.env.forkId || process.env.forkId === '0') {
-        logger.trace('Blocks', coin.name, `Thread ${parseInt(process.env.forkId) + 1}`, `${this.rpcData.height} block diff is: ${this.difficulty}`);
-    }
-
-    // === Mining Job Parameters Method ===
 
     /**
      * Generates parameters for the mining.notify stratum message.
      * This method creates the parameter array that gets sent to miners
      * to inform them about new mining jobs.
      *
-     * Standard stratum mining.notify parameters:
-     * 0. Job ID - Unique identifier for this mining job
-     * 1. Version - Block version (4 bytes, little-endian)
-     * 2. Previous Hash - Hash of previous block (32 bytes, little-endian)
-     * 3. Merkle Root - Transaction merkle root (32 bytes, little-endian)
-     * 4. Final Sapling Root - Privacy coin root hash (32 bytes, little-endian)
-     * 5. Timestamp - Current time (4 bytes, little-endian)
-     * 6. Bits - Difficulty target (4 bytes, little-endian)
-     * 7. Clean Jobs - Boolean indicating if previous jobs should be discarded
-     * 8. Solution Space - VerusHash reserved solution space (optional)
-     *
-     * @method getJobParams
      * @returns {Array} Array of parameters for stratum mining.notify message
-     *
-     * @example
-     * const jobParams = blockTemplate.getJobParams();
-     * // Send to miner: ["mining.notify", jobParams]
      */
-    this.getJobParams = function () {
+    getJobParams() {
         // Convert difficulty bits to little-endian format
         const nbits = util.reverseBuffer(Buffer.from(this.rpcData.bits, 'hex'));
 
@@ -348,53 +292,21 @@ const BlockTemplate = module.exports = function BlockTemplate(
                 }
                 this.jobParams.push(reservedSolutionSpace);                          // 8: Solution space
             }
-
-            // PBaaS may require block header nonce to be sent to miners
-            // Currently commented out but available for future use
-            //if (this.rpcData.nonce) {
-            //    this.jobParams.push(this.rpcData.nonce);                           // 9: Header nonce
-            //}
         }
         return this.jobParams;
-    };
-
-    // === Block Header Serialization Method ===
+    }
 
     /**
      * Serializes the block header according to the blockchain protocol specification.
-     * Block header format follows Zcash protocol: https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
      *
-     * Block header structure (140 bytes total):
-     * - Version (4 bytes): Block version number
-     * - Previous Hash (32 bytes): Hash of previous block
-     * - Merkle Root (32 bytes): Root of transaction merkle tree
-     * - Final Sapling Root (32 bytes): Root for shielded transactions (privacy coins)
-     * - Timestamp (4 bytes): Block creation time
-     * - Bits (4 bytes): Difficulty target in compact format
-     * - Nonce (32 bytes): Mining nonce value
-     *
-     * @method serializeHeader
      * @param {string} nTime - Block timestamp in hexadecimal format
      * @param {string} nonce - Mining nonce in hexadecimal format (32 bytes)
      * @returns {Buffer} Serialized block header as a 140-byte buffer
-     *
-     * @example
-     * const header = blockTemplate.serializeHeader('5f8a7b2c', '0000000000000000000000000000000000000000000000000000000012345678');
      */
-    this.serializeHeader = function (nTime, nonce) {
+    serializeHeader(nTime, nonce) {
         // Allocate 140 bytes for the complete block header
         const header = Buffer.alloc(140);
         let position = 0;
-
-        /*
-        console.log('nonce:' + nonce);
-        console.log('this.rpcData.bits: ' + this.rpcData.bits);
-        console.log('nTime: ' + nTime);
-        console.log('this.merkleRootReversed: ' + this.merkleRootReversed);
-        console.log('this.prevHashReversed: ' + this.prevHashReversed);
-        console.log('this.finalSaplingRootHashReversed: ' + this.finalSaplingRootHashReversed);
-        console.log('this.rpcData.version: ' + this.rpcData.version);
-        */
 
         // Write block version (4 bytes, little-endian)
         header.writeUInt32LE(this.rpcData.version, position += 0, 4, 'hex');
@@ -425,32 +337,16 @@ const BlockTemplate = module.exports = function BlockTemplate(
             console.log('ERROR, block header nonce not provided by daemon!');
         }
         return header;
-    };
-
-    // === Complete Block Serialization Method ===
+    }
 
     /**
      * Serializes the complete block by combining the header, solution, and all transactions.
-     * This creates the final block data that can be submitted to the cryptocurrency network.
      *
-     * Block structure:
-     * - Block header (140 bytes)
-     * - Solution (variable length, VerusHash specific)
-     * - Transaction count (variable integer)
-     * - Coinbase transaction (variable length)
-     * - Additional transactions (variable length each)
-     *
-     * @method serializeBlock
      * @param {Buffer} header - Serialized block header (from serializeHeader)
      * @param {Buffer} soln - Proof-of-work solution (VerusHash solution)
      * @returns {Buffer} Complete serialized block ready for network submission
-     *
-     * @example
-     * const header = blockTemplate.serializeHeader(timestamp, nonce);
-     * const solution = Buffer.from(proofOfWorkSolution, 'hex');
-     * const block = blockTemplate.serializeBlock(header, solution);
      */
-    this.serializeBlock = function (header, soln) {
+    serializeBlock(header, soln) {
 
         // Convert transaction count to hexadecimal
         let txCount = this.txCount.toString(16);
@@ -493,50 +389,31 @@ const BlockTemplate = module.exports = function BlockTemplate(
             });
         }
 
-        /*
-        console.log('header: ' + header.toString('hex'));
-        console.log('soln: ' + soln.toString('hex'));
-        console.log('varInt: ' + varInt.toString('hex'));
-        console.log('this.genTx: ' + this.genTx);
-        console.log('data: ' + value.data);
-        console.log('buf_block: ' + buf.toString('hex'));
-        */
         return buf;
-    };
-
-    // === Submission Tracking Method ===
+    }
 
     /**
      * Registers a block submission to prevent duplicate submissions.
-     * This helps avoid wasted work and potential network spam by tracking
-     * which header+solution combinations have already been submitted.
      *
-     * @method registerSubmit
      * @param {string} header - Block header as hexadecimal string
      * @param {string} soln - Proof-of-work solution as hexadecimal string
      * @returns {boolean} true if this is a new submission, false if duplicate
-     *
-     * @example
-     * const isNewSubmission = blockTemplate.registerSubmit(headerHex, solutionHex);
-     * if (isNewSubmission) {
-     *     // Process the new submission
-     * } else {
-     *     // Reject duplicate submission
-     * }
      */
-    this.registerSubmit = function (header, soln) {
+    registerSubmit(header, soln) {
         // Create unique submission identifier by combining header and solution
         const submission = (header + soln).toLowerCase();
 
         // Check if this submission has been seen before
-        if (submits.indexOf(submission) === -1) {
+        if (this.submits.indexOf(submission) === -1) {
             // New submission - add to tracking array
-            submits.push(submission);
+            this.submits.push(submission);
             return true;
         }
         // Duplicate submission detected
         return false;
-    };
+    }
 
     // BlockTemplate instance is now fully initialized and ready for mining operations
-};
+}
+
+module.exports = BlockTemplate;

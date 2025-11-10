@@ -375,10 +375,7 @@ const JobManager = module.exports = function JobManager(options) {
             jobCounter.next(),
             rpcData,
             _this.extraNoncePlaceholder,
-            options.recipients,
-            options.address,
-            options.poolHex,
-            options.coin
+            options
         );
 
         // Apply the template as an update to current job
@@ -467,10 +464,7 @@ const JobManager = module.exports = function JobManager(options) {
             jobCounter.next(),
             rpcData,
             _this.extraNoncePlaceholder,
-            options.recipients,
-            options.address,
-            options.poolHex,
-            options.coin
+            options
         );
 
         // Determine if this requires a clean job (forces miner restart)
