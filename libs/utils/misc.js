@@ -34,9 +34,9 @@ exports.getReadableHashRateString = hashrate => {
     let i = -1;
     const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
     do {
-        hashrate = hashrate / 1024;
+        hashrate = hashrate / 1000;
         i++;
-    } while (hashrate > 1024);
+    } while (hashrate > 1000);
 
     return hashrate.toFixed(2) + byteUnits[i];
 };
