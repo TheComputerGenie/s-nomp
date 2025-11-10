@@ -16,8 +16,9 @@
     <script src="/static/scripts/nv.d3.js"></script>
     <script src="/static/main.js"></script>
     <script src="/static/js/utils.js"></script>
+    <meta http-equiv="refresh" content="180">
 </head>
-<body>
+<body class="page-not-ready">
     <header>
         <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
             <div class="container">
@@ -37,7 +38,7 @@
                             <a class="nav-link hot-swapper" href="/tbs"><i class="fa fa-table"></i> Tab Stats</a>
                         </li>
                         <li class="nav-item {{? it.selected === 'workers' }}active{{?}}">
-                            <a class="nav-link hot-swapper" href="/workers"><i class="fa fa-cogs"></i> Workers Stats</a>
+                            <a class="nav-link hot-swapper" href="/workers"><i class="fa fa-cogs"></i> Miner Stats</a>
                         </li>
                         <li class="nav-item {{? it.selected === 'api' }}active{{?}}">
                             <a class="nav-link hot-swapper" href="/api"><i class="fa fa-code"></i> API</a>
@@ -52,6 +53,9 @@
         {{=it.page}}
     </main>
 
+    <!-- flexible spacer inserted to push the footer down when page content is small -->
+    <div id="pageSpacer" class="page-spacer" aria-hidden="true"></div>
+
     <footer class="bg-dark text-white text-center py-3 mt-4">
         <div class="container">
             <p>This site is powered by the open source <a target="_blank" href="https://github.com/TheComputerGenie/s-nomp/">s-nomp</a> and is licensed under the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html#license-text">GPL3 License</a>.</p>
@@ -59,4 +63,60 @@
         </div>
     </footer>
 </body>
+<script>
+    (function() {
+        // Desired minimum page height expressed as fraction of viewport height.
+        // Can be overridden by setting CSS variable --page-spacer-min on <body>, e.g.
+        // <body style="--page-spacer-min:0.5"> to use 50% of viewport.
+        function parseMin(value) {
+            if (!value) return 0.6;
+            value = value.trim();
+            if (value.endsWith('%')) {
+                return parseFloat(value) / 100;
+            }
+            var f = parseFloat(value);
+            if (isNaN(f)) return 0.6;
+            // if it's >1, assume percentage like 60 -> 0.6
+            if (f > 1) return f / 100;
+            return f;
+        }
+
+        function sizePageSpacer() {
+            var spacer = document.getElementById('pageSpacer');
+            var main = document.querySelector('main.container');
+            var footer = document.querySelector('footer');
+            if (!spacer || !main || !footer) return;
+
+            var bodyStyle = getComputedStyle(document.body);
+            var minFrac = parseMin(bodyStyle.getPropertyValue('--page-spacer-min'));
+            var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+            var desiredTotal = viewportHeight * minFrac;
+
+            var mainRect = main.getBoundingClientRect();
+            var contentBottom = mainRect.bottom;
+            var footerHeight = footer.getBoundingClientRect().height;
+
+            // Compute how much spacer is needed so (contentBottom + footerHeight + spacer) >= desiredTotal
+            var needed = desiredTotal - (contentBottom + footerHeight);
+            spacer.style.height = (needed > 0 ? needed : 0) + 'px';
+            // Reveal the spacer only after its size is set so users don't see it animate into place.
+            spacer.style.visibility = 'visible';
+        }
+
+        // Try sizing immediately (script is at the end of body so DOM elements exist)
+        sizePageSpacer();
+        // Mark page ready after initial sizing so footer/spacer are revealed without animation
+        document.body.classList.remove('page-not-ready');
+        document.body.classList.add('page-ready');
+
+        window.addEventListener('load', function() {
+            sizePageSpacer();
+            document.body.classList.remove('page-not-ready');
+            document.body.classList.add('page-ready');
+        });
+        window.addEventListener('resize', sizePageSpacer);
+        // Run after a short delay to catch late DOM changes
+        setTimeout(function() { sizePageSpacer(); document.body.classList.remove('page-not-ready'); document.body.classList.add('page-ready'); }, 300);
+    })();
+</script>
 </html>

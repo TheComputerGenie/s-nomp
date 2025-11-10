@@ -1,5 +1,5 @@
 {
-    "name": "s-nomp",
+    "name": "v-nomp",
     "version": "21.7.3",
     "description": "zero-proof (Verushash) node stratum mining pool based on NOMP",
     "keywords": [
@@ -10,9 +10,9 @@
         "poolserver",
         "equihash"
     ],
-    "homepage": "https://github.com/ComputerGenieCo/s-nomp",
+    "homepage": "https://github.com/ComputerGenieCo/v-nomp",
     "bugs": {
-        "url": "https://github.com/ComputerGenieCo/s-nomp/issues"
+        "url": "https://github.com/ComputerGenieCo/v-nomp/issues"
     },
     "license": "GPL-3.0-or-later",
     "author": "ComputerGenieCo",
@@ -22,7 +22,7 @@
         "Matthew Little",
         "sennevb",
         "TheSeven",
-        "s-nomp dev team",
+        "v-nomp dev team",
         "vekexasia"
     ],
     "main": "init.js",
@@ -31,7 +31,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/ComputerGenieCo/s-nomp.git"
+        "url": "https://github.com/ComputerGenieCo/v-nomp.git"
     },
     "dependencies": {
         "redis": "^3.0.0",

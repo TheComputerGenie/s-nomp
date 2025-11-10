@@ -4,7 +4,7 @@
  * new blocks and transactions. It handles the low-level networking protocol including
  * message parsing, version handshake, and inventory message processing.
  *
- * @author s-nomp Contributors
+ * @author v-nomp Contributors
  * @version 1.0.0
  */
 

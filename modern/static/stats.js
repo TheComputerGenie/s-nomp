@@ -3,7 +3,7 @@
  * @description This module handles the display and real-time updates of mining pool statistics,
  * including hashrate charts and pool performance metrics. It uses D3.js and NVD3 for data
  * visualization and Server-Sent Events for live data updates.
- * @author S-NOMP Pool Software
+ * @author v-nomp Pool Software
  * @version 1.0.0
  */
 

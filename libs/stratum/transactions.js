@@ -5,7 +5,7 @@
  * and pool fee distributions. It supports multiple coin types including Zcash-based
  * coins with Overwinter and Sapling protocol upgrades.
  *
- * @author S-NOMP Pool Software
+ * @author v-nomp Pool Software
  * @version 1.0.0
  */
 

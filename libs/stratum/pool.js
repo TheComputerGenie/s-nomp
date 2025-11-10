@@ -20,7 +20,7 @@ const util = require('../utils/util.js');
  * This is the core component that orchestrates daemon communication, stratum server,
  * job management, peer-to-peer networking, and block processing for mining pools.
  *
- * @author S-NOMP Community
+ * @author v-nomp Community
  * @version 1.0.0
  */
 
@@ -216,7 +216,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
     function OutputPoolInfo() {
         // Create formatted startup message with coin identification
         const startMessage = `\r\n\t\t\t\t\t\tStratum Pool Server Started for ${options.coin.name
-        } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
+            } [${options.coin.symbol.toUpperCase()}] {${options.coin.algorithm}}`;
 
         // In multi-process setups, only show detailed info from main process (forkId 0)
         // Other processes just log a simple debug message to avoid cluttered logs

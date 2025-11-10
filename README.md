@@ -1,4 +1,4 @@
-# s-nomp
+# v-nomp
 
 A zero-proof (Verushash) node stratum mining pool based on NOMP, focused on Verus-style coins.
 
@@ -28,8 +28,8 @@ A zero-proof (Verushash) node stratum mining pool based on NOMP, focused on Veru
 
 2. Clone the repository and install Node.js dependencies:
    ```bash
-   git clone https://github.com/ComputerGenieCo/s-nomp.git
-   cd s-nomp
+   git clone https://github.com/ComputerGenieCo/v-nomp.git
+   cd v-nomp
    npm install
    ```
    This automatically builds the native Verushash module via `postinstall`.
@@ -75,7 +75,7 @@ node init.js
 
 ## Contributing
 
-Contributions are welcome. Please open issues or pull requests on the [GitHub repository](https://github.com/ComputerGenieCo/s-nomp). Follow existing code style and include tests where applicable.
+Contributions are welcome. Please open issues or pull requests on the [GitHub repository](https://github.com/ComputerGenieCo/v-nomp). Follow existing code style and include tests where applicable.
 
 ## License
 

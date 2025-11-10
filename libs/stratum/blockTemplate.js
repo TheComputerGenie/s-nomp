@@ -10,7 +10,7 @@
  * @requires ./util - For various utility functions
  * @requires ../PoolLogger - For logging operations
  *
- * @author s-nomp contributors
+ * @author v-nomp contributors
  * @since 1.0.0
  */
 
