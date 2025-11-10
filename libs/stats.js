@@ -565,12 +565,36 @@ class Stats {
                         const coinName = client.coins[i / commandsPerCoin | 0];
                         const coinStats = { name: coinName, symbol: this.poolConfigs[coinName].coin.symbol.toUpperCase(), algorithm: this.poolConfigs[coinName].coin.algorithm, hashrates: replies[i + 1], poolStats: { validShares: replies[i + 2] ? (replies[i + 2].validShares || 0) : 0, validBlocks: replies[i + 2] ? (replies[i + 2].validBlocks || 0) : 0, invalidShares: replies[i + 2] ? (replies[i + 2].invalidShares || 0) : 0, totalPaid: replies[i + 2] ? (replies[i + 2].totalPaid || 0) : 0, networkBlocks: replies[i + 2] ? (replies[i + 2].networkBlocks || 0) : 0, networkSols: replies[i + 2] ? (replies[i + 2].networkSols || 0) : 0, networkSolsString: util.getReadableNetworkHashRateString(replies[i + 2] ? (replies[i + 2].networkSols || 0) : 0), networkDiff: replies[i + 2] ? (replies[i + 2].networkDiff || 0) : 0, networkConnections: replies[i + 2] ? (replies[i + 2].networkConnections || 0) : 0, networkVersion: replies[i + 2] ? (replies[i + 2].networkSubVersion || 0) : 0, networkProtocolVersion: replies[i + 2] ? (replies[i + 2].networkProtocolVersion || 0) : 0 }, blocks: { pending: replies[i + 3], confirmed: replies[i + 4], orphaned: replies[i + 5] }, pending: { blocks: replies[i + 6].sort(sortBlocks), confirms: (replies[i + 9] || {}) }, confirmed: { blocks: replies[i + 7].sort(sortBlocks).slice(0, 50) }, payments: [], currentRoundShares: (replies[i + 8] || {}), currentRoundTimes: (replies[i + 11] || {}), maxRoundTime: 0, shareCount: 0 };
                         for (let j = replies[i + 10].length; j > 0; j--) {
-                            let jsonObj; try {
+                            let jsonObj;
+                            try {
                                 jsonObj = JSON.parse(replies[i + 10][j - 1]);
                             } catch (e) {
                                 jsonObj = null;
-                            } if (jsonObj !== null) {
-                                coinStats.payments.push(jsonObj);
+                            }
+                            if (jsonObj !== null) {
+                                // Normalize payment object to fields expected by templates
+                                const normalized = {};
+                                normalized.txid = jsonObj.txid || jsonObj.tx || jsonObj.id || '';
+                                normalized.time = jsonObj.time || jsonObj.t || Date.now();
+                                // amount: prefer 'amount', else sum paid mapping if present
+                                if (typeof jsonObj.amount !== 'undefined') {
+                                    normalized.amount = jsonObj.amount;
+                                } else if (jsonObj.paid && typeof jsonObj.paid === 'object') {
+                                    let s = 0;
+                                    Object.keys(jsonObj.paid).forEach(k => {
+                                        const v = parseFloat(jsonObj.paid[k]);
+                                        if (!Number.isNaN(v)) s += v;
+                                    });
+                                    normalized.amount = s;
+                                } else {
+                                    normalized.amount = jsonObj.paid || 0;
+                                }
+                                normalized.workers = jsonObj.workers || jsonObj.miners || (jsonObj.paid && typeof jsonObj.paid === 'object' ? Object.keys(jsonObj.paid).length : 0);
+                                normalized.shares = typeof jsonObj.shares !== 'undefined' ? jsonObj.shares : 0;
+                                normalized.blocks = jsonObj.blocks || normalized.txid || '';
+                                normalized.paid = jsonObj.paid || {};
+
+                                coinStats.payments.push(normalized);
                             }
                         }
                         allCoinStats[coinStats.name] = (coinStats);
