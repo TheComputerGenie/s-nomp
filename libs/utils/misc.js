@@ -31,13 +31,15 @@ exports.range = (start, stop, step) => {
 };
 
 exports.getReadableHashRateString = hashrate => {
-    let i = -1;
-    const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
-    do {
-        hashrate = hashrate / 1000;
-        i++;
-    } while (hashrate > 1000);
+    hashrate = (hashrate * 2);
 
+    if (hashrate < 1000000) {
+        return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)} H/s`;
+    }
+
+    const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];
+    const i = Math.floor((Math.log(hashrate / 1000) / Math.log(1000)) - 1);
+    hashrate = (hashrate / 1000) / Math.pow(1000, i + 1);
     return hashrate.toFixed(2) + byteUnits[i];
 };
 
