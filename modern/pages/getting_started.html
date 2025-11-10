@@ -1,4 +1,4 @@
-<div class="container mt-4">
+<div class="container mt-4 getting-started-page">
     <div class="row">
         {{ for(var pool in it.poolsConfigs) {
             var coin = it.poolsConfigs[pool].coin;
@@ -6,7 +6,7 @@
             var ports = it.poolsConfigs[pool].ports;
             var host = it.portalConfig.website.stratumHost || 'your_stratum_host';
         }}
-        <div class="col-md-6 mb-4">
+    <div class="col-md-6 mb-4 getting-started-col">
             <div class="card h-100">
                 <div class="card-header bg-primary text-white">
                     <h4 class="mb-0 text-capitalize">{{=pool}} Configuration</h4>

@@ -9,7 +9,6 @@ main.container {
     padding: 2rem;
     border-radius: 0.5rem;
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    min-height: 80vh;
 }
 
 a {
@@ -76,4 +75,64 @@ footer a {
 
 .table {
     background-color: #fff;
+}
+
+/* Spacer between content and footer; its height is set by inline script to
+   ensure footer is pushed toward bottom when page content is small. The
+   desired minimum page height fraction can be controlled via the CSS
+   variable --page-spacer-min on the <body> element (default 0.6 = 60% of viewport).
+*/
+.page-spacer {
+    height: 0;
+    visibility: hidden; /* hide until sized to avoid visible movement */
+}
+
+body {
+    /* default minimum page height fraction used when body does not override it */
+    --page-spacer-min: 1;
+}
+
+/* Getting Started page specific styles */
+.getting-started-page .row {
+    display: flex;
+    justify-content: center; /* center columns horizontally when few columns */
+    align-items: flex-start; /* don't stretch children vertically */
+    flex-wrap: wrap; /* allow columns to wrap on smaller screens */
+}
+.getting-started-col {
+    display: flex;
+    justify-content: center;
+}
+.getting-started-col .card {
+    width: 100%;
+    max-width: 520px; /* avoid overly wide card */
+    height: auto !important; /* override Bootstrap h-100 if present so card sizes to content */
+}
+.getting-started-page .list-group-item {
+    text-align: center; /* center the text inside list items */
+}
+
+/* Override large main container height for the Getting Started page so it sizes to content */
+.getting-started-page {
+    min-height: 0 !important;
+    height: auto !important;
+    padding-bottom: 0.5rem; /* small breathing room */
+}
+
+/* In case a higher-up main.container applies the min-height, target it specifically */
+main .getting-started-page, .container.getting-started-page {
+    min-height: 0 !important;
+    height: auto !important;
+}
+
+/* Hide spacer and footer while layout is being calculated to prevent visual jumping.
+   The script will remove 'page-not-ready' and add 'page-ready' to body when done. */
+body.page-not-ready .page-spacer,
+body.page-not-ready footer {
+    visibility: hidden;
+}
+
+body.page-ready .page-spacer,
+body.page-ready footer {
+    visibility: visible;
 }

@@ -13,7 +13,6 @@
                             <th>Blocks</th>
                             <th>Time</th>
                             <th>Miners</th>
-                            <th>Shares</th>
                             <th>Amount</th>
                         </tr>
                     </thead>
@@ -22,16 +21,15 @@
                         <tr>
                             <td>
                                 {{ if (it.poolsConfigs[pool].coin.explorer && it.poolsConfigs[pool].coin.explorer.txURL) { }}
-                                <a href="{{=it.poolsConfigs[pool].coin.explorer.txURL + it.stats.pools[pool].payments[p].txid}}" title="View transaction" target="_blank">{{=it.stats.pools[pool].payments[p].blocks}}</a>
+                                <a href="{{=it.poolsConfigs[pool].coin.explorer.txURL + it.stats.pools[pool].payments[p].txid}}" title="View transaction" target="_blank">{{=it.stats.pools[pool].payments[p].txid}}</a>
                                 {{ } else { }}
                                 {{=it.stats.pools[pool].payments[p].blocks}}
                                 {{ } }}
                             </td>
-                            <td id="time_{{=it.stats.pools[pool].payments[p].blocks}}"></td>
-                            <script>document.getElementById("time_{{=it.stats.pools[pool].payments[p].blocks}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(Number("{{=it.stats.pools[pool].payments[p].time}}"));</script>
-                            <td>{{=it.stats.pools[pool].payments[p].miners}}</td>
-                            <td>{{=Math.round(it.stats.pools[pool].payments[p].shares)}}</td>
-                            <td>{{=it.stats.pools[pool].payments[p].paid}} {{=it.stats.pools[pool].symbol}}</td>
+                            <td id="time_{{=it.stats.pools[pool].payments[p].txid}}"></td>
+                            <script>document.getElementById("time_{{=it.stats.pools[pool].payments[p].txid}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(Number("{{=it.stats.pools[pool].payments[p].time}}"));</script>
+                            <td>{{=it.stats.pools[pool].payments[p].workers}}</td>
+                            <td>{{=it.stats.pools[pool].payments[p].amount}} {{=it.stats.pools[pool].symbol}}</td>
                         </tr>
                         {{ } }}
                     </tbody>

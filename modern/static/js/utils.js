@@ -20,7 +20,7 @@ function getReadableHashRateString(hashrate) {
     hashrate = (hashrate * 2);
 
     if (hashrate < 1000000) {
-        return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)  } H/s`;
+        return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)} H/s`;
     }
 
     const byteUnits = [' H/s', ' KH/s', ' MH/s', ' GH/s', ' TH/s', ' PH/s'];

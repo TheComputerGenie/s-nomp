@@ -65,9 +65,21 @@
                                 {{ } else { }}
                                     {{=block[2]}}
                                 {{ } }}
-                                <small class="ml-3" id="time_{{=block[2]}}"></script>
+                                <small class="ml-3" id="time_{{=block[2]}}"></small>
                                 <script>document.getElementById("time_{{=block[2]}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(Number("{{=block[4]}}"));</script>
-                                <span class="float-right text-danger"><small>*PENDING*</small></span>
+                                {{ if (it.stats.pools[pool].pending.confirms) { }}
+                                    {{ if (it.stats.pools[pool].pending.confirms[block[0]]) { 
+                                        var rawConf = parseInt(it.stats.pools[pool].pending.confirms[block[0]]);
+                                        var minConfVal = (it.poolsConfigs[pool] && it.poolsConfigs[pool].paymentProcessing && it.poolsConfigs[pool].paymentProcessing.minConf) ? it.poolsConfigs[pool].paymentProcessing.minConf : 100;
+                                        var showConf = (rawConf > minConfVal) ? minConfVal : rawConf;
+                                    }}
+                                        <span class="float-right text-danger"><small>{{=showConf}} of {{=minConfVal}}</small></span>
+                                    {{ } else { }}
+                                        <span class="float-right text-danger"><small>*PENDING*</small></span>
+                                    {{ } }}
+                                {{ } else { }}
+                                    <span class="float-right text-danger"><small>*PENDING*</small></span>
+                                {{ } }}
                                 <div><i class="fa fa-gavel"></i><small>Mined By:</small> <a href="/workers/{{=block[3].split('.')[0]}}">{{=block[3]}}</a></div>
                             </div>
                         {{ } }}
@@ -82,7 +94,7 @@
                                     {{ } else { }}
                                         {{=block[2]}}
                                     {{ } }}
-                                    <small class="ml-3" id="time_{{=block[2]}}"></script>
+                                    <small class="ml-3" id="time_{{=block[2]}}"></small>
                                     <script>document.getElementById("time_{{=block[2]}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(Number("{{=block[4]}}"));</script>
                                     <span class="float-right text-success"><small>*CREDITED*</small></span>
                                     <div><i class="fa fa-gavel"></i><small>Mined By:</small> <a href="/workers/{{=block[3].split('.')[0]}}">{{=block[3]}}</a></div>

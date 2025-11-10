@@ -70,16 +70,16 @@
             <tr>
                 <td>
                     {{ if (it.poolsConfigs[pool].coin.explorer && it.poolsConfigs[pool].coin.explorer.txURL) { }}
-                        <a href="{{=it.poolsConfigs[pool].coin.explorer.txURL + it.stats.pools[pool].payments[p].txid}}" title="View transaction" target="_blank">{{=it.stats.pools[pool].payments[p].blocks}}</a>
+                        <a href="{{=it.poolsConfigs[pool].coin.explorer.txURL + it.stats.pools[pool].payments[p].txid}}" title="View transaction" target="_blank">{{=it.stats.pools[pool].payments[p].txid}}</a>
                     {{ } else { }}
                         {{=it.stats.pools[pool].payments[p].blocks}}
                     {{ } }}
                 </td>
                 <!--<td>{{=readableDate(it.stats.pools[pool].payments[p].time)}}</td>-->
-                <td><span style="padding-left: 18px;"><date id="{{=it.stats.pools[pool].payments[p].blocks}}"></date></span><script>document.getElementById("{{=it.stats.pools[pool].payments[p].blocks}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format({{=it.stats.pools[pool].payments[p].time}});</script></td>
-                <td>{{=it.stats.pools[pool].payments[p].miners}}</td>
-                <td>{{=Math.round(it.stats.pools[pool].payments[p].shares)}}</td>
-                <td>{{=it.stats.pools[pool].payments[p].paid}} {{=it.stats.pools[pool].symbol}}</td>
+                <td><span style="padding-left: 18px;"><date id="{{=it.stats.pools[pool].payments[p].txid}}"></date></span><script>document.getElementById("{{=it.stats.pools[pool].payments[p].txid}}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format({{=it.stats.pools[pool].payments[p].time}});</script></td>
+                <td>{{=it.stats.pools[pool].payments[p].workers}}</td>
+                <td>{{=Math.round(Number(it.stats.pools[pool].payments[p].shares) || 0)}}</td>
+                <td>{{=it.stats.pools[pool].payments[p].amount}} {{=it.stats.pools[pool].symbol}}</td>
             </tr>
         {{ } }}
 </table>
