@@ -329,8 +329,7 @@ class Stats {
         this.setupStatsRedis();
         this.gatherStatHistory();
 
-        // Expose readable function
-        this.getReadableHashRateString = util.getReadableHashRateString;
+        // getReadableHashRateString is now called directly from util with algorithm parameter
     }
 
     setupStatsRedis() {
@@ -567,6 +566,8 @@ class Stats {
                             name: coinName,
                             symbol: this.poolConfigs[coinName].coin.symbol.toUpperCase(),
                             algorithm: this.poolConfigs[coinName].coin.algorithm,
+                            // expose displayMultiplier for front-end formatting
+                            displayMultiplier: algos.getDisplayMultiplier(this.poolConfigs[coinName].coin.algorithm),
                             hashrates: replies[i + 1],
                             poolStats: {
                                 validShares: replies[i + 2] ? (replies[i + 2].validShares || 0) : 0,
@@ -686,16 +687,21 @@ class Stats {
                     });
 
                     coinStats.miners = sortMinersByHashrate(coinStats.miners);
-                    const shareMultiplier = Math.pow(2, 32) / algos[coinStats.algorithm].multiplier;
+                    const shareMultiplier = Math.pow(2, 32) / algos.getMultiplier(coinStats.algorithm);
                     coinStats.hashrate = shareMultiplier * coinStats.shares / this.portalConfig.website.stats.hashrateWindow;
-                    coinStats.hashrateString = this.getReadableHashRateString(coinStats.hashrate);
+                    coinStats.hashrateString = util.getReadableHashRateString(coinStats.hashrate, coinStats.algorithm);
 
                     const _blocktime = 55;
                     const _networkHashRate = parseFloat(coinStats.poolStats.networkSols) * 1.2;
                     const _myHashRate = (coinStats.hashrate / 1000000) * 2;
 
-                    coinStats.luckDays = ((_networkHashRate / _myHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
-                    coinStats.luckHours = ((_networkHashRate / _myHashRate * _blocktime) / (60 * 60)).toFixed(3);
+                    if (_myHashRate > 0) {
+                        coinStats.luckDays = ((_networkHashRate / _myHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
+                        coinStats.luckHours = ((_networkHashRate / _myHashRate * _blocktime) / (60 * 60)).toFixed(3);
+                    } else {
+                        coinStats.luckDays = '0.000';
+                        coinStats.luckHours = '0.000';
+                    }
 
                     coinStats.minerCount = Object.keys(coinStats.miners).length;
                     coinStats.workerCount = Object.keys(coinStats.workers).length;
@@ -703,7 +709,8 @@ class Stats {
 
                     const algo = coinStats.algorithm;
                     if (!portalStats.algos.hasOwnProperty(algo)) {
-                        portalStats.algos[algo] = { workers: 0, hashrate: 0, hashrateString: null };
+                        // include displayMultiplier per-algo so clients can format correctly
+                        portalStats.algos[algo] = { workers: 0, hashrate: 0, hashrateString: null, displayMultiplier: algos.getDisplayMultiplier(algo) };
                     }
                     portalStats.algos[algo].hashrate += coinStats.hashrate;
                     portalStats.algos[algo].workers += Object.keys(coinStats.workers).length;
@@ -731,10 +738,15 @@ class Stats {
                         const _workerRate = shareMultiplier * coinStats.workers[worker].shares / this.portalConfig.website.stats.hashrateWindow;
                         const _wHashRate = (_workerRate / 1000000) * 2;
 
-                        coinStats.workers[worker].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
-                        coinStats.workers[worker].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
+                        if (_wHashRate > 0) {
+                            coinStats.workers[worker].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
+                            coinStats.workers[worker].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
+                        } else {
+                            coinStats.workers[worker].luckDays = '0.000';
+                            coinStats.workers[worker].luckHours = '0.000';
+                        }
                         coinStats.workers[worker].hashrate = _workerRate;
-                        coinStats.workers[worker].hashrateString = this.getReadableHashRateString(_workerRate);
+                        coinStats.workers[worker].hashrateString = util.getReadableHashRateString(_workerRate, coinStats.algorithm);
 
                         const miner = worker.split('.')[0];
                         if (miner in coinStats.miners) {
@@ -746,10 +758,15 @@ class Stats {
                         const _workerRate = shareMultiplier * coinStats.miners[miner].shares / this.portalConfig.website.stats.hashrateWindow;
                         const _wHashRate = (_workerRate / 1000000) * 2;
 
-                        coinStats.miners[miner].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
-                        coinStats.miners[miner].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
+                        if (_wHashRate > 0) {
+                            coinStats.miners[miner].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
+                            coinStats.miners[miner].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
+                        } else {
+                            coinStats.miners[miner].luckDays = '0.000';
+                            coinStats.miners[miner].luckHours = '0.000';
+                        }
                         coinStats.miners[miner].hashrate = _workerRate;
-                        coinStats.miners[miner].hashrateString = this.getReadableHashRateString(_workerRate);
+                        coinStats.miners[miner].hashrateString = util.getReadableHashRateString(_workerRate, coinStats.algorithm);
                     }
 
                     coinStats.workers = sortWorkersByName(coinStats.workers);
@@ -757,7 +774,7 @@ class Stats {
                 });
 
                 Object.keys(portalStats.algos).forEach((algoKey) => {
-                    const algoStats = portalStats.algos[algoKey]; algoStats.hashrateString = this.getReadableHashRateString(algoStats.hashrate);
+                    const algoStats = portalStats.algos[algoKey]; algoStats.hashrateString = util.getReadableHashRateString(algoStats.hashrate, algoKey);
                 });
                 this.stats = portalStats;
 
@@ -789,7 +806,7 @@ class Stats {
                 }
             } catch (err) {
                 if (this.logger && this.logger.error) {
-                    this.logger.error(this.logSystem, 'Global', `error getting all stats${JSON.stringify(err)}`);
+                    this.logger.error(this.logSystem, 'Global', `error getting all stats: ${err.message || err}`);
                 } if (typeof callback === 'function') {
                     callback();
                 }

@@ -49,7 +49,7 @@ class StratumClient extends EventEmitter {
         this.socket = opts.socket;
         this.subscriptionId = opts.subscriptionId;
         this.authorizeFn = opts.authorizeFn || ((...a) => a[a.length - 1]({ authorized: true }));
-        this.algos = opts.algos || {};
+        this.algos = opts.algos;
         this.algorithm = opts.algorithm;
         this.banning = opts.banning || { enabled: false };
         this.connectionTimeout = opts.connectionTimeout || 600;
@@ -245,8 +245,7 @@ class StratumClient extends EventEmitter {
         }
         this.previousDifficulty = this.difficulty;
         this.difficulty = d;
-        const algo = this.algos[this.algorithm] || {};
-        const powLimit = algo.diff || 0;
+        const powLimit = this.algos.getDiff(this.algorithm) || 0;
         const adj = powLimit / d || 0;
         let hex = Math.floor(adj).toString(16);
         if (hex.length < 64) {
@@ -300,7 +299,7 @@ class StratumServer extends EventEmitter {
         super();
         this.options = options || {};
         this.authorizeFn = authorizeFn || ((...a) => a[a.length - 1]({ authorized: true }));
-        this.algos = algos || {};
+        this.algos = algos;
         this.counter = createSubscriptionCounter(this.options.poolId || '');
         this.clients = new Map(); // subscriptionId -> StratumClient
         this.bannedIPs = {};

@@ -144,13 +144,13 @@ const severityToColor = (severity, text) => {
         case 'trace':
             return `${colors.grey}${text}${colors.reset}`;
         case 'debug':
-            return `${colors.green}${text}${colors.reset}`;
+            return `${colors.lblue}${text}${colors.reset}`;
         case 'verbose':
-            return `${colors.cyan}${text}${colors.reset}`;
+            return `${colors.green}${text}${colors.reset}`;
         case 'info':
-            return `${colors.cyan}${colors.underline}${text}${colors.reset}`;
+            return `${colors.lgreen}${text}${colors.reset}`;
         case 'notice':
-            return `${colors.blue}${text}${colors.reset}`;
+            return `${colors.cyan}${text}${colors.reset}`;
         case 'warn':
             return `${colors.yellow}${text}${colors.reset}`;
         case 'error':
@@ -158,9 +158,9 @@ const severityToColor = (severity, text) => {
         case 'alert':
             return `${colors.lred}${text}${colors.reset}`;
         case 'critical':
-            return `${colors.magenta}${text}${colors.reset}`;
+            return `${colors.magenta}${colors.underline}${text}${colors.reset}`;
         case 'fatal':
-            return `${colors.bold}${colors.red}${text}${colors.reset}`;
+            return `${colors.bold}${colors.underline}${colors.red}${text}${colors.reset}`;
         default:
             // Unknown severity -> return unmodified (no exception)
             return text;

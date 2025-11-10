@@ -92,7 +92,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
     let blockPollingIntervalId;
 
     // Validate that the specified algorithm is supported
-    if (!(options.coin.algorithm in algos)) {
+    if (!algos.hasAlgorithm(options.coin.algorithm)) {
         logger.error(logSystem, logComponent, logSubCat, `The ${options.coin.algorithm} hashing algorithm is not supported.`);
         throw new Error();
     }
@@ -233,12 +233,12 @@ const pool = module.exports = function pool(options, authorizeFn) {
 
             // Current blockchain status
             `Current Block Height:\t${_this.jobManager.currentJob.rpcData.height}`,
-            `Current Block Diff:\t${_this.jobManager.currentJob.difficulty * algos[options.coin.algorithm].multiplier}`,
+            `Current Block Diff:\t${_this.jobManager.currentJob.difficulty * algos.getMultiplier(options.coin.algorithm)}`,
 
             // Network health indicators
             `Current Connect Peers:\t${options.initStats.connections}`,
             `Network Difficulty:\t${options.initStats.difficulty}`,
-            `Network Hash Rate:\t${util.getReadableHashRateString(options.initStats.networkHashRate)}`,
+            `Network Hash Rate:\t${util.getReadableHashRateString(options.initStats.networkHashRate, options.coin.algorithm)}`,
 
             // Pool configuration
             `Stratum Port(s):\t${_this.options.initStats.stratumPorts.join(', ')}`,
@@ -676,7 +676,7 @@ const pool = module.exports = function pool(options, authorizeFn) {
             // Initialize statistics for pool info display
             options.initStats = {
                 connections: rpcResults.getinfo.connections,                                           // Peer connections
-                difficulty: rpcResults.getinfo.difficulty * algos[options.coin.algorithm].multiplier, // Adjusted difficulty
+                difficulty: rpcResults.getinfo.difficulty * algos.getMultiplier(options.coin.algorithm), // Adjusted difficulty
                 networkHashRate: rpcResults.getmininginfo.networkhashps                               // Network hash rate
             };
 

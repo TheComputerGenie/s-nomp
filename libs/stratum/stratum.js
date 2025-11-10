@@ -317,8 +317,7 @@ class StratumClient extends EventEmitter {
         }
         this.previousDifficulty = this.difficulty;
         this.difficulty = d;
-        const algo = this.algos[this.algorithm] || {};
-        const powLimit = algo.diff || 0;
+        const powLimit = this.algos.getDiff(this.algorithm) || 0;
         const adj = powLimit / d || 0;
         let hex = Math.floor(adj).toString(16);
         if (hex.length < 64) {
@@ -425,7 +424,7 @@ class StratumServer extends EventEmitter {
         this.authorizeFn = authorizeFn || function () {
             arguments[arguments.length - 1]({ authorized: true });
         };
-        this.algos = algos || {};
+        this.algos = algos;
         this.counter = SubscriptionCounter(this.options.poolId || '');
         this.clients = {};
         this.bannedIPs = {};

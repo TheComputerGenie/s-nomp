@@ -25,7 +25,7 @@ const crypto = require('crypto');
 
 const util = require('../utils/util.js');
 const blockTemplate = require('./blockTemplate.js');
-const algos = require('./algoProperties.js');
+const algoProperties = require('./algoProperties.js');
 
 const vh = require('../verushash/build/Release/verushash.node');
 
@@ -222,7 +222,7 @@ const JobManager = module.exports = function JobManager(options) {
     const jobCounter = new JobCounter();
 
     /** @private {number} shareMultiplier - Algorithm-specific difficulty multiplier */
-    const shareMultiplier = algos[options.coin.algorithm].multiplier;
+    const shareMultiplier = algoProperties.getMultiplier(options.coin.algorithm);
 
     // Public members
 
@@ -319,7 +319,7 @@ const JobManager = module.exports = function JobManager(options) {
     /**
      * @private {Function} hashDigest - Algorithm-specific hash validation function
      */
-    const hashDigest = algos[options.coin.algorithm].hash(options.coin);
+    const hashDigest = algoProperties.getHash(options.coin.algorithm, options.coin);
 
     /**
      * Algorithm-specific coinbase transaction hasher.

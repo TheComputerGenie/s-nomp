@@ -8,6 +8,8 @@
  * @copyright 2025
  */
 
+const algos = require('../stratum/algoProperties.js');
+
 exports.range = (start, stop, step) => {
     if (typeof stop === 'undefined') {
         stop = start;
@@ -30,8 +32,12 @@ exports.range = (start, stop, step) => {
     return result;
 };
 
-exports.getReadableHashRateString = hashrate => {
-    hashrate = (hashrate * 2);
+exports.getReadableHashRateString = (hashrate, algorithm) => {
+    let displayMultiplier = 2; // Default multiplier for backward compatibility
+    if (algorithm) {
+        displayMultiplier = algos.getDisplayMultiplier(algorithm);
+    }
+    hashrate = (hashrate * displayMultiplier);
 
     if (hashrate < 1000000) {
         return `${(Math.round(hashrate / 1000) / 1000).toFixed(2)} H/s`;
