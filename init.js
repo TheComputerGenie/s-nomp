@@ -499,7 +499,7 @@ const buildPoolConfigs = function () {
          * mining algorithm. Unsupported algorithms are removed from
          * the configuration to prevent runtime errors.
          */
-        if (!(coinProfile.algorithm in algos)) {
+        if (!algos.hasAlgorithm(coinProfile.algorithm)) {
             logger.error('Master', coinProfile.name, `Cannot run a pool for unsupported algorithm "${coinProfile.algorithm}"`);
             delete configs[poolOptions.coin.name];
         }
