@@ -563,7 +563,42 @@ class Stats {
                     }
                     for (let i = 0; i < replies.length; i += commandsPerCoin) {
                         const coinName = client.coins[i / commandsPerCoin | 0];
-                        const coinStats = { name: coinName, symbol: this.poolConfigs[coinName].coin.symbol.toUpperCase(), algorithm: this.poolConfigs[coinName].coin.algorithm, hashrates: replies[i + 1], poolStats: { validShares: replies[i + 2] ? (replies[i + 2].validShares || 0) : 0, validBlocks: replies[i + 2] ? (replies[i + 2].validBlocks || 0) : 0, invalidShares: replies[i + 2] ? (replies[i + 2].invalidShares || 0) : 0, totalPaid: replies[i + 2] ? (replies[i + 2].totalPaid || 0) : 0, networkBlocks: replies[i + 2] ? (replies[i + 2].networkBlocks || 0) : 0, networkSols: replies[i + 2] ? (replies[i + 2].networkSols || 0) : 0, networkSolsString: util.getReadableNetworkHashRateString(replies[i + 2] ? (replies[i + 2].networkSols || 0) : 0), networkDiff: replies[i + 2] ? (replies[i + 2].networkDiff || 0) : 0, networkConnections: replies[i + 2] ? (replies[i + 2].networkConnections || 0) : 0, networkVersion: replies[i + 2] ? (replies[i + 2].networkSubVersion || 0) : 0, networkProtocolVersion: replies[i + 2] ? (replies[i + 2].networkProtocolVersion || 0) : 0 }, blocks: { pending: replies[i + 3], confirmed: replies[i + 4], orphaned: replies[i + 5] }, pending: { blocks: replies[i + 6].sort(sortBlocks), confirms: (replies[i + 9] || {}) }, confirmed: { blocks: replies[i + 7].sort(sortBlocks).slice(0, 50) }, payments: [], currentRoundShares: (replies[i + 8] || {}), currentRoundTimes: (replies[i + 11] || {}), maxRoundTime: 0, shareCount: 0 };
+                        const coinStats = {
+                            name: coinName,
+                            symbol: this.poolConfigs[coinName].coin.symbol.toUpperCase(),
+                            algorithm: this.poolConfigs[coinName].coin.algorithm,
+                            hashrates: replies[i + 1],
+                            poolStats: {
+                                validShares: replies[i + 2] ? (replies[i + 2].validShares || 0) : 0,
+                                validBlocks: replies[i + 2] ? (replies[i + 2].validBlocks || 0) : 0,
+                                invalidShares: replies[i + 2] ? (replies[i + 2].invalidShares || 0) : 0,
+                                totalPaid: replies[i + 2] ? (replies[i + 2].totalPaid || 0) : 0,
+                                networkBlocks: replies[i + 2] ? (replies[i + 2].networkBlocks || 0) : 0,
+                                networkSols: replies[i + 2] ? (replies[i + 2].networkSols || 0) : 0,
+                                networkSolsString: util.getReadableNetworkHashRateString(replies[i + 2] ? (replies[i + 2].networkSols || 0) : 0),
+                                networkDiff: replies[i + 2] ? (replies[i + 2].networkDiff || 0) : 0,
+                                networkConnections: replies[i + 2] ? (replies[i + 2].networkConnections || 0) : 0,
+                                networkVersion: replies[i + 2] ? (replies[i + 2].networkSubVersion || 0) : 0,
+                                networkProtocolVersion: replies[i + 2] ? (replies[i + 2].networkProtocolVersion || 0) : 0
+                            },
+                            blocks: {
+                                pending: replies[i + 3],
+                                confirmed: replies[i + 4],
+                                orphaned: replies[i + 5]
+                            },
+                            pending: {
+                                blocks: replies[i + 6].sort(sortBlocks),
+                                confirms: (replies[i + 9] || {})
+                            },
+                            confirmed: {
+                                blocks: replies[i + 7].sort(sortBlocks).slice(0, 50)
+                            },
+                            payments: [],
+                            currentRoundShares: (replies[i + 8] || {}),
+                            currentRoundTimes: (replies[i + 11] || {}),
+                            maxRoundTime: 0,
+                            shareCount: 0
+                        };
                         for (let j = replies[i + 10].length; j > 0; j--) {
                             let jsonObj;
                             try {
@@ -688,15 +723,35 @@ class Stats {
                             coinStats.miners[miner].currRoundTime = time;
                         }
                     }
-                    coinStats.shareCount = _shareTotal; coinStats.maxRoundTime = _maxTimeShare; coinStats.maxRoundTimeString = util.getReadableTimeString(_maxTimeShare);
+                    coinStats.shareCount = _shareTotal;
+                    coinStats.maxRoundTime = _maxTimeShare;
+                    coinStats.maxRoundTimeString = util.getReadableTimeString(_maxTimeShare);
+
                     for (const worker in coinStats.workers) {
-                        const _workerRate = shareMultiplier * coinStats.workers[worker].shares / this.portalConfig.website.stats.hashrateWindow; const _wHashRate = (_workerRate / 1000000) * 2; coinStats.workers[worker].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3); coinStats.workers[worker].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3); coinStats.workers[worker].hashrate = _workerRate; coinStats.workers[worker].hashrateString = this.getReadableHashRateString(_workerRate); const miner = worker.split('.')[0]; if (miner in coinStats.miners) {
+                        const _workerRate = shareMultiplier * coinStats.workers[worker].shares / this.portalConfig.website.stats.hashrateWindow;
+                        const _wHashRate = (_workerRate / 1000000) * 2;
+
+                        coinStats.workers[worker].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
+                        coinStats.workers[worker].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
+                        coinStats.workers[worker].hashrate = _workerRate;
+                        coinStats.workers[worker].hashrateString = this.getReadableHashRateString(_workerRate);
+
+                        const miner = worker.split('.')[0];
+                        if (miner in coinStats.miners) {
                             coinStats.workers[worker].currRoundTime = coinStats.miners[miner].currRoundTime;
                         }
                     }
+
                     for (const miner in coinStats.miners) {
-                        const _workerRate = shareMultiplier * coinStats.miners[miner].shares / this.portalConfig.website.stats.hashrateWindow; const _wHashRate = (_workerRate / 1000000) * 2; coinStats.miners[miner].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3); coinStats.miners[miner].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3); coinStats.miners[miner].hashrate = _workerRate; coinStats.miners[miner].hashrateString = this.getReadableHashRateString(_workerRate);
+                        const _workerRate = shareMultiplier * coinStats.miners[miner].shares / this.portalConfig.website.stats.hashrateWindow;
+                        const _wHashRate = (_workerRate / 1000000) * 2;
+
+                        coinStats.miners[miner].luckDays = ((_networkHashRate / _wHashRate * _blocktime) / (24 * 60 * 60)).toFixed(3);
+                        coinStats.miners[miner].luckHours = ((_networkHashRate / _wHashRate * _blocktime) / (60 * 60)).toFixed(3);
+                        coinStats.miners[miner].hashrate = _workerRate;
+                        coinStats.miners[miner].hashrateString = this.getReadableHashRateString(_workerRate);
                     }
+
                     coinStats.workers = sortWorkersByName(coinStats.workers);
                     delete coinStats.hashrates; delete coinStats.shares;
                 });
