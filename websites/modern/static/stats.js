@@ -162,11 +162,72 @@ class PoolStatsPage {
 
     /**
      * Formats a timestamp as a time of day string (e.g., "1:23 PM").
-     * @param {number} timestamp - The timestamp in milliseconds.
-     * @returns {string} The formatted time string.
+     * @param {number|Array|Object|Date} timestamp - The timestamp (ms or sec), or an array/object containing it.
+     * @returns {string} The formatted time string, or empty string if input can't be parsed.
      */
     timeOfDayFormat(timestamp) {
-        let dStr = d3.time.format('%I:%M %p')(new Date(timestamp));
+        // Accept a variety of input shapes: number (ms or seconds), Date, [x, y], {x: <ts>} or objects from nvd3
+        let t = timestamp;
+
+        // If an array (e.g. [x, y]) take the first element
+        if (Array.isArray(t) && t.length) {
+            t = t[0];
+        }
+
+        // If an object with an x property (nvd3 sometimes passes {x:..., y:...})
+        if (t && typeof t === 'object' && !(t instanceof Date)) {
+            if (typeof t.x !== 'undefined') {
+                t = t.x;
+            } else if (typeof t.value !== 'undefined') {
+                t = t.value;
+            }
+        }
+
+        // If already a Date object, format directly
+        if (t instanceof Date) {
+            let dStr = d3.time.format('%I:%M %p')(t);
+            if (dStr.startsWith('0')) {
+                dStr = dStr.slice(1);
+            }
+            return dStr;
+        }
+
+        // Try to coerce to number. If Number() fails, try valueOf() for moment-like objects.
+        let num = Number(t);
+        if (!isFinite(num)) {
+            try {
+                if (t && typeof t.valueOf === 'function') {
+                    num = Number(t.valueOf());
+                }
+            } catch (err) {
+                num = NaN;
+            }
+        }
+        if (!isFinite(num)) {
+            // As a last resort, if t is an object with nested x (e.g., [{x:...}]) try to extract it
+            if (Array.isArray(timestamp) && timestamp.length && typeof timestamp[0] === 'object') {
+                const first = timestamp[0];
+                if (first && typeof first.x !== 'undefined') {
+                    num = Number(first.x);
+                }
+            }
+        }
+        if (!isFinite(num)) {
+            return String(timestamp);
+        }
+
+        // Detect seconds vs milliseconds: if it's less than 1e12 assume seconds and convert
+        let ms = num;
+        if (ms < 1e12) {
+            ms = ms * 1000;
+        }
+
+        const d = new Date(ms);
+        if (Number.isNaN(d.getTime())) {
+            return String(timestamp);
+        }
+
+        let dStr = d3.time.format('%I:%M %p')(d);
         if (dStr.startsWith('0')) {
             dStr = dStr.slice(1);
         }
@@ -207,6 +268,38 @@ class PoolStatsPage {
             nv.utils.windowResize(() => this.poolHashrateChart.update());
             return this.poolHashrateChart;
         });
+    }
+
+    /**
+     * Re-bind the current poolHashrateData to the chart's SVG and force an update.
+     * NVD3 can sometimes cache its internal data; re-binding the datum ensures the
+     * chart uses the latest arrays/references.
+     */
+    refreshChartData() {
+        if (!this.poolHashrateChart) {
+            return;
+        }
+        const container = d3.select('#poolHashrate');
+        if (container.empty()) {
+            return;
+        }
+        const data = this.poolHashrateData.map(series => ({ key: series.key, values: series.values }));
+        let svg = container.select('svg');
+        if (svg.empty()) {
+            // No svg yet, create one and bind
+            svg = container.append('svg');
+        }
+        svg.datum(data).call(this.poolHashrateChart);
+        try {
+            this.poolHashrateChart.update();
+        } catch (err) {
+            // Fall back to safe re-render: recreate the chart
+            try {
+                this.displayCharts();
+            } catch (e) {
+                // swallow - avoid throwing in UI
+            }
+        }
     }
 
     /**
@@ -312,7 +405,8 @@ class PoolStatsPage {
             this.renderAverage(pool);
         });
         if (this.poolHashrateChart) {
-            this.poolHashrateChart.update();
+            // Re-bind and update to ensure NVD3 picks up the modified arrays
+            this.refreshChartData();
         }
     }
 

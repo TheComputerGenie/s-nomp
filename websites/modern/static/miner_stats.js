@@ -148,7 +148,38 @@ class MinerStatsPage {
 
     triggerChartUpdates() {
         if (this.workerHashrateChart) {
+            // Re-bind datum and update to ensure NVD3 picks up in-place array mutations
+            this.refreshChartData();
+        }
+    }
+
+    /**
+     * Re-bind the current workerHashrateData to the worker chart's SVG and force an update.
+     * This ensures NVD3 sees the updated arrays when data is mutated in-place.
+     */
+    refreshChartData() {
+        if (!this.workerHashrateChart) {
+            return;
+        }
+        const container = d3.select('#workerHashrate');
+        if (container.empty()) {
+            return;
+        }
+        const data = this.workerHashrateData;
+        let svg = container.select('svg');
+        if (svg.empty()) {
+            svg = container.append('svg');
+        }
+        svg.datum(data).call(this.workerHashrateChart);
+        try {
             this.workerHashrateChart.update();
+        } catch (err) {
+            try {
+                // As a fallback, recreate the chart
+                this.displayCharts();
+            } catch (e) {
+                // swallow errors to avoid breaking SSE handling
+            }
         }
     }
 
@@ -318,7 +349,9 @@ class MinerStatsPage {
         } catch (err) {
             return;
         }
-        if (!data || !data.workers && !data.totalHash) {
+        // Accept any non-empty payload as a trigger to refresh — the payload may be
+        // lightweight. Only bail out on totally empty/invalid data.
+        if (!data) {
             return;
         }
         this.sseUpdateCounter++;
@@ -347,9 +380,16 @@ class MinerStatsPage {
                 if (workerChanges.hasChanges) {
                     this.lastFullDataFetch = 0; this.rebuildWorkerDisplay(); rebuilt = true; this.currentWorkerAddresses = workerChanges.currentSet; this._workerCount = this.currentWorkerAddresses.size;
                 }
+                // Update chart data incrementally on lightweight live fetches
+                const updatedChart = this.updateChartData();
+                if (updatedChart) {
+                    rebuilt = true;
+                }
                 this.updateStats();
                 if (!rebuilt) {
                     this.updateWorkerStats();
+                    // Ensure charts are refreshed even when nothing was rebuilt
+                    this.triggerChartUpdates();
                 }
             });
         }
