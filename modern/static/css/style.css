@@ -125,6 +125,25 @@ main .getting-started-page, .container.getting-started-page {
     height: auto !important;
 }
 
+.miner-stats-page .row {
+    justify-content: center;
+    text-align: center;
+}
+.stats-page .card,.miner-stats-page .card {
+    justify-content: center;
+    text-align: center;
+    border: 3px solid rgba(0,0,0,.125) !important;
+    background: linear-gradient(135deg, #e0eaf5 0%, #ffffff 100%);
+}
+.stats-page .card-header {
+    font-size: 1.25rem;
+    font-weight: 500;
+}
+
+.stats-page .card-body {
+    text-align: auto;
+}
+
 /* Hide spacer and footer while layout is being calculated to prevent visual jumping.
    The script will remove 'page-not-ready' and add 'page-ready' to body when done. */
 body.page-not-ready .page-spacer,
@@ -135,4 +154,15 @@ body.page-not-ready footer {
 body.page-ready .page-spacer,
 body.page-ready footer {
     visibility: visible;
+}
+
+.table-responsive {
+    border: #28292b;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 0.5rem rgba(0, 0, 0, 0.15);
+}
+
+.mb-4 {
+    justify-content: center;
+    text-align: center;
 }
