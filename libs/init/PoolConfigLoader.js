@@ -34,14 +34,24 @@ class PoolConfigLoader {
         const poolConfigFiles = [];
 
         fs.readdirSync(configDir).forEach((file) => {
-            if (!fs.existsSync(configDir + file) || path.extname(configDir + file) !== '.json') return;
+            if (!fs.existsSync(configDir + file) || path.extname(configDir + file) !== '.json') {
+                return;
+            }
             const poolOptions = JSON.parse(minify(fs.readFileSync(configDir + file, { encoding: 'utf8' })));
-            if (!poolOptions.enabled) return;
+            if (!poolOptions.enabled) {
+                return;
+            }
             poolOptions.fileName = file;
-            if (typeof poolOptions.coin === 'string' && poolOptions.coin.length > 0) poolOptions.coinName = poolOptions.coin.toLowerCase();
-            else if (typeof poolOptions.coinName === 'string' && poolOptions.coinName.length > 0) poolOptions.coinName = poolOptions.coinName.toLowerCase();
-            else {
-                try { poolOptions.coinName = path.parse(file).name.toLowerCase(); } catch (e) { poolOptions.coinName = null; }
+            if (typeof poolOptions.coin === 'string' && poolOptions.coin.length > 0) {
+                poolOptions.coinName = poolOptions.coin.toLowerCase();
+            } else if (typeof poolOptions.coinName === 'string' && poolOptions.coinName.length > 0) {
+                poolOptions.coinName = poolOptions.coinName.toLowerCase();
+            } else {
+                try {
+                    poolOptions.coinName = path.parse(file).name.toLowerCase();
+                } catch (e) {
+                    poolOptions.coinName = null;
+                }
             }
             poolConfigFiles.push(poolOptions);
         });
@@ -50,7 +60,9 @@ class PoolConfigLoader {
         for (let i = 0; i < poolConfigFiles.length; i++) {
             const ports = Object.keys(poolConfigFiles[i].ports);
             for (let f = 0; f < poolConfigFiles.length; f++) {
-                if (f === i) continue;
+                if (f === i) {
+                    continue;
+                }
                 const portsF = Object.keys(poolConfigFiles[f].ports);
                 for (let g = 0; g < portsF.length; g++) {
                     if (ports.indexOf(portsF[g]) !== -1) {
@@ -86,7 +98,11 @@ class PoolConfigLoader {
                 if (!(option in poolOptions)) {
                     const toCloneOption = this.portalConfig.defaultPoolConfigs[option];
                     let clonedOption;
-                    try { clonedOption = structuredClone(toCloneOption); } catch (e) { clonedOption = JSON.parse(JSON.stringify(toCloneOption)); }
+                    try {
+                        clonedOption = structuredClone(toCloneOption);
+                    } catch (e) {
+                        clonedOption = JSON.parse(JSON.stringify(toCloneOption));
+                    }
                     poolOptions[option] = clonedOption;
                 }
             }

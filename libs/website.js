@@ -47,7 +47,7 @@ class Website {
      */
     hasWebsiteFiles(dir) {
         try {
-            const dirPath = path.join(__dirname, '..', dir);
+            const dirPath = path.join(__dirname, '..', 'websites', dir);
             const indexPath = path.join(dirPath, 'index.html');
             const keyPath = path.join(dirPath, 'key.html');
             return fs.existsSync(indexPath) && fs.existsSync(keyPath);
@@ -66,17 +66,18 @@ class Website {
         this.poolConfigs = safeParseEnvJSON('pools') || {};
         this.websiteConfig = this.portalConfig.website || {};
         // Directory name where website files live (allows theming by changing this)
-        this.websiteDir = String(this.websiteConfig.directory || 'website');
-        // Resolve directory to an existing directory with website files if possible; fallback to default 'website'
+        // Default to 'modern' under the new 'websites' root directory.
+        this.websiteDir = String(this.websiteConfig.directory || 'modern');
+        // Resolve directory to an existing directory with website files if possible; fallback to 'websites/modern'
         try {
-            const candidate = path.join(__dirname, '..', this.websiteDir);
-            const defaultDir = path.join(__dirname, '..', 'website');
+            const candidate = path.join(__dirname, '..', 'websites', this.websiteDir);
+            const defaultDir = path.join(__dirname, '..', 'websites', 'modern');
             if (!fs.existsSync(candidate) || !this.hasWebsiteFiles(this.websiteDir)) {
-                if (fs.existsSync(defaultDir) && this.hasWebsiteFiles('website')) {
-                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' does not contain required website files; falling back to 'website'`);
-                    this.websiteDir = 'website';
+                if (fs.existsSync(defaultDir) && this.hasWebsiteFiles('modern')) {
+                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' does not contain required website files; falling back to 'modern'`);
+                    this.websiteDir = 'modern';
                 } else {
-                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' does not contain required website files and default 'website' directory is also missing or incomplete. Static/templates may fail until created.`);
+                    this.logger && this.logger.warn && this.logger.warn(this.logSystem, 'Server', `Configured website.directory '${this.websiteDir}' does not contain required website files and default 'websites/modern' directory is also missing or incomplete. Static/templates may fail until created.`);
                 }
             }
         } catch (e) {
@@ -144,7 +145,7 @@ class Website {
     readPageFiles(files) {
         Promise.all(files.map(fileName => new Promise((resolve, reject) => {
             const relPath = `${this.websiteDir}/${fileName === 'index.html' ? '' : 'pages/'}${fileName}`;
-            const filePath = path.join(__dirname, '..', relPath);
+            const filePath = path.join(__dirname, '..', 'websites', relPath);
             fs.readFile(filePath, 'utf8', (err, data) => {
                 if (err) {
                     this.logger.error(this.logSystem, 'Template', `Failed to read template file: ${filePath}`);
@@ -225,7 +226,7 @@ class Website {
                 });
             });
 
-            const keyPath = path.join(__dirname, '..', this.websiteDir, 'key.html');
+            const keyPath = path.join(__dirname, '..', 'websites', this.websiteDir, 'key.html');
             this.keyScriptTemplate = dot.template(fs.readFileSync(keyPath, 'utf8'));
             this.keyScriptProcessed = this.keyScriptTemplate({ coins: coinBytes });
         } catch (e) {
@@ -301,7 +302,7 @@ class Website {
      */
     startServer() {
         const app = createMiniApp();
-        const staticRoot = path.join(__dirname, '..', this.websiteDir, 'static');
+        const staticRoot = path.join(__dirname, '..', 'websites', this.websiteDir, 'static');
         app.use(serveStatic(staticRoot));
 
         app.get('/get_page', (req, res, next) => {

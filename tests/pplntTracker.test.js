@@ -16,7 +16,9 @@ const PplntTracker = require('../libs/payments/PplntTracker.js');
 function makeLogger() {
     return {
         debug: (...args) => { /* no-op for tests */ },
-        error: (...args) => { throw new Error('Logger error called: ' + JSON.stringify(args)); }
+        error: (...args) => {
+            throw new Error(`Logger error called: ${  JSON.stringify(args)}`);
+        }
     };
 }
 
@@ -28,7 +30,9 @@ function makeFakeRedis() {
             return {
                 exec(cb) {
                     // simulate success
-                    if (typeof cb === 'function') cb(null, ['OK']);
+                    if (typeof cb === 'function') {
+                        cb(null, ['OK']);
+                    }
                     return Promise.resolve(['OK']);
                 }
             };
@@ -43,7 +47,9 @@ function makeFakeRedis() {
     // Test: basic increment behavior
     const logger = makeLogger();
     const poolConfigs = { 'verus': { poolId: 'pool1' } };
-    const tracker = new PplntTracker(logger, poolConfigs, (n, d) => { return +n.toFixed(d); });
+    const tracker = new PplntTracker(logger, poolConfigs, (n, d) => {
+        return +n.toFixed(d);
+    });
 
     const fakeRedis = makeFakeRedis();
     tracker.init(fakeRedis);

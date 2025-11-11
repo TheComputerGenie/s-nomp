@@ -80,7 +80,9 @@ if (cluster.isWorker) {
     // Parse portalConfig from env if available for logger settings
     let portalConfig = {};
     try {
-        if (process.env.portalConfig) portalConfig = JSON.parse(process.env.portalConfig);
+        if (process.env.portalConfig) {
+            portalConfig = JSON.parse(process.env.portalConfig);
+        }
     } catch (e) { /* ignore parse errors */ }
 
     switch (workerType) {
@@ -109,5 +111,4 @@ if (cluster.isWorker) {
             process.exit(1);
     }
 }
-
 

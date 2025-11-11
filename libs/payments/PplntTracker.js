@@ -41,8 +41,12 @@ class PplntTracker {
             let lastStartTime = now;
             const workerAddress = msg.data.worker.split('.')[0];
 
-            if (!this._lastShareTimes[msg.coin]) this._lastShareTimes[msg.coin] = {};
-            if (!this._lastStartTimes[msg.coin]) this._lastStartTimes[msg.coin] = {};
+            if (!this._lastShareTimes[msg.coin]) {
+                this._lastShareTimes[msg.coin] = {};
+            }
+            if (!this._lastStartTimes[msg.coin]) {
+                this._lastStartTimes[msg.coin] = {};
+            }
 
             if (!this._lastShareTimes[msg.coin][workerAddress] || !this._lastStartTimes[msg.coin][workerAddress]) {
                 this._lastShareTimes[msg.coin][workerAddress] = now;
@@ -65,7 +69,9 @@ class PplntTracker {
                 redisCommands.push(['hincrbyfloat', `${msg.coin}:shares:timesCurrent`, `${workerAddress}.${poolId}`, timeChangeSec]);
                 if (this.connection) {
                     this.connection.multi(redisCommands).exec((err, replies) => {
-                        if (err) this.logger.error('PPLNT', msg.coin, `Thread ${msg.thread}`, `Error with time share processor call to redis ${JSON.stringify(err)}`);
+                        if (err) {
+                            this.logger.error('PPLNT', msg.coin, `Thread ${msg.thread}`, `Error with time share processor call to redis ${JSON.stringify(err)}`);
+                        }
                     });
                 }
             } else {

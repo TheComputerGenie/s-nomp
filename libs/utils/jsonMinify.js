@@ -9,7 +9,9 @@
  * @copyright 2025
  */
 function minify(text) {
-    if (typeof text !== 'string') return text;
+    if (typeof text !== 'string') {
+        return text;
+    }
 
     let insideString = false;
     let insideSingleLineComment = false;
@@ -44,7 +46,9 @@ function minify(text) {
             if (char === '\\') {
                 result += char;
                 offset++;
-                if (offset < text.length) result += text[offset];
+                if (offset < text.length) {
+                    result += text[offset];
+                }
             } else if (char === '"') {
                 insideString = false;
                 result += char;
