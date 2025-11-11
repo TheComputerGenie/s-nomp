@@ -16,13 +16,19 @@ class MinerStatsPage {
         this.miner = miner;
         this.sseBuffer = [];
         this._sseAttached = false;
-        nv.utils.windowResize(() => { if (this.workerHashrateChart) this.workerHashrateChart.update(); });
+        nv.utils.windowResize(() => {
+            if (this.workerHashrateChart) {
+                this.workerHashrateChart.update();
+            }
+        });
         this.attachSseListener();
     }
 
     timeOfDayFormat(timestamp) {
         let dStr = d3.time.format('%I:%M %p')(new Date(timestamp));
-        if (dStr.indexOf('0') === 0) dStr = dStr.slice(1);
+        if (dStr.indexOf('0') === 0) {
+            dStr = dStr.slice(1);
+        }
         return dStr;
     }
 
@@ -30,7 +36,9 @@ class MinerStatsPage {
         let worker = w;
         if (w.split('.').length > 1) {
             worker = w.split('.')[1];
-            if (worker == null || worker.length < 1) worker = 'noname';
+            if (worker == null || worker.length < 1) {
+                worker = 'noname';
+            }
         } else {
             worker = 'noname';
         }
@@ -43,7 +51,9 @@ class MinerStatsPage {
         }
         if (window && window.algoDisplayMultipliers && typeof window.algoDisplayMultipliers === 'object') {
             const keys = Object.keys(window.algoDisplayMultipliers);
-            if (keys.length === 1) return window.algoDisplayMultipliers[keys[0]];
+            if (keys.length === 1) {
+                return window.algoDisplayMultipliers[keys[0]];
+            }
         }
         return 2;
     }
@@ -51,21 +61,27 @@ class MinerStatsPage {
     getDefaultMultiplier() {
         if (window && window.algoDisplayMultipliers && typeof window.algoDisplayMultipliers === 'object') {
             const keys = Object.keys(window.algoDisplayMultipliers);
-            if (keys.length === 1) return window.algoDisplayMultipliers[keys[0]];
+            if (keys.length === 1) {
+                return window.algoDisplayMultipliers[keys[0]];
+            }
         }
         return 2;
     }
 
     buildChartData() {
         const workers = {};
-        if (!this.statData || !this.statData.history) return;
+        if (!this.statData || !this.statData.history) {
+            return;
+        }
         for (const w in this.statData.history) {
             const worker = this.getWorkerNameFromAddress(w);
             const a = workers[worker] = (workers[worker] || { hashrate: [] });
             for (const wh in this.statData.history[w]) {
                 a.hashrate.push([this.statData.history[w][wh].time * 1000, this.statData.history[w][wh].hashrate]);
             }
-            if (a.hashrate.length > this.workerHistoryMax) this.workerHistoryMax = a.hashrate.length;
+            if (a.hashrate.length > this.workerHistoryMax) {
+                this.workerHistoryMax = a.hashrate.length;
+            }
         }
         let i = 0;
         this.workerHashrateData = [];
@@ -76,26 +92,34 @@ class MinerStatsPage {
     }
 
     updateChartData() {
-        if (!this.statData || !this.statData.history) return false;
+        if (!this.statData || !this.statData.history) {
+            return false;
+        }
         for (const w in this.statData.history) {
             const worker = this.getWorkerNameFromAddress(w);
             let wh;
             if (this.statData.history[w]) {
                 const keys = Object.keys(this.statData.history[w]);
-                if (keys.length > 0) wh = keys[keys.length - 1];
+                if (keys.length > 0) {
+                    wh = keys[keys.length - 1];
+                }
             }
             let found = false;
             for (let i = 0; i < this.workerHashrateData.length; i++) {
                 if (this.workerHashrateData[i].key === worker) {
                     found = true;
-                    if (this.workerHashrateData[i].values.length >= this.workerHistoryMax) this.workerHashrateData[i].values.shift();
+                    if (this.workerHashrateData[i].values.length >= this.workerHistoryMax) {
+                        this.workerHashrateData[i].values.shift();
+                    }
                     this.workerHashrateData[i].values.push([this.statData.history[w][wh].time * 1000, this.statData.history[w][wh].hashrate]);
                     break;
                 }
             }
             if (!found) {
                 const hashrate = [];
-                if (wh && this.statData.history[w] && this.statData.history[w][wh]) hashrate.push([this.statData.history[w][wh].time * 1000, this.statData.history[w][wh].hashrate]);
+                if (wh && this.statData.history[w] && this.statData.history[w][wh]) {
+                    hashrate.push([this.statData.history[w][wh].time * 1000, this.statData.history[w][wh].hashrate]);
+                }
                 this.workerHashrateData.push({ key: worker, values: hashrate });
                 this.rebuildWorkerDisplay();
                 return true;
@@ -110,15 +134,23 @@ class MinerStatsPage {
         for (let i = 0; i < this.workerHashrateData.length; i++) {
             count = 0;
             for (let ii = 0; ii < this.workerHashrateData[i].values.length; ii++) {
-                if (worker == null || this.workerHashrateData[i].key === worker) { count++; avg += parseFloat(this.workerHashrateData[i].values[ii][1]); }
+                if (worker == null || this.workerHashrateData[i].key === worker) {
+                    count++; avg += parseFloat(this.workerHashrateData[i].values[ii][1]);
+                }
             }
-            if (count > total) total = count;
+            if (count > total) {
+                total = count;
+            }
         }
         avg = avg / total;
         return avg;
     }
 
-    triggerChartUpdates() { if (this.workerHashrateChart) this.workerHashrateChart.update(); }
+    triggerChartUpdates() {
+        if (this.workerHashrateChart) {
+            this.workerHashrateChart.update();
+        }
+    }
 
     detectWorkerChanges(workers) {
         const newWorkerAddresses = new Set(Object.keys(workers));
@@ -131,8 +163,12 @@ class MinerStatsPage {
     shouldFetchFullData() {
         const now = Date.now();
         const timeSinceLastFull = now - this.lastFullDataFetch;
-        if (this.lastFullDataFetch === 0 || timeSinceLastFull >= this.FULL_DATA_FETCH_INTERVAL) return true;
-        if (this.sseUpdateCounter % 10 === 0) return true;
+        if (this.lastFullDataFetch === 0 || timeSinceLastFull >= this.FULL_DATA_FETCH_INTERVAL) {
+            return true;
+        }
+        if (this.sseUpdateCounter % 10 === 0) {
+            return true;
+        }
         return false;
     }
 
@@ -147,7 +183,9 @@ class MinerStatsPage {
     }
 
     updateStats() {
-        if (!this.statData) return;
+        if (!this.statData) {
+            return;
+        }
         this.totalHash = this.statData.totalHash;
         this.totalPaid = this.statData.paid;
         this.totalBal = this.statData.balance;
@@ -162,7 +200,11 @@ class MinerStatsPage {
         const luckHours = (typeof this.statData.luckHours !== 'undefined') ? parseFloat(this.statData.luckHours) : parseFloat(luckHoursCalc.toFixed(3));
         $('#statsHashrate').text(getReadableHashRateString(this.totalHash, this.getDefaultMultiplier()));
         $('#statsHashrateAvg').text(getReadableHashRateString(this.calculateAverageHashrate(null), this.getDefaultMultiplier()));
-        if (luckDays < 1) { $('#statsLuckDays').text(luckHours.toFixed(3)); $('#statsLuckUnit').text('Hours'); } else { $('#statsLuckDays').text(luckDays.toFixed(3)); $('#statsLuckUnit').text('Days'); }
+        if (luckDays < 1) {
+            $('#statsLuckDays').text(luckHours.toFixed(3)); $('#statsLuckUnit').text('Hours');
+        } else {
+            $('#statsLuckDays').text(luckDays.toFixed(3)); $('#statsLuckUnit').text('Days');
+        }
         $('#statsTotalImmature').text(this.totalImmature);
         $('#statsTotalBal').text(this.totalBal);
         $('#statsTotalPaid').text(this.totalPaid);
@@ -170,7 +212,9 @@ class MinerStatsPage {
     }
 
     updateWorkerStats() {
-        if (!this.statData || !this.statData.workers) return;
+        if (!this.statData || !this.statData.workers) {
+            return;
+        }
         for (const w in this.statData.workers) {
             const htmlSafeWorkerName = w.split('.').join('_').replace(/[^\w\s]/gi, '');
             const saneWorkerName = this.getWorkerNameFromAddress(w);
@@ -180,7 +224,13 @@ class MinerStatsPage {
             $(`#statsHashrateAvg${htmlSafeWorkerName}`).text(getReadableHashRateString(this.calculateAverageHashrate(saneWorkerName), mul));
             const workerLuckDays = (typeof workerObj.luckDays !== 'undefined') ? parseFloat(workerObj.luckDays) : null;
             const workerLuckHours = (typeof workerObj.luckHours !== 'undefined') ? parseFloat(workerObj.luckHours) : null;
-            if (workerLuckDays !== null && workerLuckDays < 1) { const displayHours = (workerLuckHours !== null) ? workerLuckHours : (workerLuckDays * 24); $(`#statsLuckDays${htmlSafeWorkerName}`).text(displayHours.toFixed(3)); $(`#statsLuckUnit${htmlSafeWorkerName}`).text('Hours'); } else if (workerLuckDays !== null) { $(`#statsLuckDays${htmlSafeWorkerName}`).text(workerLuckDays.toFixed(3)); $(`#statsLuckUnit${htmlSafeWorkerName}`).text('Days'); } else { $(`#statsLuckDays${htmlSafeWorkerName}`).text('N/A'); $(`#statsLuckUnit${htmlSafeWorkerName}`).text(''); }
+            if (workerLuckDays !== null && workerLuckDays < 1) {
+                const displayHours = (workerLuckHours !== null) ? workerLuckHours : (workerLuckDays * 24); $(`#statsLuckDays${htmlSafeWorkerName}`).text(displayHours.toFixed(3)); $(`#statsLuckUnit${htmlSafeWorkerName}`).text('Hours');
+            } else if (workerLuckDays !== null) {
+                $(`#statsLuckDays${htmlSafeWorkerName}`).text(workerLuckDays.toFixed(3)); $(`#statsLuckUnit${htmlSafeWorkerName}`).text('Days');
+            } else {
+                $(`#statsLuckDays${htmlSafeWorkerName}`).text('N/A'); $(`#statsLuckUnit${htmlSafeWorkerName}`).text('');
+            }
             $(`#statsPaid${htmlSafeWorkerName}`).text(workerObj.paid);
             $(`#statsBalance${htmlSafeWorkerName}`).text(workerObj.balance);
             $(`#statsShares${htmlSafeWorkerName}`).text((typeof workerObj.currRoundShares === 'number' && !isNaN(workerObj.currRoundShares)) ? Math.floor(workerObj.currRoundShares) : 0);
@@ -215,7 +265,11 @@ class MinerStatsPage {
         let luckDisplay = 'N/A';
         let luckUnit = '';
         if (workerLuckDaysInit !== null) {
-            if (workerLuckDaysInit < 1) { const displayHours = (workerLuckHoursInit !== null) ? workerLuckHoursInit : (workerLuckDaysInit * 24); luckDisplay = displayHours.toFixed(3); luckUnit = 'Hours'; } else { luckDisplay = workerLuckDaysInit.toFixed(3); luckUnit = 'Days'; }
+            if (workerLuckDaysInit < 1) {
+                const displayHours = (workerLuckHoursInit !== null) ? workerLuckHoursInit : (workerLuckDaysInit * 24); luckDisplay = displayHours.toFixed(3); luckUnit = 'Hours';
+            } else {
+                luckDisplay = workerLuckDaysInit.toFixed(3); luckUnit = 'Days';
+            }
         }
         $(`#statsLuckDays${htmlSafeName}`).text(luckDisplay);
         $(`#statsLuckUnit${htmlSafeName}`).text(luckUnit);
@@ -243,16 +297,30 @@ class MinerStatsPage {
         };
         if (!setup()) {
             let attempts = 0;
-            const poll = setInterval(() => { if (setup() || ++attempts >= 10) clearInterval(poll); }, 200);
+            const poll = setInterval(() => {
+                if (setup() || ++attempts >= 10) {
+                    clearInterval(poll);
+                }
+            }, 200);
         }
     }
 
-    processSse(e) { if (!this._initialized) { this.sseBuffer.push(e); return; } this.handleSseMessage(e); }
+    processSse(e) {
+        if (!this._initialized) {
+            this.sseBuffer.push(e); return;
+        } this.handleSseMessage(e);
+    }
 
     handleSseMessage(e) {
         let data;
-        try { data = JSON.parse(e.data); } catch (err) { return; }
-        if (!data || !data.workers && !data.totalHash) return;
+        try {
+            data = JSON.parse(e.data);
+        } catch (err) {
+            return;
+        }
+        if (!data || !data.workers && !data.totalHash) {
+            return;
+        }
         this.sseUpdateCounter++;
         const needsFull = this.shouldFetchFullData();
         if (needsFull) {
@@ -261,10 +329,14 @@ class MinerStatsPage {
                 this.lastFullDataFetch = Date.now();
                 const workerChanges = this.detectWorkerChanges(this.statData.workers);
                 let rebuilt = false;
-                if (workerChanges.hasChanges) { this.rebuildWorkerDisplay(); rebuilt = true; this.currentWorkerAddresses = workerChanges.currentSet; this._workerCount = this.currentWorkerAddresses.size; }
+                if (workerChanges.hasChanges) {
+                    this.rebuildWorkerDisplay(); rebuilt = true; this.currentWorkerAddresses = workerChanges.currentSet; this._workerCount = this.currentWorkerAddresses.size;
+                }
                 rebuilt = (rebuilt || this.updateChartData());
                 this.updateStats();
-                if (!rebuilt) this.updateWorkerStats();
+                if (!rebuilt) {
+                    this.updateWorkerStats();
+                }
             });
         } else {
             $.getJSON(`/api/miner_live_stats?${this.miner}`, (d) => {
@@ -272,9 +344,13 @@ class MinerStatsPage {
                 this.statData = { ...d, history: prevHistory };
                 const workerChanges = this.detectWorkerChanges(this.statData.workers);
                 let rebuilt = false;
-                if (workerChanges.hasChanges) { this.lastFullDataFetch = 0; this.rebuildWorkerDisplay(); rebuilt = true; this.currentWorkerAddresses = workerChanges.currentSet; this._workerCount = this.currentWorkerAddresses.size; }
+                if (workerChanges.hasChanges) {
+                    this.lastFullDataFetch = 0; this.rebuildWorkerDisplay(); rebuilt = true; this.currentWorkerAddresses = workerChanges.currentSet; this._workerCount = this.currentWorkerAddresses.size;
+                }
                 this.updateStats();
-                if (!rebuilt) this.updateWorkerStats();
+                if (!rebuilt) {
+                    this.updateWorkerStats();
+                }
             });
         }
     }
@@ -291,9 +367,13 @@ class MinerStatsPage {
             this.rebuildWorkerDisplay();
             this.updateStats();
             this._initialized = true;
-            if (this.sseBuffer.length) { this.sseBuffer.forEach((evt) => this.processSse(evt)); this.sseBuffer = []; }
+            if (this.sseBuffer.length) {
+                this.sseBuffer.forEach((evt) => this.processSse(evt)); this.sseBuffer = [];
+            }
         });
     }
 }
 
-$(() => { const minerPage = new MinerStatsPage(_miner); minerPage.init(); });
+$(() => {
+    const minerPage = new MinerStatsPage(_miner); minerPage.init();
+});
