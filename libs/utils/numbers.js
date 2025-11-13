@@ -30,7 +30,7 @@ exports.varIntBuffer = n => {
 };
 
 exports.varStringBuffer = string => {
-    const strBuff = Buffer.from(string);
+    const strBuff = Buffer.from(string, 'utf8');
     return Buffer.concat([exports.varIntBuffer(strBuff.length), strBuff]);
 };
 
@@ -99,6 +99,13 @@ exports.packInt32BE = num => {
 exports.packUInt32LE = num => {
     const buff = Buffer.alloc(4);
     buff.writeUInt32LE(num, 0);
+    return buff;
+};
+
+exports.packUInt64LE = num => {
+    const buff = Buffer.alloc(8);
+    buff.writeUInt32LE(num % Math.pow(2, 32), 0);
+    buff.writeUInt32LE(Math.floor(num / Math.pow(2, 32)), 4);
     return buff;
 };
 

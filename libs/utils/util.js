@@ -76,6 +76,7 @@ exports.packInt64LE = n.packInt64LE;
 exports.packUInt16LE = n.packUInt16LE;
 exports.packUInt32BE = n.packUInt32BE;
 exports.packUInt32LE = n.packUInt32LE;
+exports.packUInt64LE = n.packUInt64LE;
 exports.serializeNumber = n.serializeNumber;
 exports.serializeString = n.serializeString;
 exports.varIntBuffer = n.varIntBuffer;
