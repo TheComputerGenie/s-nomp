@@ -54,16 +54,68 @@ function watchPaths(pathsToWatch, cb, logger) {
     pathsToWatch.forEach((watchPath) => {
         try {
             const absPath = path.isAbsolute(watchPath) ? watchPath : path.join(__dirname, '..', watchPath);
-            fs.watch(absPath, { persistent: true }, (eventType, filename) => {
-                let fullPath = null;
-                if (filename) {
-                    fullPath = path.join(absPath, filename);
+
+            // Try to watch the path itself (works for files and directories)
+            try {
+                fs.watch(absPath, { persistent: true }, (eventType, filename) => {
+                    let fullPath = null;
+                    if (filename) {
+                        fullPath = path.join(absPath, filename);
+                    }
+                    try {
+                        cb(fullPath || absPath);
+                    } catch (e) {
+                        if (logger && typeof logger.error === 'function') {
+                            logger.error('Watch', `Watch callback error for ${absPath}: ${e}`);
+                        }
+                    }
+                });
+            } catch (e) {
+                if (logger && typeof logger.error === 'function') {
+                    logger.error('Watch', `Failed to watch path ${absPath} - ${e}`);
                 }
-                cb(fullPath || absPath);
-            });
+            }
+
+            // If this is a directory, also watch its immediate files to cope with
+            // platforms that sometimes only emit directory-level events or omit
+            // filenames. This increases reliability without pulling in external deps.
+            try {
+                const stat = fs.statSync(absPath);
+                if (stat.isDirectory()) {
+                    const children = fs.readdirSync(absPath);
+                    children.forEach((child) => {
+                        const childAbs = path.join(absPath, child);
+                        try {
+                            fs.watch(childAbs, { persistent: true }, (eventType, filename) => {
+                                let fullPath = null;
+                                if (filename) {
+                                    fullPath = path.join(path.dirname(childAbs), filename);
+                                }
+                                try {
+                                    cb(fullPath || childAbs);
+                                } catch (e) {
+                                    if (logger && typeof logger.error === 'function') {
+                                        logger.error('Watch', `Watch callback error for ${childAbs}: ${e}`);
+                                    }
+                                }
+                            });
+                        } catch (e) {
+                            // ignore individual child watch failures but log if logger available
+                            if (logger && typeof logger.error === 'function') {
+                                logger.error('Watch', `Failed to watch child path ${childAbs} - ${e}`);
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                // stat/read dir could fail (non-existent path) - log and continue
+                if (logger && typeof logger.error === 'function') {
+                    logger.error('Watch', `Failed inspecting path ${absPath} - ${e}`);
+                }
+            }
         } catch (e) {
             if (logger && typeof logger.error === 'function') {
-                logger.error('Watch', `Failed to watch path ${watchPath} - ${e}`);
+                logger.error('Watch', `Failed to process watchPath ${watchPath} - ${e}`);
             }
         }
     });

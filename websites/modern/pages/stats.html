@@ -4,7 +4,7 @@
             <div class="card mb-4">
                 <div class="card-header">Pool Historical Hashrate</div>
                 <div class="card-body">
-                    <div id="poolHashrate" style="height: 280px;"></div>
+                    <div id="poolHashrate" class="pool-hashrate"></div>
                 </div>
             </div>
         </div>
@@ -16,23 +16,27 @@
         <div class="col-md-6 mb-4">
             <div class="card h-100">
                 <div class="card-header">{{=capitalizeFirstLetter(it.stats.pools[pool].name)}} Pool Stats</div>
-                <div class="card-body">
-                    <p><i class="fa fa-users"></i> <span id="statsMiners{{=pool}}">{{=it.stats.pools[pool].minerCount}}</span> Miners</p>
-                    <p><i class="fa fa-rocket"></i> <span id="statsWorkers{{=pool}}">{{=it.stats.pools[pool].workerCount}}</span> Workers</p>
-                    <p><i class="fa fa-tachometer"></i> <span id="statsHashrate{{=pool}}">{{=it.stats.pools[pool].hashrateString}}</span> (Now)</p>
-                    <p><i class="fa fa-tachometer"></i> <span id="statsHashrateAvg{{=pool}}">...</span> (Avg)</p>
-                    <p><i class="fa fa-gavel"></i> Luck <span id="statsLuckDays{{=pool}}">{{=it.stats.pools[pool].luckDays < 1 ? it.stats.pools[pool].luckHours : it.stats.pools[pool].luckDays}}</span> <span id="statsLuckUnit{{=pool}}">{{=it.stats.pools[pool].luckDays < 1 ? 'Hours' : 'Days'}}</span></p>
+                <div class="card-body center-contents">
+                    <div class="stats-inner-container">
+                        <p><i class="fa fa-users"></i> <span id="statsMiners{{=pool}}">{{=it.stats.pools[pool].minerCount}}</span> Miners</p>
+                        <p><i class="fa fa-rocket"></i> <span id="statsWorkers{{=pool}}">{{=it.stats.pools[pool].workerCount}}</span> Workers</p>
+                        <p><i class="fa fa-tachometer"></i> <span id="statsHashrate{{=pool}}">{{=it.stats.pools[pool].hashrateString}}</span> (Now)</p>
+                        <p><i class="fa fa-tachometer"></i> <span id="statsHashrateAvg{{=pool}}">...</span> (Avg)</p>
+                        <p><i class="fa fa-gavel"></i> Luck <span id="statsLuckDays{{=pool}}">{{=it.stats.pools[pool].luckDays < 1 ? it.stats.pools[pool].luckHours : it.stats.pools[pool].luckDays}}</span> <span id="statsLuckUnit{{=pool}}">{{=it.stats.pools[pool].luckDays < 1 ? 'Hours' : 'Days'}}</span></p>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-6 mb-4">
             <div class="card h-100">
                 <div class="card-header">{{=capitalizeFirstLetter(it.stats.pools[pool].name)}} Network Stats</div>
-                <div class="card-body">
-                    <p><i class="fa fa-bars" aria-hidden="true"></i> <small>Block Height:</small> <span id="statsNetworkBlocks{{=pool}}">{{=it.stats.pools[pool].poolStats.networkBlocks}}</span></p>
-                    <p><i class="fa fa-tachometer"></i> <small>Network Hash/s:</small> <span id="statsNetworkSols{{=pool}}">{{=it.stats.pools[pool].poolStats.networkSolsString}}</span></p>
-                    <p><i class="fa fa-unlock-alt" aria-hidden="true"></i> <small>Difficulty:</small> <span id="statsNetworkDiff{{=pool}}">{{=it.stats.pools[pool].poolStats.networkDiff}}</span></p>
-                    <p><i class="fa fa-users"></i> <small>Node Connections:</small> <span id="statsNetworkConnections{{=pool}}">{{=it.stats.pools[pool].poolStats.networkConnections}}</span></p>
+                <div class="card-body center-contents">
+                    <div class="stats-inner-container">
+                        <p><i class="fa fa-bars" aria-hidden="true"></i> <small>Block Height:</small> <span id="statsNetworkBlocks{{=pool}}">{{=it.stats.pools[pool].poolStats.networkBlocks}}</span></p>
+                        <p><i class="fa fa-tachometer"></i> <small>Network Hash/s:</small> <span id="statsNetworkSols{{=pool}}">{{=it.stats.pools[pool].poolStats.networkSolsString}}</span></p>
+                        <p><i class="fa fa-unlock-alt" aria-hidden="true"></i> <small>Difficulty:</small> <span id="statsNetworkDiff{{=pool}}">{{=it.stats.pools[pool].poolStats.networkDiff}}</span></p>
+                        <p><i class="fa fa-users"></i> <small>Node Connections:</small> <span id="statsNetworkConnections{{=pool}}">{{=it.stats.pools[pool].poolStats.networkConnections}}</span></p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -112,7 +116,7 @@
             <div class="card">
                 <div class="card-header">Finders of the last {{=blockscomb.length}} blocks</div>
                 <div class="card-body text-center">
-                    <div id="blocksPie{{=pool}}" style="height: 400px;"></div>
+                    <div id="blocksPie{{=pool}}" class="blocks-pie"></div>
                 </div>
             </div>
         </div>

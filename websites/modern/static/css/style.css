@@ -131,17 +131,13 @@ main .getting-started-page, .container.getting-started-page {
 }
 .stats-page .card,.miner-stats-page .card {
     justify-content: center;
-    text-align: center;
+    text-align: left;
     border: 3px solid rgba(0,0,0,.125) !important;
     background: linear-gradient(135deg, #e0eaf5 0%, #ffffff 100%);
 }
 .stats-page .card-header {
     font-size: 1.25rem;
     font-weight: 500;
-}
-
-.stats-page .card-body {
-    text-align: auto;
 }
 
 /* Hide spacer and footer while layout is being calculated to prevent visual jumping.
@@ -165,4 +161,24 @@ body.page-ready footer {
 .mb-4 {
     justify-content: center;
     text-align: center;
+}
+
+/* Stats page specific styling moved from inline attributes in templates */
+.pool-hashrate {
+    height: 280px; /* replaces inline style on #poolHashrate */
+}
+
+.stats-inner-container {
+    border: none !important;
+    background: transparent !important;
+    display: inline-block;
+    text-align: left;
+}
+
+.card-body.center-contents {
+    text-align: center;
+}
+
+.blocks-pie {
+    height: 400px;
 }

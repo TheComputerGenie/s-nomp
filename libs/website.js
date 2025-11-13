@@ -13,6 +13,7 @@
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
+const dot = require('dot');
 const path = require('path');
 const { URL } = require('url');
 
@@ -22,13 +23,6 @@ const Api = require('./api.js');
 const CreateRedisClient = require('./createRedisClient.js');
 const PoolLogger = require('./PoolLogger.js');
 const { safeParseEnvJSON, watchPaths, serveStatic, createMiniApp } = require('./webUtil.js');
-
-let dot;
-try {
-    dot = require('dot');
-} catch (e) {
-    dot = { templateSettings: { strip: false }, template: (t) => () => t };
-}
 
 if (!dot.templateSettings) {
     dot.templateSettings = {};
@@ -84,7 +78,6 @@ class Website {
             // ignore filesystem errors here and proceed with configured value
         }
         this.logSystem = 'Website';
-
         this.portalApi = new Api(this.logger, this.portalConfig, this.poolConfigs);
         this.portalStats = this.portalApi.stats || {};
 
@@ -121,11 +114,47 @@ class Website {
         this.buildKeyScriptPage();
 
         // pass logger so failures to watch an absent directory are reported via logger
-        watchPaths([this.websiteDir, `${this.websiteDir}/pages`], (evtPath) => {
-            const basename = path.basename(evtPath);
-            if (basename in this.pageFiles) {
-                this.readPageFiles([basename]);
-                this.logger.info(this.logSystem, 'Server', `Reloaded file ${basename}`);
+        const siteRoot = path.join(__dirname, '..', 'websites', this.websiteDir);
+        watchPaths([siteRoot, path.join(siteRoot, 'pages')], (evtPath) => {
+            // fs.watch behavior differs across platforms: sometimes filename is
+            // provided, sometimes only the directory is reported. Try to map
+            // the event path to a single page file; if that isn't possible,
+            // reload all page templates as a safe fallback.
+            try {
+                const basename = path.basename(evtPath || '');
+                if (basename && (basename in this.pageFiles)) {
+                    this.readPageFiles([basename]);
+                    this.logger.info(this.logSystem, 'Server', `Reloaded file ${basename}`);
+                    return;
+                }
+
+                // evtPath might be the watched directory - try to derive a
+                // relative path to the website directory and match it.
+                if (evtPath) {
+                    const rel = path.relative(siteRoot, evtPath).replace(/\\/g, '/');
+                    // If relative path is a direct file name that matches pageFiles
+                    if (rel && !rel.startsWith('..')) {
+                        const parts = rel.split('/').filter(Boolean);
+                        const candidate = parts.length ? parts[parts.length - 1] : '';
+                        if (candidate && (candidate in this.pageFiles)) {
+                            this.readPageFiles([candidate]);
+                            this.logger.info(this.logSystem, 'Server', `Reloaded file ${candidate}`);
+                            return;
+                        }
+                    }
+                }
+
+                // Fallback: reload all page files to ensure templates are up-to-date
+                this.readPageFiles(Object.keys(this.pageFiles));
+                this.logger.info(this.logSystem, 'Server', `Reloaded all page files due to change at ${evtPath}`);
+            } catch (e) {
+                // On error, reload everything to remain safe
+                try {
+                    this.readPageFiles(Object.keys(this.pageFiles));
+                    this.logger.info(this.logSystem, 'Server', `Reloaded all page files after watch error: ${e.message}`);
+                } catch (ee) {
+                    this.logger && this.logger.error && this.logger.error(this.logSystem, 'Server', `Failed reloading page files: ${ee}`);
+                }
             }
         });
 
