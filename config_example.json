@@ -1,41 +1,70 @@
 {
-    "logLevel": "debug",
+    "logLevel": "trace",
+    "_comment_logLevel": "Logging level: 'trace', 'debug', 'info', 'warn', 'error'. Controls verbosity of logs.",
     "logColors": true,
+    "_comment_logColors": "Enable colored output in console logs for better readability.",
+    "traceShares": false,
+    "_comment_traceShares": "When enabled, logs all valid shares at trace level for debugging (can be very verbose)",
     "cliPort": 17117,
+    "_comment_cliPort": "Port number for the CLI (Command Line Interface) server.",
     "cliServer": "127.0.0.1",
+    "_comment_cliServer": "Host address for the CLI server. Use '127.0.0.1' for local access only.",
     "clustering": {
-        "enabled": true,
-        "forks": "auto"
+        "enabled": false,
+        "_comment_clustering_enabled": "Enable process clustering to utilize multiple CPU cores.",
+        "forks": "auto",
+        "_comment_clustering_forks": "Number of worker processes. 'auto' uses the number of CPU cores."
     },
 
     "redis": {
         "host": "127.0.0.1",
+        "_comment_redis_host": "Redis server host address.",
         "port": 6379,
+        "_comment_redis_port": "Redis server port number.",
         "password": "",
+        "_comment_redis_password": "Redis server password. Leave empty if no authentication is required.",
         "_socket_comment": "Set socket to enable UNIX domain sockets, otherwise leave unset and set host and port."
     },
 
     "defaultPoolConfigs": {
-        "blockRefreshInterval": 500,
+        "_comment_defaultPoolConfigs": "Default configuration settings applied to all pools unless overridden.",
+        "blockRefreshInterval": 0,
+        "_comment_blockRefreshInterval": "Interval in seconds to refresh block templates. 0 means refresh on new block notifications.",
         "jobRebroadcastTimeout": 55,
+        "_comment_jobRebroadcastTimeout": "Time in seconds after which jobs are rebroadcast to miners.",
         "connectionTimeout": 600,
+        "_comment_connectionTimeout": "Timeout in seconds for connections to the daemon.",
         "emitInvalidBlockHashes": false,
-        "validateWorkerUsername": true,
+        "_comment_emitInvalidBlockHashes": "Emit invalid block hashes in logs for debugging.",
+        "validateWorkerUsername": false,
+        "_comment_validateWorkerUsername": "Validate worker usernames against a specific format.",
         "tcpProxyProtocol": false,
-        "acceptLowDiffShares": false,
+        "_comment_tcpProxyProtocol": "Enable TCP proxy protocol support for load balancers.",
+        "acceptLowDiffShares": true,
         "_acceptLowDiffShares_comment": "Accept shares below the minimum difficulty threshold (useful for solo mining)",
+        "acceptOldJobShares": true,
+        "_acceptOldJobShares_comment": "Accept shares for jobs that are no longer valid (useful for solo mining hashrate accuracy)",
         "showDifficultyUpdate": true,
         "_showDifficultyUpdate_comment": "When true, prints 'Difficulty update' messages when vardiff adjusts a miner's difficulty. Set to false to silence these messages.",
 
         "banning": {
+            "_comment_banning": "Configuration for banning misbehaving miners.",
             "enabled": true,
+            "_comment_banning_enabled": "Enable automatic banning of miners based on invalid shares.",
             "time": 600,
+            "_comment_banning_time": "Duration in seconds to ban a miner.",
             "invalidPercent": 50,
+            "_comment_banning_invalidPercent": "Percentage of invalid shares that triggers a ban.",
             "checkThreshold": 500,
-            "purgeInterval": 300
+            "_comment_banning_checkThreshold": "Minimum number of shares to check before applying ban logic.",
+            "purgeInterval": 300,
+            "_comment_banning_purgeInterval": "Interval in seconds to purge expired bans."
         },
         "bannedAddresses": {
+            "_comment_bannedAddresses": "List of manually banned IP addresses or hostnames.",
             "enabled": false,
+            "_comment_bannedAddresses_enabled": "Enable the banned addresses list.",
+            "_comment_banned_list": "Array of banned addresses. Replace with actual IPs or hostnames.",
             "banned": [
                 "banned address 1",
                 "banned address 2",
@@ -47,76 +76,42 @@
         "_poolHex_comment": "Set this HEX value using a template of '<pool name> <pool link>' and provide it to various explorer webmasters."
     },
 
-    "switching": {
-        "switch1": {
-            "enabled": false,
-            "algorithm": "sha256",
-            "ports": {
-                "3333": {
-                    "diff": 10,
-                    "varDiff": {
-                        "minDiff": 16,
-                        "maxDiff": 512,
-                        "targetTime": 15,
-                        "retargetTime": 90,
-                        "variancePercent": 30
-                    }
-                }
-            }
-        },
-        "switch2": {
-            "enabled": false,
-            "algorithm": "scrypt",
-            "ports": {
-                "4444": {
-                    "diff": 10,
-                    "varDiff": {
-                        "minDiff": 16,
-                        "maxDiff": 512,
-                        "targetTime": 15,
-                        "retargetTime": 90,
-                        "variancePercent": 30
-                    }
-                }
-            }
-        },
-        "switch3": {
-            "enabled": false,
-            "algorithm": "x11",
-            "ports": {
-                "5555": {
-                    "diff": 0.001,
-                    "varDiff": {
-                        "minDiff": 0.001,
-                        "maxDiff": 1,
-                        "targetTime": 15,
-                        "retargetTime": 60,
-                        "variancePercent": 30
-                    }
-                }
-            }
-        }
-    },
-
     "website": {
-        "directory": "website",
+        "_comment_website": "Configuration for the web interface.",
+        "directory": "modern",
+        "_comment_website_directory": "Directory name of the website template to use.",
         "enabled": true,
+        "_comment_website_enabled": "Enable the web server.",
         "host": "0.0.0.0",
+        "_comment_website_host": "Host address to bind the web server to. '0.0.0.0' for all interfaces.",
         "port": 8080,
-        "stratumHost": "cryppit.com",
+        "_comment_website_port": "Port number for the web server.",
+        "stratumHost": "ComputerGenieCo.com",
+        "_comment_website_stratumHost": "Public hostname for the stratum server, used in web interface.",
         "stats": {
+            "_comment_website_stats": "Statistics update and retention settings.",
             "updateInterval": 30,
+            "_comment_website_stats_updateInterval": "Interval in seconds to update statistics.",
             "historicalRetention": 14400,
-            "hashrateWindow": 300
+            "_comment_website_stats_historicalRetention": "Time in seconds to retain historical statistics.",
+            "hashrateWindow": 300,
+            "_comment_website_stats_hashrateWindow": "Time window in seconds for hashrate calculations."
         },
         "adminCenter": {
+            "_comment_website_adminCenter": "Admin panel configuration.",
             "enabled": false,
-            "password": "password"
+            "_comment_website_adminCenter_enabled": "Enable the admin center web interface.",
+            "password": "password",
+            "_comment_website_adminCenter_password": "Password for accessing the admin center. Change this to a secure password."
         },
         "tlsOptions": {
+            "_comment_website_tlsOptions": "TLS/SSL configuration for secure HTTPS connections.",
             "enabled": false,
+            "_comment_website_tlsOptions_enabled": "Enable TLS for the web server.",
             "cert": "",
-            "key": ""
+            "_comment_website_tlsOptions_cert": "Path to the SSL certificate file.",
+            "key": "",
+            "_comment_website_tlsOptions_key": "Path to the SSL private key file."
         }
     }
 }
