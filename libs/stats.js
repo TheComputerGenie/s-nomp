@@ -592,7 +592,7 @@ class Stats {
                                 confirms: (replies[i + 9] || {})
                             },
                             confirmed: {
-                                blocks: replies[i + 7].sort(sortBlocks).slice(0, 50)
+                                blocks: replies[i + 7].sort(sortBlocks).slice(0, 10)
                             },
                             payments: [],
                             currentRoundShares: (replies[i + 8] || {}),
