@@ -8,6 +8,7 @@
  * @version 21.7.3
  * @copyright 2025
  */
+'use strict';
 
 const diff1 = global.diff1 = 0x0007ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
@@ -25,12 +26,58 @@ const diff1 = global.diff1 = 0x0007fffffffffffffffffffffffffffffffffffffffffffff
  * @param {number} [options.displayMultiplier=1] - Display multiplier for hashrate formatting
  */
 class Algorithm {
+    #multiplier;
+    #diff;
+    #hashReserved;
+    #hash;
+    #displayMultiplier;
+
     constructor(options) {
-        this.multiplier = options.multiplier || 1;
-        this.diff = options.diff;
-        this.hashReserved = options.hashReserved;
-        this.hash = options.hash;
-        this.displayMultiplier = options.displayMultiplier || 1;
+        this.#multiplier = options.multiplier || 1;
+        this.#diff = options.diff;
+        this.#hashReserved = options.hashReserved;
+        this.#hash = options.hash;
+        this.#displayMultiplier = options.displayMultiplier || 1;
+    }
+
+    /**
+     * Get the difficulty multiplier
+     * @returns {number}
+     */
+    get multiplier() {
+        return this.#multiplier;
+    }
+
+    /**
+     * Get the difficulty value
+     * @returns {number}
+     */
+    get diff() {
+        return this.#diff;
+    }
+
+    /**
+     * Get the reserved hash value
+     * @returns {string}
+     */
+    get hashReserved() {
+        return this.#hashReserved;
+    }
+
+    /**
+     * Get the hash validation function
+     * @returns {Function}
+     */
+    get hash() {
+        return this.#hash;
+    }
+
+    /**
+     * Get the display multiplier for hashrate formatting
+     * @returns {number}
+     */
+    get displayMultiplier() {
+        return this.#displayMultiplier;
     }
 }
 
@@ -43,9 +90,10 @@ class Algorithm {
  * @class AlgoProperties
  */
 class AlgoProperties {
+    #algorithms = new Map();
+
     constructor() {
-        this._algorithms = new Map();
-        this._algorithms.set('verushash', new Algorithm({
+        this.#algorithms.set('verushash', new Algorithm({
             multiplier: 1,
             diff: parseInt('0x0007ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'),
             hashReserved: '0000000000000000000000000000000000000000000000000000000000000000',
@@ -56,7 +104,7 @@ class AlgoProperties {
                 };
             }
         }));
-        this._algorithms.set('equihash', new Algorithm({
+        this.#algorithms.set('equihash', new Algorithm({
             multiplier: 1,
             diff: parseInt('0x0007ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'),
             displayMultiplier: 2,
@@ -72,7 +120,6 @@ class AlgoProperties {
                 const N = parameters.N || 200;
                 const K = parameters.K || 9;
                 const personalization = parameters.personalization || 'ZcashPoW';
-                // Placeholder
                 return function () {
                     return true;
                 };
@@ -86,7 +133,7 @@ class AlgoProperties {
      * @returns {Algorithm|null} Algorithm instance or null if not found
      */
     getAlgo(name) {
-        return this._algorithms.get(name) || null;
+        return this.#algorithms.get(name) || null;
     }
 
     /**
@@ -125,7 +172,7 @@ class AlgoProperties {
      * @returns {boolean} True if algorithm exists, false otherwise
      */
     hasAlgorithm(name) {
-        return this._algorithms.has(name);
+        return this.#algorithms.has(name);
     }
 
     /**

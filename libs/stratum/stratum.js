@@ -370,9 +370,31 @@ class StratumClient extends EventEmitter {
  * @param {Object} algos - Algorithm helper with getDiff method
  */
 class StratumServer extends EventEmitter {
+    static validateOptions(options) {
+        const errors = [];
+        if (!options) {
+            errors.push('options is required');
+            return { isValid: false, errors };
+        }
+        if (options.tlsOptions && (options.tlsOptions.enabled === true || options.tlsOptions.enabled === 'true')) {
+            if (!options.tlsOptions.serverKey || !options.tlsOptions.serverCert) {
+                errors.push('serverKey and serverCert are required for TLS');
+            } else if (!fs.existsSync(options.tlsOptions.serverKey) || !fs.existsSync(options.tlsOptions.serverCert)) {
+                errors.push('TLS key or cert file does not exist');
+            }
+        }
+        // Add other validations as needed
+        return { isValid: errors.length === 0, errors };
+    }
+
     constructor(options, authorizeFn, algos) {
         super();
         this.options = options || {};
+        const validation = StratumServer.validateOptions(this.options);
+        if (!validation.isValid) {
+            console.warn('Invalid StratumServer options:', validation.errors.join(', '));
+            // Proceed with defaults or disable problematic features
+        }
         this.authorizeFn = authorizeFn || function () {
             arguments[arguments.length - 1]({ authorized: true });
         };
@@ -402,7 +424,8 @@ class StratumServer extends EventEmitter {
             try {
                 tlsOptions = { key: fs.readFileSync(this.options.tlsOptions.serverKey), cert: fs.readFileSync(this.options.tlsOptions.serverCert), requestCert: true };
             } catch (e) {
-                throw new Error(`Failed to read TLS key/cert: ${e.message}`);
+                this.emit('error', new Error(`Failed to read TLS key/cert: ${e.message}`));
+                tlsOptions = null; // Disable TLS
             }
         }
 
@@ -420,8 +443,17 @@ class StratumServer extends EventEmitter {
                     }
                 });
                 this._servers.push(srv);
-            } else {
+            } else if (tlsOptions) {
                 const srv = tls.createServer(tlsOptions, (socket) => this._handleNewClient(socket));
+                srv.listen(num, () => {
+                    started++; if (started === keys.length) {
+                        this.emit('started');
+                    }
+                });
+                this._servers.push(srv);
+            } else {
+                // TLS requested but not available, fall back to non-TLS
+                const srv = net.createServer({ allowHalfOpen: false }, (socket) => this._handleNewClient(socket));
                 srv.listen(num, () => {
                     started++; if (started === keys.length) {
                         this.emit('started');
