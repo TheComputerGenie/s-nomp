@@ -1,7 +1,7 @@
 /**
  * @fileoverview PoolConfigLoader - load and validate pool configurations
  *
- * Discovers enabled pool JSON files under `pool_configs/`, validates ports and
+ * Discovers enabled pool JSON files under `configFiles/`, validates ports and
  * coin profiles, merges defaults from portal configuration, and returns the
  * resolved pool configurations object.
  *
@@ -30,7 +30,7 @@ class PoolConfigLoader {
 
     load() {
         const configs = {};
-        const configDir = 'pool_configs/';
+        const configDir = 'configFiles/';
         const poolConfigFiles = [];
 
         fs.readdirSync(configDir).forEach((file) => {

@@ -124,7 +124,7 @@ class MasterController {
         });
 
         if (Object.keys(this.poolConfigs).length === 0) {
-            this.logger.warn('Master', 'PoolSpawner', 'No pool configs exists or are enabled in pool_configs folder. No pools spawned.');
+            this.logger.warn('Master', 'PoolSpawner', 'No pool configs exists or are enabled in configFiles folder. No pools spawned.');
             return;
         }
 

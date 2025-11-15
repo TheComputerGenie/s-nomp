@@ -37,7 +37,7 @@ To enable TLS for miner connections and P2P peer connections, follow the steps b
 **Note:** Certificate paths can be absolute or relative to the application's root directory (where `init.js` is located).
 
 ## Configuring TLS in Pool Config
-In your pool configuration JSON file (e.g., `pool_configs/vrsc.json`), update the `tlsOptions` section:
+In your pool configuration JSON file (e.g., `configFiles/vrsc.json`), update the `tlsOptions` section:
 
 ```json
 "tlsOptions": {

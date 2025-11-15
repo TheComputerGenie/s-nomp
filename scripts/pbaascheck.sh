@@ -197,7 +197,7 @@ fi
 ### IDENTITY ADDRESS PROCESSING
 for CHAIN in $ACTIVE_CHAINS; do
   CHAINlc=$(echo "$CHAIN" | $TR '[:upper:]' '[:lower:]')
-  cfg="$PAYMENT/pool_configs/$CHAINlc.json"
+  cfg="$PAYMENT/configFiles/$CHAINlc.json"
   if [ ! -f "$cfg" ]; then
     log "Config $cfg missing; skipping $CHAIN"
     continue

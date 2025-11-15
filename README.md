@@ -36,7 +36,7 @@ A zero-proof (Verushash) node stratum mining pool based on NOMP, focused on Veru
 
 3. Configure the pool:
    - Copy `config_example.json` to `config.json` and edit portal settings.
-   - Review and edit pool configurations in `pool_configs/` for your coins.
+   - Review and edit pool configurations in `configFiles/` for your coins.
 
 4. Start the pool:
    ```bash
@@ -46,12 +46,11 @@ A zero-proof (Verushash) node stratum mining pool based on NOMP, focused on Veru
 ## Configuration
 
 - **`config.json`**: Portal-wide settings including logging, website, clustering, Redis, and default pool options.
-- **`pool_configs/*.json`**: Per-coin pool definitions, including daemon connections, ports, payment settings, and P2P options.
-- **`coins/*.json`**: Coin profiles specifying algorithm, address formats, and explorer details.
+- **`configFiles/*.json`**: Per-coin pool definitions, including daemon connections, ports, payment settings, and P2P options.
 
 Key features include variable difficulty per port, TLS support, and switching/profit modes.
 
-See `config_example.json` and `pool_configs/vrsc.json` for examples.
+See `config_example.json` and `configFiles/vrsc.json` for examples.
 
 ## Usage
 
