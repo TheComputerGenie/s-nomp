@@ -459,6 +459,8 @@ class PoolStatsPage {
     updateBlocksList(pool, stats) {
         const poolData = stats.pools[pool];
         if (!poolData) return;
+        const explorer = window.explorerURLs[pool];
+        const minConfVal = window.minConfVals[pool];
         let html = '';
         const blockscomb = [];
         // Pending blocks
@@ -469,13 +471,12 @@ class PoolStatsPage {
                 html += `<div class="list-group-item">
                     <i class="fa fa-bars"></i>
                     <small>Block:</small>
-                    ${block[2]}
+                    ${explorer ? `<a href="${explorer}${block[0]}" target="_blank">${block[2]}</a>` : block[2]}
                     <small class="ml-3" id="time_${block[2]}"></small>
                     <script>document.getElementById("time_${block[2]}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(${block[4]} * 1000);</script>`;
                 if (poolData.pending.confirms) {
                     if (poolData.pending.confirms[block[0]]) {
                         const rawConf = parseInt(poolData.pending.confirms[block[0]]);
-                        const minConfVal = 100; // default
                         const showConf = (rawConf > minConfVal) ? minConfVal : rawConf;
                         html += `<span class="float-right text-danger"><small>${showConf} of ${minConfVal}</small></span>`;
                     } else {
@@ -499,7 +500,7 @@ class PoolStatsPage {
                 html += `<div class="list-group-item">
                     <i class="fa fa-bars"></i>
                     <small>Block:</small>
-                    ${block[2]}
+                    ${explorer ? `<a href="${explorer}${block[0]}" target="_blank">${block[2]}</a>` : block[2]}
                     <small class="ml-3" id="time_${block[2]}"></small>
                     <script>document.getElementById("time_${block[2]}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(${block[4]} * 1000);</script>
                     <span class="float-right text-success"><small>*CREDITED*</small></span>
