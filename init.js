@@ -18,10 +18,20 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const redis = require('redis');
-if (require.main === module) {
-    const entry = new Entry();
-    entry.start();
-}
+
+// Global error handlers to prevent silent halts
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
+
+// Respawn loop prevention
+const exitCounters = {};
 
 const startPaymentProcessor = function () {
     let enabledForAny = false;
@@ -43,7 +53,21 @@ const startPaymentProcessor = function () {
         pools: JSON.stringify(poolConfigs)
     });
 
+    let exitCount = 0;
+    let lastExitTime = Date.now();
+
     worker.on('exit', (code, signal) => {
+        const now = Date.now();
+        if (now - lastExitTime < 10000) { // within 10s
+            exitCount++;
+            if (exitCount >= 3) {
+                logger.error('Master', 'Payment Processor', 'Payment processor exited 3 times in 10s, not respawning to prevent loop');
+                return;
+            }
+        } else {
+            exitCount = 1;
+            lastExitTime = now;
+        }
         logger.error('Master', 'Payment Processor', 'Payment processor died, spawning replacement...');
         setTimeout(() => {
             startPaymentProcessor(poolConfigs);
@@ -65,7 +89,21 @@ const startWebsite = function () {
 
     websiteWorker = worker;
 
+    let exitCount = 0;
+    let lastExitTime = Date.now();
+
     worker.on('exit', (code, signal) => {
+        const now = Date.now();
+        if (now - lastExitTime < 10000) { // within 10s
+            exitCount++;
+            if (exitCount >= 3) {
+                logger.error('Master', 'Website', 'Website process exited 3 times in 10s, not respawning to prevent loop');
+                return;
+            }
+        } else {
+            exitCount = 1;
+            lastExitTime = now;
+        }
         logger.error('Master', 'Website', 'Website process died, spawning replacement...');
         setTimeout(() => {
             startWebsite(portalConfig, poolConfigs);
@@ -110,5 +148,11 @@ if (cluster.isWorker) {
             console.error(`Unknown workerType: ${workerType}`);
             process.exit(1);
     }
+}
+
+// Master process: orchestrate workers
+if (cluster.isPrimary) {
+    const master = new MasterController();
+    master.start();
 }
 

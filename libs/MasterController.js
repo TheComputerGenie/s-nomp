@@ -34,34 +34,31 @@ class MasterController {
     constructor() {
         if (!fs.existsSync('config.json')) {
             console.log('config.json file does not exist. Read the installation/setup instructions.');
-            throw new Error('Missing config.json');
+            console.error('Missing config.json');
+            process.exit(1);
         }
 
-        this.portalConfig = JSON.parse(minify(fs.readFileSync('config.json', { encoding: 'utf8' })));
+        try {
+            this.portalConfig = JSON.parse(minify(fs.readFileSync('config.json', { encoding: 'utf8' })));
+        } catch (e) {
+            console.error('Failed to parse config.json:', e.message);
+            process.exit(1);
+        }
 
         this.poolConfigs = {};
         this.websiteWorker = null;
+        this.exitCounters = {};
         this.logger = new PoolLogger({
             logLevel: this.portalConfig.logLevel,
             logColors: this.portalConfig.logColors
         });
-
-        // Try optional New Relic silently
-        try {
-            require('newrelic');
-            if (cluster.isMaster) {
-                this.logger.debug('NewRelic', 'Monitor', 'New Relic initiated');
-            }
-        } catch (e) {
-            // ignore
-        }
 
         try {
             const posix = require('posix');
             try {
                 posix.setrlimit('nofile', { soft: 100000, hard: 100000 });
             } catch (e) {
-                if (cluster.isMaster) {
+                if (cluster.isPrimary) {
                     this.logger.warn('POSIX', 'Connection Limit', '(Safe to ignore) Must be ran as root to increase resource limits');
                 }
             } finally {
@@ -72,7 +69,7 @@ class MasterController {
                 }
             }
         } catch (e) {
-            if (cluster.isMaster) {
+            if (cluster.isPrimary) {
                 this.logger.debug('POSIX', 'Connection Limit', '(Safe to ignore) POSIX module not installed and resource (connection) limit was not raised');
             }
         }
@@ -160,6 +157,22 @@ class MasterController {
             worker.type = 'pool';
             poolWorkers[forkId] = worker;
             worker.on('exit', (code, signal) => {
+                const type = `pool-${forkId}`;
+                const now = Date.now();
+                if (!this.exitCounters[type]) {
+                    this.exitCounters[type] = { count: 0, lastTime: now };
+                }
+                const counter = this.exitCounters[type];
+                if (now - counter.lastTime < 10000) {
+                    counter.count++;
+                    if (counter.count >= 3) {
+                        this.logger.error('Master', 'PoolSpawner', `Fork ${forkId} exited 3 times in 10s, not respawning to prevent loop`);
+                        return;
+                    }
+                } else {
+                    counter.count = 1;
+                    counter.lastTime = now;
+                }
                 this.logger.error('Master', 'PoolSpawner', `Fork ${forkId} died, spawning replacement worker...`);
                 setTimeout(() => {
                     createPoolWorker(forkId);
@@ -327,6 +340,22 @@ class MasterController {
 
         const worker = cluster.fork({ workerType: 'paymentProcessor', pools: JSON.stringify(this.poolConfigs) });
         worker.on('exit', (code, signal) => {
+            const type = 'paymentProcessor';
+            const now = Date.now();
+            if (!this.exitCounters[type]) {
+                this.exitCounters[type] = { count: 0, lastTime: now };
+            }
+            const counter = this.exitCounters[type];
+            if (now - counter.lastTime < 10000) {
+                counter.count++;
+                if (counter.count >= 3) {
+                    this.logger.error('Master', 'Payment Processor', 'Payment processor exited 3 times in 10s, not respawning to prevent loop');
+                    return;
+                }
+            } else {
+                counter.count = 1;
+                counter.lastTime = now;
+            }
             this.logger.error('Master', 'Payment Processor', 'Payment processor died, spawning replacement...');
             setTimeout(() => {
                 this.startPaymentProcessor();
@@ -341,6 +370,22 @@ class MasterController {
         const worker = cluster.fork({ workerType: 'website', pools: JSON.stringify(this.poolConfigs), portalConfig: JSON.stringify(this.portalConfig) });
         this.websiteWorker = worker;
         worker.on('exit', (code, signal) => {
+            const type = 'website';
+            const now = Date.now();
+            if (!this.exitCounters[type]) {
+                this.exitCounters[type] = { count: 0, lastTime: now };
+            }
+            const counter = this.exitCounters[type];
+            if (now - counter.lastTime < 10000) {
+                counter.count++;
+                if (counter.count >= 3) {
+                    this.logger.error('Master', 'Website', 'Website process exited 3 times in 10s, not respawning to prevent loop');
+                    return;
+                }
+            } else {
+                counter.count = 1;
+                counter.lastTime = now;
+            }
             this.logger.error('Master', 'Website', 'Website process died, spawning replacement...');
             setTimeout(() => {
                 this.startWebsite();
