@@ -443,7 +443,115 @@ class PoolStatsPage {
                 $(`#statsNetworkSols${pool}`).text(getReadableNetworkHashRateString(poolStats.poolStats.networkSols));
                 $(`#statsNetworkConnections${pool}`).text(poolStats.poolStats.networkConnections);
             }
+            // Update blocks list and pie chart if blocks data is present
+            if (poolStats.pending || poolStats.confirmed) {
+                this.updateBlocksList(pool, stats);
+            }
         }
+    }
+
+    /**
+     * Updates the blocks found list for a pool.
+     * @param {string} pool - The pool name.
+     * @param {Object} stats - The statistics data.
+     * @returns {void}
+     */
+    updateBlocksList(pool, stats) {
+        const poolData = stats.pools[pool];
+        if (!poolData) return;
+        let html = '';
+        const blockscomb = [];
+        // Pending blocks
+        if (poolData.pending && poolData.pending.blocks) {
+            for (const b in poolData.pending.blocks) {
+                const block = poolData.pending.blocks[b].split(':');
+                blockscomb.push(block);
+                html += `<div class="list-group-item">
+                    <i class="fa fa-bars"></i>
+                    <small>Block:</small>
+                    ${block[2]}
+                    <small class="ml-3" id="time_${block[2]}"></small>
+                    <script>document.getElementById("time_${block[2]}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(${block[4]} * 1000);</script>`;
+                if (poolData.pending.confirms) {
+                    if (poolData.pending.confirms[block[0]]) {
+                        const rawConf = parseInt(poolData.pending.confirms[block[0]]);
+                        const minConfVal = 100; // default
+                        const showConf = (rawConf > minConfVal) ? minConfVal : rawConf;
+                        html += `<span class="float-right text-danger"><small>${showConf} of ${minConfVal}</small></span>`;
+                    } else {
+                        html += `<span class="float-right text-danger"><small>*PENDING*</small></span>`;
+                    }
+                } else {
+                    html += `<span class="float-right text-danger"><small>*PENDING*</small></span>`;
+                }
+                html += `<div><i class="fa fa-gavel"></i><small>Mined By:</small> <a href="/workers/${block[3].split('.')[0]}">${block[3]}</a></div>
+                </div>`;
+            }
+        }
+        // Confirmed blocks, collect all for pie, but show only last 8 in list
+        if (poolData.confirmed && poolData.confirmed.blocks) {
+            let i = 0;
+            for (const b in poolData.confirmed.blocks) {
+                const block = poolData.confirmed.blocks[b].split(':');
+                blockscomb.push(block); // Include all for pie
+                if (i >= 8) continue; // But only show first 8 in HTML
+                i++;
+                html += `<div class="list-group-item">
+                    <i class="fa fa-bars"></i>
+                    <small>Block:</small>
+                    ${block[2]}
+                    <small class="ml-3" id="time_${block[2]}"></small>
+                    <script>document.getElementById("time_${block[2]}").innerHTML = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' }).format(${block[4]} * 1000);</script>
+                    <span class="float-right text-success"><small>*CREDITED*</small></span>
+                    <div><i class="fa fa-gavel"></i><small>Mined By:</small> <a href="/workers/${block[3].split('.')[0]}">${block[3]}</a></div>
+                </div>`;
+            }
+        }
+        $(`#blocksList${pool}`).html(html);
+        // Sort blockscomb by timestamp descending (most recent first) and cap at 10 for pie chart
+        blockscomb.sort((a, b) => parseInt(b[4]) - parseInt(a[4]));
+        blockscomb = blockscomb.slice(0, 10);
+        // Update header
+        $(`#blocksHeader${pool}`).text(`Finders of the last ${blockscomb.length} blocks`);
+        // Update pie chart
+        this.updatePieChart(pool, blockscomb);
+    }
+
+    /**
+     * Updates the pie chart for finders of blocks.
+     * @param {string} pool - The pool name.
+     * @param {Array} blockscomb - Array of block data.
+     * @returns {void}
+     */
+    updatePieChart(pool, blockscomb) {
+        const container = $(`#blocksPie${pool}`);
+        container.empty();
+        if (blockscomb.length === 0) return;
+        const data = [];
+        const groupedByFinder = {};
+        for (let i = 0; i < blockscomb.length; i++) {
+            const finder = blockscomb[i][3];
+            if (!(finder in groupedByFinder)) groupedByFinder[finder] = [];
+            groupedByFinder[finder].push(blockscomb[i]);
+        }
+        Object.keys(groupedByFinder).forEach(key => {
+            data.push({ label: key, value: groupedByFinder[key].length });
+        });
+        nv.addGraph(function () {
+            const chart = nv.models.pieChart()
+                .x(d => d.label)
+                .y(d => d.value)
+                .showLabels(true)
+                .labelType("percent")
+                .donut(true)
+                .donutRatio(0.35);
+            d3.select(`#blocksPie${pool}`)
+                .append('svg')
+                .datum(data)
+                .transition().duration(350)
+                .call(chart);
+            return chart;
+        });
     }
 }
 
