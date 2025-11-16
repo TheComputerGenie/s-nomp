@@ -40,8 +40,10 @@ A zero-proof (Verushash) node stratum mining pool based on NOMP, focused on Veru
 
 4. Start the pool:
    ```bash
-   npm start
+   npm start  # starts with Verus (VRSC)
+   npm start pbaas <coinname>  # starts with specified coin, e.g., npm start pbaas CHIPS
    ```
+   Supported coins: verus, vdex, varrr, chips (case-insensitive). Invalid coin names default to chips.
 
 ## Configuration
 

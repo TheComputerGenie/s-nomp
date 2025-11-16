@@ -23,97 +23,85 @@ const { minify } = require('../utils/jsonMinify.js');
  * @class PoolConfigLoader
  */
 class PoolConfigLoader {
-    constructor(portalConfig, logger) {
+    constructor(portalConfig, logger, selectedCoin, isPbaas) {
         this.portalConfig = portalConfig;
         this.logger = logger;
+        this.selectedCoin = selectedCoin;
+        this.isPbaas = isPbaas;
     }
 
     load() {
         const configs = {};
         const configDir = 'configFiles/';
-        const poolConfigFiles = [];
-
-        fs.readdirSync(configDir).forEach((file) => {
-            if (!fs.existsSync(configDir + file) || path.extname(configDir + file) !== '.json') {
-                return;
-            }
-            const poolOptions = JSON.parse(minify(fs.readFileSync(configDir + file, { encoding: 'utf8' })));
-            if (!poolOptions.enabled) {
-                return;
-            }
-            poolOptions.fileName = file;
-            if (typeof poolOptions.coin === 'string' && poolOptions.coin.length > 0) {
-                poolOptions.coinName = poolOptions.coin.toLowerCase();
-            } else if (typeof poolOptions.coinName === 'string' && poolOptions.coinName.length > 0) {
-                poolOptions.coinName = poolOptions.coinName.toLowerCase();
+        const coinProfile = coinConstants.get(this.selectedCoin);
+        if (!coinProfile) {
+            this.logger.error('Master', 'PoolConfigLoader', `Invalid selected coin: ${this.selectedCoin}`);
+            process.exit(1);
+        }
+        const symbol = coinProfile.symbol;
+        const configFile = `${symbol}.json`;
+        const configPath = path.join(configDir, configFile);
+        let poolOptions;
+        if (fs.existsSync(configPath)) {
+            poolOptions = JSON.parse(minify(fs.readFileSync(configPath, { encoding: 'utf8' })));
+        } else {
+            if (this.isPbaas) {
+                const chipsPath = path.join(configDir, 'chips.json');
+                if (fs.existsSync(chipsPath)) {
+                    poolOptions = JSON.parse(minify(fs.readFileSync(chipsPath, { encoding: 'utf8' })));
+                    this.logger.warn('Master', 'PoolConfigLoader', `Config file ${configFile} not found, falling back to chips.json`);
+                } else {
+                    this.logger.error('Master', 'PoolConfigLoader', `Config file ${configFile} not found, and fallback chips.json not found`);
+                    process.exit(1);
+                }
             } else {
-                try {
-                    poolOptions.coinName = path.parse(file).name.toLowerCase();
-                } catch (e) {
-                    poolOptions.coinName = null;
-                }
+                this.logger.error('Master', 'PoolConfigLoader', `Config file ${configFile} not found`);
+                process.exit(1);
             }
-            poolConfigFiles.push(poolOptions);
-        });
+        }
+        poolOptions.enabled = true; // force enable
+        poolOptions.fileName = poolOptions.fileName || configFile;
 
-        // Port conflict detection
-        for (let i = 0; i < poolConfigFiles.length; i++) {
-            const ports = Object.keys(poolConfigFiles[i].ports);
-            for (let f = 0; f < poolConfigFiles.length; f++) {
-                if (f === i) {
-                    continue;
+        // Process coin name
+        if (typeof poolOptions.coin === 'string' && poolOptions.coin.length > 0) {
+            poolOptions.coinName = poolOptions.coin.toLowerCase();
+        } else if (typeof poolOptions.coinName === 'string' && poolOptions.coinName.length > 0) {
+            poolOptions.coinName = poolOptions.coinName.toLowerCase();
+        } else {
+            poolOptions.coinName = symbol.toLowerCase();
+        }
+
+        const inferredCoinName = poolOptions.coinName;
+        const coinProfileRaw = coinConstants.get(inferredCoinName);
+        if (!coinProfileRaw) {
+            this.logger.error('Master', poolOptions.fileName, `Unsupported or unknown coin profile for "${inferredCoinName}"`);
+            process.exit(1);
+        }
+        const coinProfileFinal = { ...coinProfileRaw };
+        poolOptions.coin = coinProfileFinal;
+        poolOptions.coin.name = poolOptions.coin.name.toLowerCase();
+        poolOptions.coinName = poolOptions.coin.name;
+        poolOptions.redis = this.portalConfig.redis;
+
+        for (const option in this.portalConfig.defaultPoolConfigs) {
+            if (!(option in poolOptions)) {
+                const toCloneOption = this.portalConfig.defaultPoolConfigs[option];
+                let clonedOption;
+                try {
+                    clonedOption = structuredClone(toCloneOption);
+                } catch (e) {
+                    clonedOption = JSON.parse(JSON.stringify(toCloneOption));
                 }
-                const portsF = Object.keys(poolConfigFiles[f].ports);
-                for (let g = 0; g < portsF.length; g++) {
-                    if (ports.indexOf(portsF[g]) !== -1) {
-                        this.logger.error('Master', poolConfigFiles[f].fileName, `Has same configured port of ${portsF[g]} as ${poolConfigFiles[i].fileName}`);
-                        process.exit(1);
-                        return;
-                    }
-                }
+                poolOptions[option] = clonedOption;
             }
         }
 
-        poolConfigFiles.forEach((poolOptions) => {
-            const inferredCoinName = (poolOptions.coinName) ? poolOptions.coinName : (poolOptions.fileName ? path.parse(poolOptions.fileName).name : null);
-            const coinProfileRaw = coinConstants.get(inferredCoinName);
-            if (!coinProfileRaw) {
-                this.logger.error('Master', poolOptions.fileName || '<unknown>', `Unsupported or unknown coin profile for "${inferredCoinName}"`);
-                process.exit(1);
-                return;
-            }
-            const coinProfile = { ...coinProfileRaw };
-            poolOptions.coin = coinProfile;
-            poolOptions.coin.name = poolOptions.coin.name.toLowerCase();
-            poolOptions.coinName = poolOptions.coin.name;
-            poolOptions.redis = this.portalConfig.redis;
+        configs[poolOptions.coin.name] = poolOptions;
 
-            if (poolOptions.coin.name in configs) {
-                this.logger.error('Master', poolOptions.fileName, `Pool has same configured coin name ${poolOptions.coin.name} as pool config ${configs[poolOptions.coin.name].fileName}`);
-                process.exit(1);
-                return;
-            }
-
-            for (const option in this.portalConfig.defaultPoolConfigs) {
-                if (!(option in poolOptions)) {
-                    const toCloneOption = this.portalConfig.defaultPoolConfigs[option];
-                    let clonedOption;
-                    try {
-                        clonedOption = structuredClone(toCloneOption);
-                    } catch (e) {
-                        clonedOption = JSON.parse(JSON.stringify(toCloneOption));
-                    }
-                    poolOptions[option] = clonedOption;
-                }
-            }
-
-            configs[poolOptions.coin.name] = poolOptions;
-
-            if (!algos.hasAlgorithm(coinProfile.algorithm)) {
-                this.logger.error('Master', coinProfile.name, `Cannot run a pool for unsupported algorithm "${coinProfile.algorithm}"`);
-                delete configs[poolOptions.coin.name];
-            }
-        });
+        if (!algos.hasAlgorithm(coinProfileFinal.algorithm)) {
+            this.logger.error('Master', coinProfileFinal.name, `Cannot run a pool for unsupported algorithm "${coinProfileFinal.algorithm}"`);
+            delete configs[poolOptions.coin.name];
+        }
 
         return configs;
     }
