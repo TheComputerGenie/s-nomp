@@ -11,7 +11,7 @@
  * environment variables:
  * - `process.env.pools` (JSON string of pool configurations)
  * - `process.env.portalConfig` (JSON string of portal-level config such as switching)
- * - `process.env.forkId` (worker index used in log sub-categories)
+ * - `process.env.forkId` (worker index used in logger)
  *
  * This file prefers runtime configuration via environment variables because it runs in
  * forked worker processes. The module mutates `this` (exports methods) so the parent
@@ -49,7 +49,7 @@ module.exports = function (logger) {
     const poolConfigs = JSON.parse(process.env.pools);
     const portalConfig = JSON.parse(process.env.portalConfig);
 
-    const forkId = process.env.forkId;
+    const forkId = process.env.forkId || '0';
 
     // Map of poolName -> pool object created by Stratum.createPool()
     const pools = {};
@@ -110,7 +110,7 @@ module.exports = function (logger) {
                 {
                     const logSystem = 'Proxy';
                     const logComponent = 'Switch';
-                    const logSubCat = `Thread ${parseInt(forkId) + 1}`;
+                    const logThread = forkId;
 
                     const switchName = message.switchName;
 
@@ -124,11 +124,11 @@ module.exports = function (logger) {
                     const proxyPorts = Object.keys(proxySwitch[switchName].ports);
 
                     if (newCoin == oldCoin) {
-                        logger.debug(logSystem, logComponent, logSubCat, `Switch message would have no effect - ignoring ${newCoin}`);
+                        logger.debug(logSystem, logComponent, logThread, `Switch message would have no effect - ignoring ${newCoin}`);
                         break;
                     }
 
-                    logger.debug(logSystem, logComponent, logSubCat, `Proxy message for ${algo} from ${oldCoin} to ${newCoin}`);
+                    logger.debug(logSystem, logComponent, logThread, `Proxy message for ${algo} from ${oldCoin} to ${newCoin}`);
 
                     if (newPool) {
                         // Ask the old pool to relinquish miners that are attached to "auto-switch" ports.
@@ -147,9 +147,9 @@ module.exports = function (logger) {
                         // Persist the new proxy mapping for this algorithm into Redis
                         redisClient.hset('proxyState', algo, newCoin, (error, obj) => {
                             if (error) {
-                                logger.error(logSystem, logComponent, logSubCat, `Redis error writing proxy config: ${JSON.stringify(err)}`);
+                                logger.error(logSystem, logComponent, logThread, `Redis error writing proxy config: ${JSON.stringify(err)}`);
                             } else {
-                                logger.debug(logSystem, logComponent, logSubCat, `Last proxy state saved to redis for ${algo}`);
+                                logger.debug(logSystem, logComponent, logThread, `Last proxy state saved to redis for ${algo}`);
                             }
                         });
 
@@ -168,7 +168,7 @@ module.exports = function (logger) {
         const logSystem2 = 'Block';
         const logSystem3 = 'Worker';
         const logComponent = coin;
-        const logSubCat = `Thread ${parseInt(forkId) + 1}`;
+        const logThread = forkId;
 
         // handlers are small adapter functions that connect the Stratum pool to the share/authorize logic
         const handlers = {
@@ -238,7 +238,7 @@ module.exports = function (logger) {
 
                 const authString = authorized ? 'Authorized' : 'Unauthorized ';
 
-                logger.debug(logSystem3, logComponent, logSubCat, `${authString} ${workerName}:${password} [${ip}]`);
+                logger.debug(logSystem3, logComponent, logThread, `${authString} ${workerName}:${password} [${ip}]`);
                 callback({
                     error: null,
                     authorized: authorized,
@@ -255,27 +255,40 @@ module.exports = function (logger) {
 
             // Logging for block finds or rejected blocks
             if (data.blockHash && !isValidBlock) {
-                logger.error(logSystem2, logComponent, logSubCat, `We thought a block was found but it was rejected by the daemon, share data: ${shareData}`);
+                logger.error(logSystem2, logComponent, logThread, `We thought a block was found but it was rejected by the daemon, share data: ${shareData}`);
             } else if (isValidBlock) {
                 if (!data.blockOnlyPBaaS) {
-                    logger.error(logSystem2, logComponent, logSubCat, `Block found: ${data.blockHash} [${data.height}] by ${data.worker}`);
+                    logger.error(logSystem2, logComponent, logThread, `Block found: ${data.blockHash} [${data.height}] by ${data.worker}`);
                 } else {
-                    logger.error(logSystem2, logComponent, logSubCat, `PBaaS found: ${data.blockHash} by ${data.worker}`);
+                    logger.error(logSystem2, logComponent, logThread, `PBaaS found: ${data.blockHash} by ${data.worker}`);
                 }
             }
 
             // Log suspiciously large share diffs with appropriate severity
             if (isValidShare) {
-                if (data.shareDiff > 10000000000) {
-                    logger.fatal(logSystem3, logComponent, logSubCat, `Share was found with diff higher than 10,000,000,000! ${((data.shareDiff / data.blockDiff) * 100).toFixed(2)}%`);
-                } else if (data.shareDiff > 1000000000) {
-                    logger.error(logSystem3, logComponent, logSubCat, `Share was found with diff higher than 1,000,000,000! ${((data.shareDiff / data.blockDiff) * 100).toFixed(2)}%`);
-                } else if (data.shareDiff > 100000000) {
-                    logger.alert(logSystem3, logComponent, logSubCat, `Share was found with diff higher than 100,000,000! ${((data.shareDiff / data.blockDiff) * 100).toFixed(2)}%`);
+                // Configuration for share diff alerts
+                const shareDiffAlerts = [
+                    {
+                        threshold: 5000000000000, level: 'fatal'
+                    },
+                    {
+                        threshold: 5000000000, level: 'error'
+                    },
+                    {
+                        threshold: 5000000, level: 'alert'
+                    }
+                ];
+                const messageTemplate = 'Share was found with diff higher than ${threshold}! ${percent}%';
+                const percent = ((data.shareDiff / data.blockDiff) * 100).toFixed(2);
+                for (const alert of shareDiffAlerts) {
+                    if (data.shareDiff > alert.threshold) {
+                        logger[alert.level](logSystem3, logComponent, logThread, messageTemplate.replace('${threshold}', alert.threshold.toLocaleString('en-US')).replace('${percent}', percent));
+                        break;
+                    }
                 }
-                //logger.debug(logSystem, logComponent, logSubCat, 'Share accepted at diff ' + data.difficulty + '/' + data.shareDiff + ' by ' + data.worker + ' [' + data.ip + ']' );
+                //logger.debug(logSystem, logComponent, logThread, 'Share accepted at diff ' + data.difficulty + '/' + data.shareDiff + ' by ' + data.worker + ' [' + data.ip + ']' );
             } else if (!isValidShare) {
-                logger.debug(logSystem3, logComponent, logSubCat, `Share rejected: ${shareData}`);
+                logger.debug(logSystem3, logComponent, logThread, `Share rejected: ${shareData}`);
             }
 
             // handle the share with the configured processor
@@ -288,12 +301,12 @@ module.exports = function (logger) {
             // Controlled by config: defaultPoolConfigs.showDifficultyUpdate (default true)
             const show = (portalConfig && portalConfig.defaultPoolConfigs && typeof portalConfig.defaultPoolConfigs.showDifficultyUpdate !== 'undefined') ? !!portalConfig.defaultPoolConfigs.showDifficultyUpdate : true;
             if (show) {
-                logger.debug(logSystem3, logComponent, logSubCat, `Difficulty update to diff ${diff} workerName=${JSON.stringify(workerName)}`);
+                logger.debug(logSystem3, logComponent, logThread, `Difficulty update to diff ${diff} workerName=${JSON.stringify(workerName)}`);
             }
             handlers.diff(workerName, diff);
         }).on('log', (severity, text) => {
             // Route pool log events through the provided logger
-            logger[severity](logSystem, logComponent, logSubCat, text);
+            logger[severity](logSystem, logComponent, logThread, text);
         }).on('banIP', (ip, worker) => {
             // Forward ban requests to master process so it can propagate to all workers
             process.send({ type: 'banIP', ip: ip });
@@ -312,23 +325,23 @@ module.exports = function (logger) {
 
         const logSystem = 'Switching';
         const logComponent = 'Setup';
-        const logSubCat = `Thread ${parseInt(forkId) + 1}`;
+        const logThread = forkId;
 
         let proxyState = {};
 
         // Load proxy state for each algorithm from redis which allows NOMP to resume operation
         // on the last pool it was using when reloaded or restarted
-        logger.debug(logSystem, logComponent, logSubCat, 'Loading last proxy state from redis');
+        logger.debug(logSystem, logComponent, logThread, 'Loading last proxy state from redis', true);
 
         /*redisClient.on('error', function(err){
-            logger.debug(logSystem, logComponent, logSubCat, 'Pool configuration failed: ' + err);
+            logger.debug(logSystem, logComponent, logThread, 'Pool configuration failed: ' + err);
         });*/
 
         // Restore any previously persisted proxy state and then create the listening servers
         redisClient.hgetall('proxyState', (error, obj) => {
             if (!error && obj) {
                 proxyState = obj;
-                logger.debug(logSystem, logComponent, logSubCat, 'Last proxy state loaded from redis');
+                logger.debug(logSystem, logComponent, logThread, 'Last proxy state loaded from redis');
             }
 
             // Setup proxySwitch object to control proxy operations from configuration and any restored
@@ -356,7 +369,7 @@ module.exports = function (logger) {
                     const f = net.createServer((socket) => {
                         const currentPool = proxySwitch[switchName].currentPool;
 
-                        logger.debug(logSystem, 'Connect', logSubCat, `Connection to ${switchName} from ${socket.remoteAddress} on ${port} routing to ${currentPool}`);
+                        logger.debug(logSystem, 'Connect', logThread, `Connection to ${switchName} from ${socket.remoteAddress} on ${port} routing to ${currentPool}`);
 
                         if (pools[currentPool]) {
                             pools[currentPool].getStratumServer().handleNewClient(socket);
@@ -365,7 +378,7 @@ module.exports = function (logger) {
                         }
 
                     }).listen(parseInt(port), () => {
-                        logger.debug(logSystem, logComponent, logSubCat, `Switching "${switchName
+                        logger.debug(logSystem, logComponent, logThread, `Switching "${switchName
                         }" listening for ${algorithm
                         } on port ${port
                         } into ${proxySwitch[switchName].currentPool}`);
@@ -409,7 +422,7 @@ module.exports = function (logger) {
         const logSystem = 'Switching';
         const logComponent = 'Setup';
 
-        logger.debug(logSystem, logComponent, algo, 'Setting proxy difficulties after pool start');
+        logger.debug(logSystem, logComponent, algo, 'Setting proxy difficulties after pool start', true);
 
         Object.keys(portalConfig.switching).forEach((switchName) => {
             if (!portalConfig.switching[switchName].enabled) {

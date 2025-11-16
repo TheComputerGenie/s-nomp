@@ -113,7 +113,7 @@ class MasterController {
                     });
                 }
                 connection.on('ready', () => {
-                    this.logger.debug('PPLNT', coin, `TimeShare processing setup with redis (${connection.snompEndpoint})`);
+                    this.logger.debug('PPLNT', coin, `TimeShare processing setup with redis (${connection.snompEndpoint})`, true);
                     try {
                         this.pplntTracker.init(connection);
                     } catch (e) {
@@ -124,7 +124,7 @@ class MasterController {
         });
 
         if (Object.keys(this.poolConfigs).length === 0) {
-            this.logger.warn('Master', 'PoolSpawner', 'No pool configs exists or are enabled in configFiles folder. No pools spawned.');
+            this.logger.warn('PoolSpawner','Master',  'No pool configs exists or are enabled in configFiles folder. No pools spawned.');
             return;
         }
 
@@ -166,14 +166,14 @@ class MasterController {
                 if (now - counter.lastTime < 10000) {
                     counter.count++;
                     if (counter.count >= 3) {
-                        this.logger.error('Master', 'PoolSpawner', `Fork ${forkId} exited 3 times in 10s, not respawning to prevent loop`);
+                        this.logger.error('PoolSpawner','Master',  `Fork ${forkId} exited 3 times in 10s, not respawning to prevent loop`);
                         return;
                     }
                 } else {
                     counter.count = 1;
                     counter.lastTime = now;
                 }
-                this.logger.error('Master', 'PoolSpawner', `Fork ${forkId} died, spawning replacement worker...`);
+                this.logger.error('PoolSpawner','Master',  `Fork ${forkId} died, spawning replacement worker...`);
                 setTimeout(() => {
                     createPoolWorker(forkId);
                 }, 2000);
@@ -199,7 +199,7 @@ class MasterController {
             i++;
             if (i === forks) {
                 clearInterval(spawnInterval);
-                this.logger.debug('Master', 'PoolSpawner', `Spawned ${Object.keys(this.poolConfigs).length} pool(s) on ${forks} thread(s)`);
+                this.logger.debug('PoolSpawner','Master',  `Spawned ${Object.keys(this.poolConfigs).length} pool(s) on ${forks} thread(s)`);
             }
         }, 250);
     }
@@ -220,7 +220,7 @@ class MasterController {
         const cliServer = this.portalConfig.cliServer || '127.0.0.1';
         const listener = new CliListener(cliServer, cliPort);
         listener.on('log', (text) => {
-            this.logger.debug('Master', 'CLI', text);
+            this.logger.debug('CLI','Master',  text);
         }).on('command', (command, params, options, reply) => {
             switch (command) {
                 case 'blocknotify':

@@ -458,7 +458,9 @@ class PoolStatsPage {
      */
     updateBlocksList(pool, stats) {
         const poolData = stats.pools[pool];
-        if (!poolData) return;
+        if (!poolData) {
+            return;
+        }
         const explorer = window.explorerURLs[pool];
         const minConfVal = window.minConfVals[pool];
         let html = '';
@@ -495,7 +497,9 @@ class PoolStatsPage {
             for (const b in poolData.confirmed.blocks) {
                 const block = poolData.confirmed.blocks[b].split(':');
                 blockscomb.push(block); // Include all for pie
-                if (i >= 8) continue; // But only show first 8 in HTML
+                if (i >= 8) {
+                    continue;
+                } // But only show first 8 in HTML
                 i++;
                 html += `<div class="list-group-item">
                     <i class="fa fa-bars"></i>
@@ -527,23 +531,27 @@ class PoolStatsPage {
     updatePieChart(pool, blockscomb) {
         const container = $(`#blocksPie${pool}`);
         container.empty();
-        if (blockscomb.length === 0) return;
+        if (blockscomb.length === 0) {
+            return;
+        }
         const data = [];
         const groupedByFinder = {};
         for (let i = 0; i < blockscomb.length; i++) {
             const finder = blockscomb[i][3];
-            if (!(finder in groupedByFinder)) groupedByFinder[finder] = [];
+            if (!(finder in groupedByFinder)) {
+                groupedByFinder[finder] = [];
+            }
             groupedByFinder[finder].push(blockscomb[i]);
         }
         Object.keys(groupedByFinder).forEach(key => {
             data.push({ label: key, value: groupedByFinder[key].length });
         });
-        nv.addGraph(function () {
+        nv.addGraph(() => {
             const chart = nv.models.pieChart()
                 .x(d => d.label)
                 .y(d => d.value)
                 .showLabels(true)
-                .labelType("percent")
+                .labelType('percent')
                 .donut(true)
                 .donutRatio(0.35);
             d3.select(`#blocksPie${pool}`)

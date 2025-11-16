@@ -51,7 +51,7 @@ class PplntTracker {
             if (!this._lastShareTimes[msg.coin][workerAddress] || !this._lastStartTimes[msg.coin][workerAddress]) {
                 this._lastShareTimes[msg.coin][workerAddress] = now;
                 this._lastStartTimes[msg.coin][workerAddress] = now;
-                this.logger.debug('PPLNT', msg.coin, `Thread ${msg.thread}`, `${workerAddress} joined.`);
+                this.logger.debug('PPLNT', msg.coin, `${msg.thread}`, `${workerAddress} joined.`);
             }
 
             if (this._lastShareTimes[msg.coin][workerAddress] != null && this._lastShareTimes[msg.coin][workerAddress] > 0) {
@@ -70,14 +70,14 @@ class PplntTracker {
                 if (this.connection) {
                     this.connection.multi(redisCommands).exec((err, replies) => {
                         if (err) {
-                            this.logger.error('PPLNT', msg.coin, `Thread ${msg.thread}`, `Error with time share processor call to redis ${JSON.stringify(err)}`);
+                            this.logger.error('PPLNT', msg.coin, `${msg.thread}`, `Error with time share processor call to redis ${JSON.stringify(err)}`);
                         }
                     });
                 }
             } else {
                 // treat as re-join after a long gap
                 this._lastStartTimes[msg.coin][workerAddress] = now;
-                this.logger.debug('PPLNT', msg.coin, `Thread ${msg.thread}`, `${workerAddress} re-joined.`);
+                this.logger.debug('PPLNT', msg.coin, `${msg.thread}`, `${workerAddress} re-joined.`);
             }
 
             this._lastShareTimes[msg.coin][workerAddress] = now;

@@ -8,7 +8,7 @@
  * PoolLogger - A logging utility for mining pools
  *
  * Provides structured logging with severity levels, colored output, and configurable filtering.
- * Argument order for log calls: (system, component, subcat, text)
+ * Argument order for log calls: (system, component, thrd, text)
  * Preserves colored output: opening '[' and closing ']' are grey, system name is white
  * Defaults: logLevel='debug', logColors=process.stdout.isTTY
  */
@@ -19,6 +19,7 @@ class PoolLogger {
      * @param {Object} [configuration={}] - Configuration options
      * @param {string} [configuration.logLevel='debug'] - Minimum log level ('trace'|'debug'|'verbose'|'info'|'notice'|'warn'|'error'|'alert'|'critical'|'fatal')
      * @param {boolean} [configuration.logColors] - Whether to use colored output (defaults to true for TTY)
+     * @param {boolean} [configuration.mainThreadOnly=false] - If true, only log messages from thread 0
      */
     constructor(configuration = {}) {
         const cfg = { ...configuration };
@@ -26,11 +27,16 @@ class PoolLogger {
         this.logLevelInt = severityValues[this.logLevel];
         // Default to true when stdout is a TTY and config doesn't explicitly disable colors
         this.logColors = (typeof cfg.logColors === 'boolean') ? cfg.logColors : Boolean(process.stdout.isTTY);
+        this.mainThreadOnly = Boolean(cfg.mainThreadOnly);
 
         // Bind shorthand methods for each severity level
         Object.keys(severityValues).forEach((logType) => {
             this[logType] = (...args) => {
-                this._log(logType, ...args);
+                let mainThreadOnlyCall = null;
+                if (args.length > 0 && typeof args[args.length - 1] === 'boolean') {
+                    mainThreadOnlyCall = args.pop();
+                }
+                this._log(logType, ...args, mainThreadOnlyCall);
             };
         });
     }
@@ -42,19 +48,25 @@ class PoolLogger {
      * @param {string} severity - Log severity level
      * @param {string} [system=''] - System identifier
      * @param {string} [component=''] - Component identifier
-     * @param {string} [subcat=''] - Subcategory (thread)
+     * @param {string} [thrd=''] - Subcategory (thread)
      * @param {string} [text=''] - Log message text
+     * @param {boolean|null} [mainThreadOnlyCall=null] - Per-call override for mainThreadOnly
      */
-    _log(severity, system = '', component = '', subcat = '', text = '') {
+    _log(severity, system = '', component = '', thrd = '', text = '', mainThreadOnlyCall = null) {
         const sevRank = severityValues[severity] || Number.POSITIVE_INFINITY;
         if (sevRank < this.logLevelInt) {
             return;
         }
 
-        // If text is empty but subcat has content, treat subcat as the main message
-        if (!text && subcat) {
-            text = subcat;
-            subcat = '';
+        const shouldCheckMainThread = mainThreadOnlyCall !== null ? mainThreadOnlyCall : this.mainThreadOnly;
+        if (shouldCheckMainThread && thrd !== '0') {
+            return;
+        }
+
+        // If text is empty but thrd has content, treat thrd as the main message
+        if (!text && thrd) {
+            text = thrd;
+            thrd = '0';
         }
 
         const timeStr = formatDate(new Date());
@@ -74,14 +86,14 @@ class PoolLogger {
         let logString = '';
         if (this.logColors) {
             logString = `${entryDesc}${colors.white}[${component}] ${colors.reset}`;
-            if (subcat) {
-                logString += `${colors.bold}${colors.grey}(${subcat}) ${colors.reset}`;
+            if (thrd) {
+                logString += `${colors.bold}${colors.grey}(Thread ${thrd}) ${colors.reset}`;
             }
             logString += severityToColor(severity, String(text));
         } else {
             logString = `${entryDesc}[${component}] `;
-            if (subcat) {
-                logString += `(${subcat}) `;
+            if (thrd) {
+                logString += `(Thread ${thrd}) `;
             }
             logString += String(text);
         }

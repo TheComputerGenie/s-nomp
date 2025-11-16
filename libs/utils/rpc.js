@@ -19,12 +19,12 @@ const encoding = require('./encoding');
  * @param {Object} logger - Logger instance with severity methods
  * @param {string} logSystem - Log system identifier
  * @param {string} logComponent - Log component (coin name)
- * @param {string} logSubCat - Log subcategory
+ * @param {string} logThread - Log subcategory
  * @param {number} height - Block height (unused here but kept for parity)
  * @param {string} blockHex - Hex representation of the block
  * @param {Function} callback - Called when submission succeeds
  */
-exports.submitBlock = function (daemon, options, logger, logSystem, logComponent, logSubCat, height, blockHex, callback) {
+exports.submitBlock = function (daemon, options, logger, logSystem, logComponent, logThread, height, blockHex, callback) {
     // Determine which RPC method to use for block submission
     let rpcCommand, rpcArgs;
 
@@ -58,16 +58,16 @@ exports.submitBlock = function (daemon, options, logger, logSystem, logComponent
             const result = results[i];
 
             if (result.error) {
-                logger.error(logSystem, logComponent, logSubCat, `rpc error with daemon instance ${result.instance.index} when submitting block with ${rpcCommand} ${JSON.stringify(result.error)}`);
+                logger.error(logSystem, logComponent, logThread, `rpc error with daemon instance ${result.instance.index} when submitting block with ${rpcCommand} ${JSON.stringify(result.error)}`);
                 return;
             } else if (result.response === 'rejected') {
-                logger.error(logSystem, logComponent, logSubCat, `Daemon instance ${result.instance.index} rejected a supposedly valid block`);
+                logger.error(logSystem, logComponent, logThread, `Daemon instance ${result.instance.index} rejected a supposedly valid block`);
                 return;
             }
         }
 
         // All daemon instances accepted the block
-        logger.debug(logSystem, logComponent, logSubCat, `Submitted Block using ${rpcCommand} successfully to daemon instance(s)`);
+        logger.debug(logSystem, logComponent, logThread, `Submitted Block using ${rpcCommand} successfully to daemon instance(s)`);
         callback();
     });
 };
@@ -85,10 +85,10 @@ exports.submitBlock = function (daemon, options, logger, logSystem, logComponent
  * @param {Object} logger - Logger instance
  * @param {string} logSystem
  * @param {string} logComponent
- * @param {string} logSubCat
+ * @param {string} logThread
  * @param {Function} callback - Callback with (error, rpcData, processedNewBlock)
  */
-exports.getBlockTemplate = function (daemon, options, jobManager, logger, logSystem, logComponent, logSubCat, callback) {
+exports.getBlockTemplate = function (daemon, options, jobManager, logger, logSystem, logComponent, logThread, callback) {
     // used to dedupe identical getblocktemplate responses coming from
     // multiple daemon instances when daemon.cmd is run with streamResults=true
     const processedGbtKeys = new Set();
@@ -111,7 +111,7 @@ exports.getBlockTemplate = function (daemon, options, jobManager, logger, logSys
                 // ignore
             }
             if (result.error) {
-                logger.error(logSystem, logComponent, logSubCat, `getblocktemplate call failed for daemon instance ${result.instance.index} with error ${JSON.stringify(result.error)}`);
+                logger.error(logSystem, logComponent, logThread, `getblocktemplate call failed for daemon instance ${result.instance.index} with error ${JSON.stringify(result.error)}`);
                 callback(result.error);
             } else {
                 result.response.miner = result.response.coinbasetxn.coinbasevalue / 100000000;
@@ -136,11 +136,11 @@ exports.getBlockTemplate = function (daemon, options, jobManager, logger, logSys
  * @param {Object} logger
  * @param {string} logSystem
  * @param {string} logComponent
- * @param {string} logSubCat
+ * @param {string} logThread
  * @param {string} blockHash
  * @param {Function} callback - (isAccepted, txHashOrError)
  */
-exports.checkBlockAccepted = function (daemon, logger, logSystem, logComponent, logSubCat, blockHash, callback) {
+exports.checkBlockAccepted = function (daemon, logger, logSystem, logComponent, logThread, blockHash, callback) {
     daemon.cmd('getblock', [blockHash], (results) => {
         const validResults = results.filter((result) => {
             return result.response && (result.response.hash === blockHash);

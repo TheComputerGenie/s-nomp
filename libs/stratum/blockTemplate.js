@@ -63,7 +63,7 @@ class BlockTemplate {
         const logSystem = ' Blocks';
         const logComponent = options.coin.name;
         const forkId = process.env.forkId || '0';
-        const logSubCat = `Thread ${parseInt(forkId) + 1}`;
+        const logThread = forkId;
 
         this.#submits = [];
         this.rpcData = rpcData;
@@ -122,9 +122,8 @@ class BlockTemplate {
         this.#merkleRootReversed = util.reverseBuffer(Buffer.from(this.#merkleRoot, 'hex')).toString('hex');
         this.difficulty = util.calculateDifficulty(this.rpcData.target);
 
-        if (forkId == '0') {
-            logger.trace(logSystem, logComponent, logSubCat, `block ${this.rpcData.height} diff is: ${this.difficulty}`);
-        }
+        logger.trace(logSystem, logComponent, logThread, `block ${this.rpcData.height} diff is: ${this.difficulty}`, true);
+
     }
 
     /**

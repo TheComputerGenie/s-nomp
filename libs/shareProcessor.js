@@ -50,10 +50,10 @@ class ShareProcessor {
         this.redisConfig = poolConfig.redis;
         this.coin = poolConfig.coin.name;
 
-        const forkId = process.env.forkId;
+        const forkId = process.env.forkId || '0';
         this.logSystem = 'Pool';
         this.logComponent = this.coin;
-        this.logSubCat = `Thread ${parseInt(forkId) + 1}`;
+        this.logThread = forkId;
 
         this.connection = CreateRedisClient(this.redisConfig);
 
@@ -62,20 +62,20 @@ class ShareProcessor {
         }
 
         this.connection.on('ready', () => {
-            this.logger.debug(this.logSystem, this.logComponent, this.logSubCat, `Share processing setup with redis (${this.connection.snompEndpoint})`);
+            this.logger.debug(this.logSystem, this.logComponent, this.logThread, `Share processing setup with redis (${this.connection.snompEndpoint})`, true);
         });
 
         this.connection.on('error', (err) => {
-            this.logger.error(this.logSystem, this.logComponent, this.logSubCat, `Redis client had an error: ${JSON.stringify(err)}`);
+            this.logger.error(this.logSystem, this.logComponent, this.logThread, `Redis client had an error: ${JSON.stringify(err)}`);
         });
 
         this.connection.on('end', () => {
-            this.logger.error(this.logSystem, this.logComponent, this.logSubCat, 'Connection to redis database has been ended');
+            this.logger.error(this.logSystem, this.logComponent, this.logThread, 'Connection to redis database has been ended');
         });
 
         this.connection.info((error, response) => {
             if (error) {
-                this.logger.error(this.logSystem, this.logComponent, this.logSubCat, 'Redis version check failed');
+                this.logger.error(this.logSystem, this.logComponent, this.logThread, 'Redis version check failed');
                 return;
             }
 
@@ -95,9 +95,9 @@ class ShareProcessor {
             }
 
             if (!version) {
-                this.logger.error(this.logSystem, this.logComponent, this.logSubCat, 'Could not detect redis version - but be super old or broken');
+                this.logger.error(this.logSystem, this.logComponent, this.logThread, 'Could not detect redis version - but be super old or broken');
             } else if (version < 2.6) {
-                this.logger.error(this.logSystem, this.logComponent, this.logSubCat, `You're using redis version ${versionString} the minimum required version is 2.6. Follow the damn usage instructions...`);
+                this.logger.error(this.logSystem, this.logComponent, this.logThread, `You're using redis version ${versionString} the minimum required version is 2.6. Follow the damn usage instructions...`);
             }
         });
     }
@@ -133,7 +133,7 @@ class ShareProcessor {
 
         this.connection.multi(redisCommands).exec((err, replies) => {
             if (err) {
-                this.logger.error(this.logSystem, this.logComponent, this.logSubCat, `Error with share processor multi ${JSON.stringify(err)}`);
+                this.logger.error(this.logSystem, this.logComponent, this.logThread, `Error with share processor multi ${JSON.stringify(err)}`);
             }
         });
     }

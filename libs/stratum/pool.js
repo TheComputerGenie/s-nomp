@@ -15,6 +15,7 @@ const events = require('events');
 const jobManager = require('./jobManager.js');
 const peer = require('./peer.js');
 const PoolLogger = require('../PoolLogger.js');
+const RelayChecker = require('./relayChecker.js');
 const stratum = require('./stratum.js');
 const util = require('../utils/util.js');
 const varDiff = require('./varDiff.js');
@@ -68,7 +69,7 @@ class Pool extends events.EventEmitter {
     #logger;
     #logSystem = ' Pool ';
     #logComponent;
-    #logSubCat;
+    #logThread;
     #forkId;
     #blockPollingIntervalId;
     #jobManagerLastSubmitBlockHex = false;
@@ -82,17 +83,18 @@ class Pool extends events.EventEmitter {
 
         this.#logger = new PoolLogger({
             logLevel: portalConfig.logLevel,
-            logColors: portalConfig.logColors
+            logColors: portalConfig.logColors,
+            mainThreadOnly: false
         });
 
         this.#logComponent = options.coin.name;
 
         this.#forkId = process.env.forkId || '0';
 
-        this.#logSubCat = `Thread ${parseInt(this.#forkId) + 1}`;
+        this.#logThread = this.#forkId;
 
         if (!algos.hasAlgorithm(options.coin.algorithm)) {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, `The ${options.coin.algorithm} hashing algorithm is not supported.`);
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, `The ${options.coin.algorithm} hashing algorithm is not supported.`);
             this.isValid = false;
         }
 
@@ -105,7 +107,7 @@ class Pool extends events.EventEmitter {
      */
     start() {
         if (!this.isValid) {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'Pool cannot start due to invalid configuration');
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'Pool cannot start due to invalid configuration');
             return;
         }
         this.#setupVarDiff();
@@ -129,9 +131,9 @@ class Pool extends events.EventEmitter {
     }
 
     #getFirstJob(finishedCallback) {
-        util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logSubCat, (error, result) => {
+        util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logThread, (error, result) => {
             if (error) {
-                this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'Error with getblocktemplate on creating first job, server cannot start');
+                this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'Error with getblocktemplate on creating first job, server cannot start');
                 return;
             }
 
@@ -147,9 +149,9 @@ class Pool extends events.EventEmitter {
                 }
             });
 
-            if (portWarnings.length > 0 && (!process.env.forkId || process.env.forkId === '0')) {
+            if (portWarnings.length > 0) {
                 const warnMessage = `Network diff of ${networkDiffAdjusted} is lower than ${portWarnings.join(' and ')}`;
-                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, warnMessage);
+                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, warnMessage);
             }
 
             finishedCallback();
@@ -159,11 +161,6 @@ class Pool extends events.EventEmitter {
     #outputPoolInfo() {
         const startMessage = `\r\n\t\t\t\t\t\tStratum Pool Server Started for ${this.options.coin.name
         } [${this.options.coin.symbol.toUpperCase()}] {${this.options.coin.algorithm}}`;
-
-        if (process.env.forkId && process.env.forkId !== '0') {
-            this.#logger.debug(this.#logSystem, this.#logComponent, this.#logSubCat, startMessage);
-            return;
-        }
 
         const infoLines = [startMessage,
             `Network Connected:\t${this.options.testnet ? 'Testnet' : 'Mainnet'}`,
@@ -181,7 +178,7 @@ class Pool extends events.EventEmitter {
             infoLines.push(`Block polling every:\t${this.options.blockRefreshInterval} ms`);
         }
 
-        this.#logger.info(this.#logSystem, this.#logComponent, this.#logSubCat, infoLines.join('\n\t\t\t\t\t\t'));
+        this.#logger.info(this.#logSystem, this.#logComponent, this.#logThread, infoLines.join('\n\t\t\t\t\t\t'), true);
     }
 
     #onBlockchainSynced(syncedCallback) {
@@ -200,16 +197,12 @@ class Pool extends events.EventEmitter {
 
                     setTimeout(checkSynced, 5000);
 
-                    if (!process.env.forkId || process.env.forkId === '0') {
-                        this.#generateProgress();
-                    }
+                    this.#generateProgress();
                 }
             });
         };
         checkSynced(() => {
-            if (!process.env.forkId || process.env.forkId === '0') {
-                this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'Daemon is still syncing with network (download blockchain) - server will be started once synced');
-            }
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'Daemon is still syncing with network (download blockchain) - server will be started once synced');
         });
     }
 
@@ -227,7 +220,7 @@ class Pool extends events.EventEmitter {
                 })[0].startingheight;
 
                 const percent = (blockCount / totalBlocks * 100).toFixed(2);
-                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `Downloaded ${percent}% of blockchain from ${peers.length} peers`);
+                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `Downloaded ${percent}% of blockchain from ${peers.length} peers`);
             });
         });
     }
@@ -245,56 +238,34 @@ class Pool extends events.EventEmitter {
         }
 
         if (this.options.testnet && !this.options.coin.peerMagicTestnet) {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'p2p cannot be enabled in testnet without peerMagicTestnet set in coin configuration');
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'p2p cannot be enabled in testnet without peerMagicTestnet set in coin configuration');
             return;
         } else if (!this.options.coin.peerMagic) {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'p2p cannot be enabled without peerMagic set in coin configuration');
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'p2p cannot be enabled without peerMagic set in coin configuration');
             return;
         }
 
         this.options.startHeight = this.jobManager.currentJob.rpcData.height;
         this.peer = new peer(this.options);
+        this.relayChecker = new RelayChecker(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logThread);
         this.peer.on('connected', () => {
-            this.#logger.debug(this.#logSystem, this.#logComponent, this.#logSubCat, 'p2p connection successful');
+            this.#logger.debug(this.#logSystem, this.#logComponent, this.#logThread, 'p2p connection successful');
         }).on('connectionRejected', () => {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'p2p connection failed - rejected by peer');
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'p2p connection failed - rejected by peer');
         }).on('disconnected', () => {
-            this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, 'p2p peer node disconnected - attempting reconnection...');
+            this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, 'p2p peer node disconnected - attempting reconnection...');
         }).on('connectionFailed', (e) => {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'p2p connection failed - likely incorrect host or port');
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'p2p connection failed - likely incorrect host or port');
         }).on('socketError', (e) => {
             if (e.code !== 'ECONNRESET') {
-                this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, `p2p had a socket error ${JSON.stringify(e)}`);
+                this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, `p2p had a socket error ${JSON.stringify(e)}`);
             }
         }).on('error', (msg) => {
-            this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `p2p had an error ${msg}`);
+            this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `p2p had an error ${msg}`);
         }).on('blockFound', (hash) => {
             this.processBlockNotify(hash, 'p2p');
         }).on('transactionReceived', (txHash) => {
-            this.#logger.trace(this.#logSystem, this.#logComponent, this.#logSubCat, `Transaction received via P2P: ${txHash} - checking for block template update`);
-
-            const currentRpcData = this.jobManager.currentJob.rpcData;
-            const currentTransactions = currentRpcData.transactions || [];
-            const txInTemplate = currentTransactions.some(tx => tx.txid === txHash || tx.hash === txHash);
-            this.#logger.trace(this.#logSystem, this.#logComponent, this.#logSubCat, `Transaction ${txHash} ${txInTemplate ? 'is' : 'is not'} in current template`);
-
-            util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logSubCat, (error, rpcData, processedBlock) => {
-                if (error || processedBlock) {
-                    return;
-                }
-
-                if (!rpcData) {
-                    return;
-                }
-
-                if (this.jobManager.isRpcDataProcessed && this.jobManager.isRpcDataProcessed(rpcData)) {
-                    this.#logger.trace(this.#logSystem, this.#logComponent, this.#logSubCat, 'Block template already processed, skipping update');
-                    return;
-                }
-
-                this.#logger.verbose(this.#logSystem, this.#logComponent, this.#logSubCat, 'Updating block template due to P2P transaction announcement');
-                this.jobManager.updateCurrentJob(rpcData);
-            });
+            this.relayChecker.checkTransaction(txHash);
         });
     }
 
@@ -327,7 +298,7 @@ class Pool extends events.EventEmitter {
         }
 
         if (recipients.length === 0) {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'No rewardRecipients have been setup which means no fees will be taken');
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'No rewardRecipients have been setup which means no fees will be taken', true);
         }
 
         this.options.recipients = recipients;
@@ -359,13 +330,13 @@ class Pool extends events.EventEmitter {
                 emitShare();
             } else {
                 if (this.#jobManagerLastSubmitBlockHex === blockHex) {
-                    this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `Warning, ignored duplicate submit block ${blockHex}`);
+                    this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `Warning, ignored duplicate submit block ${blockHex}`);
                 } else {
                     this.#jobManagerLastSubmitBlockHex = blockHex;
 
-                    util.submitBlock(this.daemon, this.options, this.#logger, this.#logSystem, this.#logComponent, this.#logSubCat, shareData.height, blockHex, () => {
+                    util.submitBlock(this.daemon, this.options, this.#logger, this.#logSystem, this.#logComponent, this.#logThread, shareData.height, blockHex, () => {
                         if (!shareData.blockOnlyPBaaS) {
-                            util.checkBlockAccepted(this.daemon, this.#logger, this.#logSystem, this.#logComponent, this.#logSubCat, shareData.blockHash, (isAccepted, tx) => {
+                            util.checkBlockAccepted(this.daemon, this.#logger, this.#logSystem, this.#logComponent, this.#logThread, shareData.blockHash, (isAccepted, tx) => {
                                 isValidBlock = isAccepted === true;
 
                                 if (isValidBlock === true) {
@@ -376,9 +347,9 @@ class Pool extends events.EventEmitter {
 
                                 emitShare();
 
-                                util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logSubCat, (error, result, foundNewBlock) => {
+                                util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logThread, (error, result, foundNewBlock) => {
                                     if (foundNewBlock) {
-                                        this.#logger.debug(this.#logSystem, this.#logComponent, this.#logSubCat, 'Block notification via RPC after block submission');
+                                        this.#logger.debug(this.#logSystem, this.#logComponent, this.#logThread, 'Block notification via RPC after block submission');
                                     }
                                 });
                             });
@@ -389,26 +360,26 @@ class Pool extends events.EventEmitter {
                 }
             }
         }).on('log', (severity, message) => {
-            this.#logger[severity](this.#logSystem, this.#logComponent, this.#logSubCat, message);
+            this.#logger[severity](this.#logSystem, this.#logComponent, this.#logThread, message);
         });
     }
 
     #setupDaemonInterface(finishedCallback) {
         if (!Array.isArray(this.options.daemons) || this.options.daemons.length < 1) {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'No daemons have been configured - pool cannot start');
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'No daemons have been configured - pool cannot start');
             return;
         }
 
         this.daemon = new daemon.interface(this.options.daemons, ((severity, message) => {
-            this.#logger[severity](this.#logSystem, this.#logComponent, this.#logSubCat, message);
+            this.#logger[severity](this.#logSystem, this.#logComponent, this.#logThread, message);
         }));
 
         this.daemon.once('online', () => {
             finishedCallback();
         }).on('connectionFailed', (error) => {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, `Failed to connect daemon(s): ${JSON.stringify(error)}`);
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, `Failed to connect daemon(s): ${JSON.stringify(error)}`);
         }).on('error', (message) => {
-            this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, message);
+            this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, message);
         });
 
         this.daemon.init();
@@ -425,7 +396,7 @@ class Pool extends events.EventEmitter {
 
         this.daemon.batchCmd(batchRpcCalls, (error, results) => {
             if (error || !results) {
-                this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, `Could not start pool, error with init batch RPC call: ${JSON.stringify(error)}`);
+                this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, `Could not start pool, error with init batch RPC call: ${JSON.stringify(error)}`);
                 return;
             }
 
@@ -438,13 +409,13 @@ class Pool extends events.EventEmitter {
                 rpcResults[rpcCall] = r.result || r.error;
 
                 if (rpcCall !== 'submitblock' && (r.error || !r.result)) {
-                    this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, `Could not start pool, error with init RPC ${rpcCall} - ${JSON.stringify(r.error)}`);
+                    this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, `Could not start pool, error with init RPC ${rpcCall} - ${JSON.stringify(r.error)}`);
                     return;
                 }
             }
 
             if (!rpcResults.validateaddress.isvalid) {
-                this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'Daemon reports address is not valid');
+                this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'Daemon reports address is not valid');
                 return;
             }
 
@@ -455,7 +426,7 @@ class Pool extends events.EventEmitter {
             }
 
             if (this.options.coin.reward === 'POS' && typeof (rpcResults.validateaddress.pubkey) === 'undefined') {
-                this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, 'The address provided is not from the daemon wallet - this is required for POS coins.');
+                this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, 'The address provided is not from the daemon wallet - this is required for POS coins.');
                 return;
             }
 
@@ -478,7 +449,7 @@ class Pool extends events.EventEmitter {
             } else if (rpcResults.submitblock.code === -1) {
                 this.options.hasSubmitMethod = true;
             } else {
-                this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, `Could not detect block submission RPC method, ${JSON.stringify(results)}`);
+                this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, `Could not detect block submission RPC method, ${JSON.stringify(results)}`);
                 return;
             }
 
@@ -497,9 +468,9 @@ class Pool extends events.EventEmitter {
 
             finishedCallback();
         }).on('broadcastTimeout', () => {
-            this.#logger.debug(this.#logSystem, this.#logComponent, this.#logSubCat, `No new blocks for ${this.options.jobRebroadcastTimeout} seconds - updating transactions & rebroadcasting work`);
+            this.#logger.debug(this.#logSystem, this.#logComponent, this.#logThread, `No new blocks for ${this.options.jobRebroadcastTimeout} seconds - updating transactions & rebroadcasting work`);
 
-            util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logSubCat, (error, rpcData, processedBlock) => {
+            util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logThread, (error, rpcData, processedBlock) => {
                 if (error || processedBlock) {
                     return;
                 }
@@ -553,26 +524,26 @@ class Pool extends events.EventEmitter {
 
                 resultCallback(result.error, result.result ? true : null);
             }).on('malformedMessage', (message) => {
-                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `Malformed message from ${client.getLabel()}: ${message}`);
+                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `Malformed message from ${client.getLabel()}: ${message}`);
             }).on('socketError', (err) => {
-                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `Socket error from ${client.getLabel()}: ${JSON.stringify(err)}`);
+                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `Socket error from ${client.getLabel()}: ${JSON.stringify(err)}`);
             }).on('socketTimeout', (reason) => {
-                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `Connected timed out for ${client.getLabel()}: ${reason}`);
+                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `Connected timed out for ${client.getLabel()}: ${reason}`);
             }).on('socketDisconnect', () => {
             }).on('kickedBannedIP', (remainingBanTime) => {
-                this.#logger.debug(this.#logSystem, this.#logComponent, this.#logSubCat, `Rejected incoming connection from ${client.remoteAddress} banned for ${remainingBanTime} more seconds`);
+                this.#logger.debug(this.#logSystem, this.#logComponent, this.#logThread, `Rejected incoming connection from ${client.remoteAddress} banned for ${remainingBanTime} more seconds`);
             }).on('forgaveBannedIP', () => {
-                this.#logger.debug(this.#logSystem, this.#logComponent, this.#logSubCat, `Forgave banned IP ${client.remoteAddress}`);
+                this.#logger.debug(this.#logSystem, this.#logComponent, this.#logThread, `Forgave banned IP ${client.remoteAddress}`);
             }).on('unknownStratumMethod', (fullMessage) => {
-                this.#logger.debug(this.#logSystem, this.#logComponent, this.#logSubCat, `Unknown stratum method from ${client.getLabel()}: ${fullMessage.method}`);
+                this.#logger.debug(this.#logSystem, this.#logComponent, this.#logThread, `Unknown stratum method from ${client.getLabel()}: ${fullMessage.method}`);
             }).on('socketFlooded', () => {
-                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `Detected socket flooding from ${client.getLabel()}`);
+                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `Detected socket flooding from ${client.getLabel()}`);
             }).on('tcpProxyError', (data) => {
-                this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat, `Client IP detection failed, tcpProxyProtocol is enabled yet did not receive proxy protocol message, instead got data: ${data}`);
+                this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread, `Client IP detection failed, tcpProxyProtocol is enabled yet did not receive proxy protocol message, instead got data: ${data}`);
             }).on('bootedBannedWorker', () => {
-                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `Booted worker ${client.getLabel()} who was connected from an IP address that was just banned`);
+                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `Booted worker ${client.getLabel()} who was connected from an IP address that was just banned`);
             }).on('triggerBan', (reason) => {
-                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `Banned triggered for ${client.getLabel()}: ${reason}`);
+                this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `Banned triggered for ${client.getLabel()}: ${reason}`);
                 this.emit('banIP', client.remoteAddress, client.workerName);
             });
         });
@@ -580,16 +551,16 @@ class Pool extends events.EventEmitter {
 
     #setupBlockPolling() {
         if (typeof this.options.blockRefreshInterval !== 'number' || this.options.blockRefreshInterval <= 0) {
-            this.#logger.debug(this.#logSystem, this.#logComponent, this.#logSubCat, 'Block template polling has been disabled');
+            this.#logger.debug(this.#logSystem, this.#logComponent, this.#logThread, 'Block template polling has been disabled');
             return;
         }
 
         const pollingInterval = this.options.blockRefreshInterval;
 
         this.#blockPollingIntervalId = setInterval(() => {
-            util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logSubCat, (error, rpcData, newJob) => {
+            util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logThread, (error, rpcData, newJob) => {
                 if (newJob) {
-                    this.#logger.debug(this.#logSystem, this.#logComponent, this.#logSubCat, 'Block update via RPC polling');
+                    this.#logger.debug(this.#logSystem, this.#logComponent, this.#logThread, 'Block update via RPC polling');
                 }
             });
         }, pollingInterval);
@@ -602,15 +573,15 @@ class Pool extends events.EventEmitter {
      * @returns {void}
      */
     processBlockNotify(blockHash, sourceTrigger) {
-        this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat,
-            `Block notification via ${sourceTrigger}:  now working on ${parseInt(this.jobManager.currentJob.rpcData.height) + 1}`);
+        this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread,
+            `Block notification via ${sourceTrigger}:  now working on ${parseInt(this.jobManager.currentJob.rpcData.height) + 1}`, true);
 
         if (typeof (this.jobManager) !== 'undefined' &&
             typeof (this.jobManager.currentJob) !== 'undefined' &&
             typeof (this.jobManager.currentJob.rpcData.previousblockhash) !== 'undefined') {
-            util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logSubCat, (error, result) => {
+            util.getBlockTemplate(this.daemon, this.options, this.jobManager, this.#logger, this.#logSystem, this.#logComponent, this.#logThread, (error, result) => {
                 if (error) {
-                    this.#logger.error(this.#logSystem, this.#logComponent, this.#logSubCat,
+                    this.#logger.error(this.#logSystem, this.#logComponent, this.#logThread,
                         `Block notify error getting block template for ${this.options.coin.name}`);
                 }
             });
@@ -692,7 +663,7 @@ class Pool extends events.EventEmitter {
         this.varDiff[port] = new varDiff(port, varDiffConfig);
 
         if (!this.varDiff[port].isValid) {
-            this.#logger.warn(this.#logSystem, this.#logComponent, this.#logSubCat, `VarDiff for port ${port} has invalid config, using defaults.`);
+            this.#logger.warn(this.#logSystem, this.#logComponent, this.#logThread, `VarDiff for port ${port} has invalid config, using defaults.`);
         }
 
         this.varDiff[port].on('newDifficulty', (client, newDiff) => {
