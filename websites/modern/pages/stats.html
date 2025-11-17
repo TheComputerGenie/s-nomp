@@ -125,34 +125,8 @@
       var blockscomb = JSON.parse('{{=JSON.stringify(blockscomb)}}');
       blockscomb.sort((a, b) => parseInt(b[4]) - parseInt(a[4]));
       blockscomb = blockscomb.slice(0, 10);
-      var data = [];
-      var groupedByFinder = {};
-      for (var i=0; i < blockscomb.length; i++) {
-          var finder=blockscomb[i][3];
-          if (!(finder in groupedByFinder)) groupedByFinder[finder] = [];
-          groupedByFinder[finder].push(blockscomb[i]);
-      }
-      Object.keys(groupedByFinder).forEach(function(i) {
-          data.push({ label: i, value: groupedByFinder[i].length });
-      });
-
-      nv.addGraph(function() {
-          var chart = nv.models.pieChart()
-              .x(function(d) { return d.label })
-              .y(function(d) { return d.value })
-              .showLabels(true)
-              .labelType("percent")
-              .donut(true)
-              .donutRatio(0.35);
-
-          d3.select("#blocksPie{{=pool}}")
-              .append('svg')
-              .datum(data)
-              .transition().duration(350)
-              .call(chart);
-
-          return chart;
-      });
+      window.initialBlocksComb = window.initialBlocksComb || {};
+      window.initialBlocksComb['{{=pool}}'] = blockscomb;
       document.getElementById("blocksHeader{{=pool}}").innerHTML = "Finders of the last " + blockscomb.length + " blocks";
     </script>
     {{ } }}

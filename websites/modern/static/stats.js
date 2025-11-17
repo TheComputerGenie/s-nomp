@@ -30,6 +30,7 @@ class PoolStatsPage {
         this.statData = [];
         this.poolKeys = [];
         this.poolMultipliers = {};
+        this.pieCharts = {};
         this.isInitialized = false;
         this.rebuildingCharts = false;
         this.sseBuffer = [];
@@ -67,6 +68,10 @@ class PoolStatsPage {
                 this.updatePoolStatsUI(this.statData[this.statData.length - 1]);
             }
             this.displayCharts();
+            // Initialize pie charts with initial data
+            Object.keys(window.initialBlocksComb || {}).forEach(pool => {
+                this.updatePieChart(pool, window.initialBlocksComb[pool]);
+            });
             this.isInitialized = true;
             if (this.sseBuffer.length) {
                 this.sseBuffer.forEach((evt) => this.processSse(evt));
@@ -529,11 +534,6 @@ class PoolStatsPage {
      * @returns {void}
      */
     updatePieChart(pool, blockscomb) {
-        const container = $(`#blocksPie${pool}`);
-        container.empty();
-        if (blockscomb.length === 0) {
-            return;
-        }
         const data = [];
         const groupedByFinder = {};
         for (let i = 0; i < blockscomb.length; i++) {
@@ -554,6 +554,7 @@ class PoolStatsPage {
                 .labelType('percent')
                 .donut(true)
                 .donutRatio(0.35);
+            d3.select(`#blocksPie${pool}`).selectAll('svg').remove();
             d3.select(`#blocksPie${pool}`)
                 .append('svg')
                 .datum(data)
