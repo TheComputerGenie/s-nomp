@@ -272,7 +272,7 @@ module.exports = function (logger) {
                         threshold: 5000000000000, level: 'fatal'
                     },
                     {
-                        threshold: 5000000000, level: 'error'
+                        threshold: 5000000000, level: 'critical'
                     },
                     {
                         threshold: 5000000, level: 'alert'
