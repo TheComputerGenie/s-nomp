@@ -150,6 +150,7 @@ class PaymentProcessor {
         }
         // ensure minimumPayment exists and is numeric
         const minPayment = parseFloat(this.processingConfig.minimumPayment || 0);
+        this.minPayment = minPayment;
         this.minPaymentSatoshis = Math.round(minPayment * this.magnitude);
         this.coinPrecision = Math.max(decimals, 0);
     }
@@ -509,7 +510,10 @@ class PaymentProcessor {
         });
 
         // Determine which addresses meet the minimum payment threshold
-        const payableAddresses = Object.keys(addressAmounts).filter(addr => addressAmounts[addr] >= this.minPaymentSatoshis);
+        const payableAddresses = Object.keys(addressAmounts).filter(addr => {
+            const coinAmount = util.satoshisToCoins(addressAmounts[addr], this.magnitude, this.coinPrecision);
+            return coinAmount >= this.minPayment;
+        });
 
         if (payableAddresses.length === 0) {
             // No payments to send this run. Only record earned rewards
